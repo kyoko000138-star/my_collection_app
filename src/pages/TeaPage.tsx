@@ -23,6 +23,26 @@ import {
   CloudSun,
 } from 'lucide-react';
 
+import { auth, db } from '../firebase';
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  onAuthStateChanged,
+  signOut,
+} from 'firebase/auth';
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+  onSnapshot,
+  query,
+  where,
+  orderBy,
+} from 'firebase/firestore';
+
 /* --------------------------------------------------------------------------
  * 1. 디자인 시스템 (Black & Gray Museum Theme)
  * -------------------------------------------------------------------------- */
@@ -37,8 +57,8 @@ const Colors = {
   activeBg: '#F5F5F5',
   danger: '#D32F2F',
   aroma: {
-    wood: '#8D6E63', // 나무·흙 공통 색
-    forest: '#8D6E63', // 혹시 다른 곳에서 forest를 쓸 경우 대비
+    wood: '#8D6E63',
+    forest: '#8D6E63',
     green: '#81C784',
     floral: '#F48FB1',
     fruit: '#FFB74D',
@@ -87,16 +107,15 @@ const Styles: { [k: string]: any } = {
     height: '60px',
   },
   formHeader: {
-  position: 'sticky',
-  top: 0,
-  zIndex: 10,
-  // 🔧 before: padding: '1px 20px 8px',
-  padding: '8px 20px 8px',
-  backgroundColor: Colors.bg,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'flex-start',
- },
+    position: 'sticky',
+    top: 0,
+    zIndex: 10,
+    padding: '8px 20px 8px',
+    backgroundColor: Colors.bg,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
   headerTitle: {
     fontFamily: Fonts.serif,
     fontSize: '18px',
@@ -156,44 +175,42 @@ const Styles: { [k: string]: any } = {
     fontFamily: Fonts.serif,
   },
   chipContainer: {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: '8px',
-  justifyContent: 'center',   // 🔧 가운데 정렬
-  width: '100%',              // 🔧 줄 전체 사용
-},
-
-chip: (active: boolean) => ({
-  padding: '6px 12px',
-  borderRadius: '20px',
-  border: `1px solid ${active ? Colors.teaGreen : Colors.border}`,
-  backgroundColor: active ? Colors.teaGreen : 'transparent',
-  color: active ? '#FFFFFF' : Colors.textSub,
-  fontSize: '12px',
-  fontWeight: active ? 500 : 400,
-  cursor: 'pointer',
-  transition: 'all 0.2s ease',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '6px',
-  minWidth: '64px',           // 🔧 살짝 넓혀서 꽉찬 느낌
-  textAlign: 'center',
-}),
-
-aromaChip: (active: boolean, color: string) => ({
-  padding: '6px 12px',
-  borderRadius: '20px',
-  border: `1px solid ${active ? color : Colors.border}`,
-  backgroundColor: active ? color : 'transparent',
-  color: active ? '#FFFFFF' : Colors.textSub,
-  fontSize: '12px',
-  fontWeight: active ? 600 : 400,
-  cursor: 'pointer',
-  transition: 'all 0.2s ease',
-  minWidth: '64px',           // 🔧 이것도 동일하게
-  textAlign: 'center',
-}),
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  chip: (active: boolean) => ({
+    padding: '6px 12px',
+    borderRadius: '20px',
+    border: `1px solid ${active ? Colors.teaGreen : Colors.border}`,
+    backgroundColor: active ? Colors.teaGreen : 'transparent',
+    color: active ? '#FFFFFF' : Colors.textSub,
+    fontSize: '12px',
+    fontWeight: active ? 500 : 400,
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    minWidth: '64px',
+    textAlign: 'center',
+  }),
+  aromaChip: (active: boolean, color: string) => ({
+    padding: '6px 12px',
+    borderRadius: '20px',
+    border: `1px solid ${active ? color : Colors.border}`,
+    backgroundColor: active ? color : 'transparent',
+    color: active ? '#FFFFFF' : Colors.textSub,
+    fontSize: '12px',
+    fontWeight: active ? 600 : 400,
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    minWidth: '64px',
+    textAlign: 'center',
+  }),
   card: {
     backgroundColor: Colors.cardBg,
     borderRadius: '8px',
@@ -295,6 +312,7 @@ aromaChip: (active: boolean, color: string) => ({
  * 2. 데이터 상수
  * -------------------------------------------------------------------------- */
 const todayString = () => new Date().toISOString().slice(0, 10);
+const TEA_COLLECTION = 'teaSessions';
 
 const TEA_MAIN_TYPES = [
   { id: 'green', label: '녹차' },
@@ -317,7 +335,7 @@ const TEA_SUB_TYPES: { [k: string]: string[] } = {
     '대홍포',
     '동방미인',
     '아리산오룡',
-    '귀비우롱',     // 🔧 여기 추가
+    '귀비우롱',
     '동정오룡',
     '문산포종',
     '기타',
@@ -327,7 +345,6 @@ const TEA_SUB_TYPES: { [k: string]: string[] } = {
   herbal: ['루이보스', '캐모마일', '페퍼민트', '기타'],
 };
 
-// 아로마 대분류
 const AROMA_MAIN_CATS = [
   {
     id: 'floral',
@@ -385,7 +402,6 @@ const AROMA_MAIN_CATS = [
   },
 ];
 
-// 아로마 소분류
 const AROMA_SUB_CATS: { [k: string]: string[] } = {
   floral: [
     '국화',
@@ -429,7 +445,6 @@ const AROMA_SUB_CATS: { [k: string]: string[] } = {
   mineral: ['바위', '금속', '분필', '소금기'],
 };
 
-// 맛 밸런스 (6축)
 const TASTE_AXES = [
   { key: 'sweetness', label: '단맛' },
   { key: 'bitterness', label: '쓴맛' },
@@ -784,7 +799,7 @@ const TeaList = ({
                   letterSpacing: '0.02em',
                 }}
               >
-                {entry.date.replace(/-/g, '.')}
+                {entry.date?.replace(/-/g, '.')}
               </span>
               <span
                 style={{
@@ -905,7 +920,7 @@ const TeaDetail = ({
                 marginBottom: '8px',
               }}
             >
-              {entry.date.replace(/-/g, '.')}
+              {entry.date?.replace(/-/g, '.')}
             </span>
             <h1
               style={{
@@ -989,9 +1004,15 @@ const TeaDetail = ({
                   <span style={{ fontWeight: 600, color: Colors.textMain }}>
                     {i + 1}포
                   </span>
-                  <span style={{ color: Colors.textMain }}>{brew.temp}°C</span>
-                  <span style={{ color: Colors.textMain }}>{brew.time}</span>
-                  <span style={{ color: Colors.textMain }}>{brew.water}ml</span>
+                  <span style={{ color: Colors.textMain }}>
+                    {brew.temp || '-'}°C
+                  </span>
+                  <span style={{ color: Colors.textMain }}>
+                    {brew.time || '-'}
+                  </span>
+                  <span style={{ color: Colors.textMain }}>
+                    {brew.water || '-'}ml
+                  </span>
                 </div>
               ))}
               {entry.brewing.length === 0 && (
@@ -1077,6 +1098,7 @@ const TeaForm = ({
     handleImageUpload,
     triggerFileInput,
     fileInputRef,
+    saving,
   } = handlers;
 
   const [activeAromaCat, setActiveAromaCat] = useState<string | null>(null);
@@ -1158,7 +1180,7 @@ const TeaForm = ({
               />
             </div>
 
-            {/* 산지 / 품종 (간격 줄인 버전) */}
+            {/* 산지 / 품종 */}
             <div
               style={{
                 display: 'grid',
@@ -1263,7 +1285,7 @@ const TeaForm = ({
                 key={i}
                 style={{
                   display: 'flex',
-                  gap: '6px',   
+                  gap: '6px',
                   alignItems: 'center',
                   marginBottom: '12px',
                   backgroundColor: '#FAFAFA',
@@ -1382,7 +1404,7 @@ const TeaForm = ({
             <div
               style={{
                 display: 'flex',
-                justifyContent: 'space-evenly',   // 🔧 폭을 고르게 사용
+                justifyContent: 'space-evenly',
                 gap: '20px',
                 marginBottom: '16px',
                 paddingBottom: '16px',
@@ -1584,6 +1606,7 @@ const TeaForm = ({
           <div style={{ padding: '20px 0' }}>
             <button
               onClick={handleSave}
+              disabled={saving}
               style={{
                 width: '100%',
                 height: '56px',
@@ -1593,11 +1616,12 @@ const TeaForm = ({
                 color: '#FFFFFF',
                 fontSize: '16px',
                 fontWeight: 500,
-                cursor: 'pointer',
+                cursor: saving ? 'default' : 'pointer',
                 fontFamily: Fonts.serif,
+                opacity: saving ? 0.7 : 1,
               }}
             >
-              저장하기
+              {saving ? '저장 중...' : '저장하기'}
             </button>
           </div>
         </form>
@@ -1607,14 +1631,20 @@ const TeaForm = ({
 };
 
 /* --------------------------------------------------------------------------
- * 5. 메인 페이지 컴포넌트
+ * 5. 메인 페이지 컴포넌트 (Firestore + Google 로그인)
  * -------------------------------------------------------------------------- */
 const TeaPage = () => {
+  const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [entries, setEntries] = useState<any[]>([]);
+  const [entriesLoading, setEntriesLoading] = useState(false);
+
   const [mode, setMode] = useState<'list' | 'detail' | 'form'>('list');
   const [selectedEntry, setSelectedEntry] = useState<any | null>(null);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState<any>({
     id: null,
@@ -1633,6 +1663,118 @@ const TeaPage = () => {
     note: '',
     images: [] as { url: string; file: File | null }[],
   });
+
+  /* ----------------------------- Auth 설정 ------------------------------ */
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (fbUser) => {
+      setUser(fbUser);
+      setAuthLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (e) {
+      console.error(e);
+      alert('로그인 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setMode('list');
+      setSelectedEntry(null);
+    } catch (e) {
+      console.error(e);
+      alert('로그아웃 중 오류가 발생했습니다.');
+    }
+  };
+
+  /* --------------------------- Firestore 구독 --------------------------- */
+
+  useEffect(() => {
+    if (!user) {
+      setEntries([]);
+      return;
+    }
+    setEntriesLoading(true);
+
+    const q = query(
+      collection(db, TEA_COLLECTION),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            date: data.date ?? todayString(),
+            teaName: data.teaName ?? '',
+            origin: data.origin ?? '',
+            variety: data.variety ?? '',
+            shop: data.shop ?? '',
+            price: data.price ?? '',
+            teaType: data.teaType ?? 'green',
+            subType: data.subType ?? '',
+            snack: data.snack ?? '',
+            brewing: Array.isArray(data.brewing) ? data.brewing : [],
+            aromaTags: Array.isArray(data.aromaTags) ? data.aromaTags : [],
+            taste: { ...initialTaste, ...(data.taste || {}) },
+            note: data.note ?? '',
+            images: Array.isArray(data.images) ? data.images : [],
+          };
+        });
+        setEntries(list);
+        setEntriesLoading(false);
+
+        if (selectedEntry) {
+          const updated = list.find((e) => e.id === selectedEntry.id);
+          if (updated) setSelectedEntry(updated);
+        }
+      },
+      (err) => {
+        console.error(err);
+        setEntriesLoading(false);
+      }
+    );
+
+    return () => unsub();
+  }, [user, selectedEntry]);
+
+  /* ------------------------------ 공통 UI ------------------------------- */
+
+  const LogoutButton = () =>
+    user ? (
+      <button
+        type="button"
+        onClick={handleLogout}
+        style={{
+          position: 'absolute',
+          top: 10,
+          right: 12,
+          border: 'none',
+          background: 'none',
+          fontSize: 11,
+          color: Colors.textSub,
+          cursor: 'pointer',
+          textDecoration: 'underline',
+          zIndex: 20,
+        }}
+      >
+        로그아웃
+      </button>
+    ) : null;
+
+  /* ------------------------------ 폼 열기 ------------------------------- */
 
   const handleOpenForm = (entry: any = null) => {
     if (entry) {
@@ -1664,39 +1806,74 @@ const TeaPage = () => {
     setMode('form');
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  /* --------------------------- 저장 / 삭제 ----------------------------- */
+
+  const handleSave = async (e: React.FormEvent | React.MouseEvent) => {
     e.preventDefault();
+    if (!user) {
+      alert('로그인 후 이용해주세요.');
+      return;
+    }
     if (!formData.teaName.trim()) return;
 
     const imageUrls = formData.images.map((img: any) => img.url);
 
-    const newEntry = {
-      ...formData,
-      id: formData.id || Date.now().toString(),
+    const payload = {
+      date: formData.date,
+      teaName: formData.teaName.trim(),
+      origin: formData.origin.trim(),
+      variety: formData.variety.trim(),
+      shop: formData.shop.trim(),
+      price: formData.price,
+      teaType: formData.teaType,
+      subType: formData.subType,
+      snack: formData.snack.trim(),
+      brewing: formData.brewing,
+      aromaTags: formData.aromaTags,
+      taste: formData.taste,
+      note: formData.note.trim(),
       images: imageUrls,
+      userId: user.uid,
+      updatedAt: serverTimestamp(),
     };
 
-    if (formData.id) {
-      setEntries((prev) =>
-        prev.map((item) => (item.id === formData.id ? newEntry : item))
-      );
-    } else {
-      setEntries((prev) => [newEntry, ...prev]);
+    setSaving(true);
+    try {
+      if (formData.id) {
+        const docRef = doc(db, TEA_COLLECTION, formData.id);
+        await updateDoc(docRef, payload);
+      } else {
+        await addDoc(collection(db, TEA_COLLECTION), {
+          ...payload,
+          createdAt: serverTimestamp(),
+        });
+      }
+      setMode('list');
+    } catch (err) {
+      console.error(err);
+      alert('저장 중 오류가 발생했습니다.');
+    } finally {
+      setSaving(false);
     }
-    setMode('list');
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('정말 삭제하시겠습니까?')) {
-      setEntries((prev) => prev.filter((item) => item.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('정말 삭제하시겠습니까?')) return;
+    try {
+      await deleteDoc(doc(db, TEA_COLLECTION, id));
       setMode('list');
+    } catch (err) {
+      console.error(err);
+      alert('삭제 중 오류가 발생했습니다.');
     }
   };
+
+  /* ------------------------ 이미지 업로드 핸들러 ------------------------ */
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newImages = Array.from(e.target.files).map((file) => ({
-        url: URL.createObjectURL(file),
+        url: URL.createObjectURL(file), // ⚠️ 새로고침 후엔 사라짐 (나중에 Storage로 교체)
         file,
       }));
       setFormData((prev: any) => ({
@@ -1710,6 +1887,8 @@ const TeaPage = () => {
     fileInputRef.current?.click();
   };
 
+  /* ------------------------------ 폼 Props ------------------------------ */
+
   const formState = { formData };
   const formHandlers = {
     setFormData,
@@ -1718,19 +1897,108 @@ const TeaPage = () => {
     handleImageUpload,
     triggerFileInput,
     fileInputRef,
+    saving,
   };
+
+  /* ------------------------------ 렌더링 ------------------------------- */
+
+  if (authLoading) {
+    return (
+      <div style={Styles.containerWrapper}>
+        <div style={Styles.pageContainer}>
+          <div
+            style={{
+              padding: '60px 24px',
+              textAlign: 'center',
+              fontFamily: Fonts.serif,
+              fontSize: 14,
+            }}
+          >
+            불러오는 중입니다…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div style={Styles.containerWrapper}>
+        <div style={Styles.pageContainer}>
+          <div
+            style={{
+              padding: '80px 24px',
+              textAlign: 'center',
+            }}
+          >
+            <h1
+              style={{
+                fontFamily: Fonts.serif,
+                fontSize: 20,
+                letterSpacing: '0.16em',
+                textTransform: 'uppercase',
+                marginBottom: 12,
+              }}
+            >
+              TEA SESSION LOG
+            </h1>
+            <p
+              style={{
+                fontSize: 13,
+                color: Colors.textSub,
+                lineHeight: 1.7,
+                marginBottom: 24,
+              }}
+            >
+              구글 계정으로 로그인하면
+              <br />
+              나만 보는 찻자리 기록장이 열립니다.
+            </p>
+            <button
+              type="button"
+              onClick={handleLogin}
+              style={{
+                padding: '10px 18px',
+                borderRadius: 999,
+                border: `1px solid ${Colors.accent}`,
+                background: '#FFFFFF',
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              Google 계정으로 로그인
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (mode === 'list') {
     return (
       <div style={Styles.containerWrapper}>
         <div style={Styles.pageContainer}>
-          <TeaList
-            entries={entries}
-            openDetail={(entry) => {
-              setSelectedEntry(entry);
-              setMode('detail');
-            }}
-          />
+          <LogoutButton />
+          {entriesLoading ? (
+            <div
+              style={{
+                padding: '40px 20px',
+                textAlign: 'center',
+                fontSize: 13,
+                color: Colors.textSub,
+              }}
+            >
+              찻자리 기록을 불러오는 중입니다…
+            </div>
+          ) : (
+            <TeaList
+              entries={entries}
+              openDetail={(entry) => {
+                setSelectedEntry(entry);
+                setMode('detail');
+              }}
+            />
+          )}
           <button style={Styles.fab} onClick={() => handleOpenForm(null)}>
             <Plus size={24} />
           </button>
