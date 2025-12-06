@@ -11,12 +11,7 @@ import {
 } from 'lucide-react';
 
 import { auth, db } from '../firebase';
-import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  onAuthStateChanged,
-  signOut,
-} from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import {
   collection,
   addDoc,
@@ -423,14 +418,14 @@ const CollectionsPage: React.FC = () => {
     }
     setItemsLoading(true);
 
-    const q = query(
+    const qRef = query(
       collection(db, COLLECTION_NAME),
       where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
     );
 
     const unsub = onSnapshot(
-      q,
+      qRef,
       (snapshot) => {
         const list: CollectionItem[] = snapshot.docs.map((d) => {
           const data = d.data() as any;
@@ -468,32 +463,11 @@ const CollectionsPage: React.FC = () => {
       (err) => {
         console.error(err);
         setItemsLoading(false);
-      }
+      },
     );
 
     return () => unsub();
   }, [user, selectedItem]);
-
-  const handleLogin = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (e) {
-      console.error(e);
-      alert('로그인 중 오류가 발생했습니다.');
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      setMode('list');
-      setSelectedItem(null);
-    } catch (e) {
-      console.error(e);
-      alert('로그아웃 중 오류가 발생했습니다.');
-    }
-  };
 
   /* ---------------------- 공통: 폼 열기/초기값 채우기 --------------------- */
 
@@ -549,7 +523,7 @@ const CollectionsPage: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      alert('로그인 후 이용해주세요.');
+      alert('홈 화면에서 먼저 로그인해 주세요.');
       return;
     }
     if (!formData.name.trim()) return;
@@ -623,7 +597,7 @@ const CollectionsPage: React.FC = () => {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const newImages: FormImage[] = Array.from(e.target.files).map((file) => ({
-      url: URL.createObjectURL(file), // ⚠️ 실제 배포 시에는 Storage URL로 변경 필요
+      url: URL.createObjectURL(file), // 실제 배포 시에는 Storage URL로 변경 필요
       file,
     }));
     setFormData((prev) => ({
@@ -644,29 +618,6 @@ const CollectionsPage: React.FC = () => {
         .some((f) => f!.toLowerCase().includes(term));
     return catOk && searchOk;
   });
-
-  /* ------------------------------- 공통 로그아웃 버튼 --------------------- */
-
-  const LogoutButton = () =>
-    user ? (
-      <button
-        type="button"
-        onClick={handleLogout}
-        style={{
-          position: 'absolute',
-          top: 10,
-          right: 12,
-          border: 'none',
-          background: 'none',
-          fontSize: 11,
-          color: Colors.textSub,
-          cursor: 'pointer',
-          textDecoration: 'underline',
-        }}
-      >
-        로그아웃
-      </button>
-    ) : null;
 
   /* ====================================================================== */
   /*  Auth 상태에 따른 분기                                                 */
@@ -692,6 +643,7 @@ const CollectionsPage: React.FC = () => {
   }
 
   if (!user) {
+    // 홈에서 로그인 안 했는데 직접 URL로 들어온 경우
     return (
       <div style={Styles.wrapper}>
         <div style={Styles.container}>
@@ -717,27 +669,12 @@ const CollectionsPage: React.FC = () => {
                 fontSize: 13,
                 color: Colors.textSub,
                 lineHeight: 1.7,
-                marginBottom: 24,
               }}
             >
-              구글 계정으로 로그인하면
+              소장품 기록장은
               <br />
-              나만 볼 수 있는 소장품 도록이 열립니다.
+              홈 화면에서 로그인 후 이용할 수 있습니다.
             </p>
-            <button
-              type="button"
-              onClick={handleLogin}
-              style={{
-                padding: '10px 18px',
-                borderRadius: 999,
-                border: `1px solid ${Colors.accent}`,
-                background: '#FFFFFF',
-                fontSize: 13,
-                cursor: 'pointer',
-              }}
-            >
-              Google 계정으로 로그인
-            </button>
           </div>
         </div>
       </div>
@@ -752,7 +689,6 @@ const CollectionsPage: React.FC = () => {
     return (
       <div style={Styles.wrapper}>
         <div style={Styles.container}>
-          <LogoutButton />
           <main style={{ padding: '1px 18px' }}>
             {/* 검색창 */}
             <div style={{ marginBottom: 16 }}>
@@ -1017,7 +953,6 @@ const CollectionsPage: React.FC = () => {
     return (
       <div style={Styles.wrapper}>
         <div style={Styles.container}>
-          <LogoutButton />
           <header style={Styles.header}>
             <button
               onClick={() => setMode('list')}
@@ -1201,7 +1136,6 @@ const CollectionsPage: React.FC = () => {
     return (
       <div style={Styles.wrapper}>
         <div style={{ ...Styles.container, position: 'relative' }}>
-          <LogoutButton />
           {/* 상단 X 버튼 */}
           <button
             type="button"
@@ -1326,7 +1260,7 @@ const CollectionsPage: React.FC = () => {
                         key={cur.id}
                         type="button"
                         style={Styles.chipSoft(
-                          formData.priceCurrency === cur.id
+                          formData.priceCurrency === cur.id,
                         )}
                         onClick={() =>
                           setFormData((prev) => ({
