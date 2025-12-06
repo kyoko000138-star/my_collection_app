@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── 여기 아래부터는 네가 쓰고 싶은 기본 스타일 넣기 ── */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: #f7f3ec;
+}
+
+/* 있어도 되고 없어도 됨, 있으면 더 안정적 */
+#root {
+  min-height: 100vh;
+}
