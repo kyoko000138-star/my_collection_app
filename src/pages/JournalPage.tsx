@@ -573,18 +573,7 @@ const MEMO_STORAGE_KEY = 'journal_monthly_memos';
 async function loadAllEntries(): Promise<Record<string, JournalEntryData>> {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return {};
-
-  try {
-    const parsed = JSON.parse(raw);
-    // 혹시 배열이나 이상한 값이면 그냥 초기화
-    if (!parsed || typeof parsed !== 'object') return {};
-    return parsed as Record<string, JournalEntryData>;
-  } catch (e) {
-    console.error('Failed to parse journal storage, reset.', e);
-    // 깨진 데이터는 한 번 지워주고 새로 시작
-    localStorage.removeItem(STORAGE_KEY);
-    return {};
-  }
+  return JSON.parse(raw);
 }
 
 async function loadJournalEntry(
