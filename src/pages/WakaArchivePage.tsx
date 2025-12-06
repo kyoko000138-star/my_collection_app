@@ -548,7 +548,7 @@ const WakaPostcard: React.FC<{
         <div
           style={{
             ...bgBase,
-            backgroundImage: `url(${bgImageSrc})`,
+           backgroundImage: `url("${bgImageSrc}")`,
             opacity: revealed ? 0.25 : 1,
             filter: revealed ? 'grayscale(10%) blur(2px)' : 'none',
             transform: revealed ? 'scale(1.05)' : 'scale(1)',
