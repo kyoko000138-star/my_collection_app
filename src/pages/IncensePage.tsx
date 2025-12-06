@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Plus,
   Sun,
@@ -18,9 +18,24 @@ import {
   Coffee,
 } from 'lucide-react';
 
-/* --------------------------------------------------------------------------
- * 1. 디자인 시스템 & 스타일 (Black & Gray Modern Museum Theme)
- * -------------------------------------------------------------------------- */
+import { auth, db } from '../firebase';
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  serverTimestamp,
+  query,
+  orderBy,
+} from 'firebase/firestore';
+import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+
+/* -------------------------------------------------------------------------- */
+/* 1. 디자인 시스템 & 스타일 */
+/* -------------------------------------------------------------------------- */
+
 const Colors = {
   bg: '#FDFDFD',
   cardBg: '#FFFFFF',
@@ -40,17 +55,17 @@ const Fonts = {
   sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
 };
 
-const Styles = {
+// TS 귀찮으니까 any로 통일
+const Styles: { [k: string]: any } = {
   containerWrapper: {
     display: 'flex',
     justifyContent: 'center',
     backgroundColor: '#F0F0F0',
     minHeight: '100vh',
-  } as React.CSSProperties,
+  },
   pageContainer: {
     width: '100%',
-  // maxWidth: '480px',   // 기존
-    maxWidth: '580px',      // ← 넓게 (원하면 540 / 600 등으로 조절 가능)
+    maxWidth: '480px',
     minHeight: '100vh',
     backgroundColor: Colors.bg,
     fontFamily: Fonts.sans,
@@ -58,7 +73,7 @@ const Styles = {
     paddingBottom: '80px',
     boxShadow: '0 0 20px rgba(0,0,0,0.05)',
     position: 'relative',
-  } as React.CSSProperties,
+  },
   header: {
     position: 'sticky',
     top: 0,
@@ -71,18 +86,18 @@ const Styles = {
     alignItems: 'center',
     justifyContent: 'space-between',
     height: '60px',
-  } as React.CSSProperties,
+  },
   headerTitle: {
     fontFamily: Fonts.serif,
     fontSize: '18px',
     fontWeight: 700,
     color: Colors.textMain,
-  } as React.CSSProperties,
+  },
   section: {
     padding: '24px 20px',
     borderBottom: `1px solid ${Colors.border}`,
     backgroundColor: Colors.bg,
-  } as React.CSSProperties,
+  },
   sectionTitle: {
     fontFamily: Fonts.serif,
     fontSize: '15px',
@@ -93,8 +108,8 @@ const Styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-  } as React.CSSProperties,
-  inputGroup: { marginBottom: '24px' } as React.CSSProperties,
+  },
+  inputGroup: { marginBottom: '24px' },
   label: {
     fontSize: '12px',
     fontWeight: 600,
@@ -102,7 +117,7 @@ const Styles = {
     marginBottom: '8px',
     display: 'block',
     letterSpacing: '0.02em',
-  } as React.CSSProperties,
+  },
   input: {
     width: '100%',
     padding: '10px 0',
@@ -115,7 +130,7 @@ const Styles = {
     outline: 'none',
     fontFamily: Fonts.sans,
     transition: 'border-color 0.2s',
-  } as React.CSSProperties,
+  },
   select: {
     padding: '10px 20px 10px 0',
     border: 'none',
@@ -129,7 +144,7 @@ const Styles = {
     cursor: 'pointer',
     appearance: 'none',
     backgroundImage: 'none',
-  } as React.CSSProperties,
+  },
   textArea: {
     width: '100%',
     padding: '16px',
@@ -143,32 +158,34 @@ const Styles = {
     resize: 'none',
     lineHeight: 1.6,
     fontFamily: Fonts.serif,
-  } as React.CSSProperties,
+  },
   chipContainer: {
     display: 'flex',
     flexWrap: 'wrap',
-    gap: '8px',
-  } as React.CSSProperties,
-  chip: (active: boolean): React.CSSProperties => ({
-    padding: '6px 1px',           // 가로 패딩 넉넉하게
-    minHeight: 20,
-    minWidth: 55,                  // 1글자여도 가로가 더 길어서 원이 안 됨
-    borderRadius: 20,              // 알약 모양
-    border: `2px solid ${active ? Colors.textMain : Colors.border}`,
+    gap: '6px',
+  },
+  chipRowTight: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '6px',
+    justifyContent: 'flex-start',
+  },
+  chip: (active: boolean) => ({
+    padding: '8px 14px',
+    borderRadius: '20px',
+    border: `1px solid ${active ? Colors.textMain : Colors.border}`,
     backgroundColor: active ? Colors.textMain : 'transparent',
     color: active ? '#FFFFFF' : Colors.textSub,
-    fontSize: '12px',
+    fontSize: '13px',
     fontWeight: active ? 500 : 400,
     cursor: 'pointer',
     transition: 'all 0.2s ease',
     display: 'inline-flex',
     alignItems: 'center',
-    justifyContent: 'center',      // 아이콘+텍스트 가로 중앙
-    textAlign: 'center',           // 텍스트 중앙 정렬
-    gap: '3px',
-    boxSizing: 'border-box',
+    justifyContent: 'center',
+    gap: '6px',
+    whiteSpace: 'nowrap',
   }),
-
   card: {
     backgroundColor: Colors.cardBg,
     borderRadius: '8px',
@@ -178,7 +195,7 @@ const Styles = {
     cursor: 'pointer',
     transition: 'transform 0.2s',
     border: `1px solid ${Colors.border}`,
-  } as React.CSSProperties,
+  },
   fab: {
     position: 'absolute',
     right: '20px',
@@ -195,13 +212,13 @@ const Styles = {
     cursor: 'pointer',
     zIndex: 50,
     border: 'none',
-  } as React.CSSProperties,
+  },
   sliderContainer: {
     position: 'relative',
     height: '24px',
     display: 'flex',
     alignItems: 'center',
-  } as React.CSSProperties,
+  },
   sliderInput: {
     position: 'absolute',
     width: '100%',
@@ -210,22 +227,22 @@ const Styles = {
     cursor: 'pointer',
     zIndex: 2,
     margin: 0,
-  } as React.CSSProperties,
+  },
   sliderTrack: {
     width: '100%',
     height: '2px',
     backgroundColor: '#E0E0E0',
     borderRadius: '2px',
     position: 'absolute',
-  } as React.CSSProperties,
-  sliderFill: (pct: number, color: string): React.CSSProperties => ({
+  },
+  sliderFill: (pct: number, color: string) => ({
     position: 'absolute',
     height: '2px',
     width: `${pct}%`,
     backgroundColor: color,
     borderRadius: '2px',
   }),
-  sliderThumb: (pct: number, color: string): React.CSSProperties => ({
+  sliderThumb: (pct: number, color: string) => ({
     position: 'absolute',
     left: `${pct}%`,
     width: '12px',
@@ -250,13 +267,14 @@ const Styles = {
     fontSize: '13px',
     gap: '8px',
     marginBottom: '12px',
-  } as React.CSSProperties,
+  },
 };
 
-/* --------------------------------------------------------------------------
- * 2. 데이터 상수
- * -------------------------------------------------------------------------- */
 const todayString = () => new Date().toISOString().slice(0, 10);
+
+/* -------------------------------------------------------------------------- */
+/* 2. 데이터 상수 */
+/* -------------------------------------------------------------------------- */
 
 const initialAroma = {
   spicy: 1,
@@ -297,7 +315,6 @@ const HEATING_OPTIONS = [
   { id: 'electric', label: '전기향로' },
 ];
 
-/** 육국: 기본 정의 */
 const RIKKOKU_OPTIONS = [
   { id: 'gara', label: '가라' },
   { id: 'rakoku', label: '라국' },
@@ -307,6 +324,9 @@ const RIKKOKU_OPTIONS = [
   { id: 'sonbundara', label: '촌문다라' },
   { id: 'jinko', label: '침향' },
 ];
+
+const RIKKOKU_ROW1_IDS = ['gara', 'rakoku', 'sasora', 'manaka'];
+const RIKKOKU_ROW2_IDS = ['manaban', 'sonbundara', 'jinko'];
 
 const GOMI_OPTIONS = [
   { id: 'san', label: '산 (酸)' },
@@ -346,9 +366,9 @@ const warmCoolColor = (pos: number) => {
   return Colors.textSub;
 };
 
-/* --------------------------------------------------------------------------
- * 3. 유틸리티 컴포넌트
- * -------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* 3. 유틸 컴포넌트 */
+/* -------------------------------------------------------------------------- */
 
 const SVGRadarChart = ({ values }: { values: any }) => {
   const size = 240;
@@ -366,7 +386,7 @@ const SVGRadarChart = ({ values }: { values: any }) => {
   };
 
   const dataPoints = AROMA_LABELS.map((label, i) =>
-    getPoint(i, values[label.key] || 0)
+    getPoint(i, values[label.key] || 0),
   );
   const polygonPoints = dataPoints.map((p) => `${p.x},${p.y}`).join(' ');
 
@@ -559,17 +579,61 @@ const FullImageOverlay = ({
   );
 };
 
-/* --------------------------------------------------------------------------
- * 4. 메인 페이지 컴포넌트
- * -------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* 4. 메인 페이지 (Firestore 연동) */
+/* -------------------------------------------------------------------------- */
+
+type AromaState = typeof initialAroma;
+
+interface IncenseEntry {
+  id: string;
+  date: string;
+  incenseName: string;
+  purchasePlace: string;
+  purchasePrice: number | null;
+  purchaseCurrency: string;
+  heatingMethod: 'charcoal' | 'electric';
+  weather: string;
+  mood?: string;
+  rikkoku?: string;
+  gomi: string[];
+  aroma: AromaState;
+  warmCool: number;
+  note: string;
+  imageUrls: string[];
+}
+
+interface FormImage {
+  url: string;
+  file: File | null;
+}
+
+interface FormData {
+  id: string | null; // Firestore doc id
+  date: string;
+  incenseName: string;
+  purchasePlace: string;
+  purchasePrice: string;
+  purchaseCurrency: string;
+  heatingMethod: 'charcoal' | 'electric';
+  weather: string;
+  mood?: string;
+  rikkoku?: string;
+  gomi: string[];
+  aroma: AromaState;
+  warmCool: number;
+  note: string;
+  images: FormImage[];
+}
+
 const IncensePage = () => {
-  const [entries, setEntries] = useState<any[]>([]);
+  const [entries, setEntries] = useState<IncenseEntry[]>([]);
   const [mode, setMode] = useState<'list' | 'detail' | 'form'>('list');
-  const [selectedEntry, setSelectedEntry] = useState<any>(null);
+  const [selectedEntry, setSelectedEntry] = useState<IncenseEntry | null>(null);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [formData, setFormData] = useState<any>({
+  const [formData, setFormData] = useState<FormData>({
     id: null,
     date: todayString(),
     incenseName: '',
@@ -580,80 +644,193 @@ const IncensePage = () => {
     weather: 'sunny',
     mood: undefined,
     rikkoku: undefined,
-    gomi: [] as string[],
+    gomi: [],
     aroma: { ...initialAroma },
     warmCool: 3,
     note: '',
-    images: [] as { url: string; file: File | null }[],
+    images: [],
   });
 
-  const handleOpenForm = (entry: any = null) => {
+  /* --------------------------- Firestore 구독 --------------------------- */
+
+  useEffect(() => {
+    // 익명 로그인
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        signInAnonymously(auth).catch((err) => {
+          console.error('Anonymous sign-in failed', err);
+        });
+      }
+    });
+
+    const colRef = collection(db, 'incenseEntries');
+    const q = query(colRef, orderBy('date', 'desc'), orderBy('createdAt', 'desc'));
+
+    const unsubSnap = onSnapshot(
+      q,
+      (snapshot) => {
+        const list: IncenseEntry[] = snapshot.docs.map((d) => {
+          const data: any = d.data();
+          return {
+            id: d.id,
+            date: data.date || todayString(),
+            incenseName: data.incenseName || '',
+            purchasePlace: data.purchasePlace || '',
+            purchasePrice:
+              typeof data.purchasePrice === 'number'
+                ? data.purchasePrice
+                : data.purchasePrice
+                ? Number(data.purchasePrice)
+                : null,
+            purchaseCurrency: data.purchaseCurrency || 'KRW',
+            heatingMethod: (data.heatingMethod as any) || 'charcoal',
+            weather: data.weather || 'sunny',
+            mood: data.mood,
+            rikkoku: data.rikkoku,
+            gomi: Array.isArray(data.gomi) ? data.gomi : [],
+            aroma: { ...initialAroma, ...(data.aroma || {}) },
+            warmCool:
+              typeof data.warmCool === 'number' ? data.warmCool : 3,
+            note: data.note || '',
+            imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [],
+          };
+        });
+        setEntries(list);
+      },
+      (err) => {
+        console.error('incenseEntries onSnapshot error', err);
+      },
+    );
+
+    return () => {
+      unsubAuth();
+      unsubSnap();
+    };
+  }, []);
+
+  /* --------------------------- 폼 열기/리셋 --------------------------- */
+
+  const resetForm = () => {
+    setFormData({
+      id: null,
+      date: todayString(),
+      incenseName: '',
+      purchasePlace: '',
+      purchasePrice: '',
+      purchaseCurrency: 'KRW',
+      heatingMethod: 'charcoal',
+      weather: 'sunny',
+      mood: undefined,
+      rikkoku: undefined,
+      gomi: [],
+      aroma: { ...initialAroma },
+      warmCool: 3,
+      note: '',
+      images: [],
+    });
+  };
+
+  const handleOpenForm = (entry: IncenseEntry | null = null) => {
     if (entry) {
       setFormData({
-        ...entry,
-        purchasePrice: entry.purchasePrice ? String(entry.purchasePrice) : '',
-        images: (entry.imageUrls || []).map((url: string) => ({
+        id: entry.id,
+        date: entry.date,
+        incenseName: entry.incenseName,
+        purchasePlace: entry.purchasePlace,
+        purchasePrice: entry.purchasePrice
+          ? String(entry.purchasePrice)
+          : '',
+        purchaseCurrency: entry.purchaseCurrency || 'KRW',
+        heatingMethod: entry.heatingMethod,
+        weather: entry.weather,
+        mood: entry.mood,
+        rikkoku: entry.rikkoku,
+        gomi: entry.gomi || [],
+        aroma: { ...initialAroma, ...(entry.aroma || {}) },
+        warmCool: entry.warmCool ?? 3,
+        note: entry.note || '',
+        images: (entry.imageUrls || []).map((url) => ({
           url,
           file: null,
         })),
       });
     } else {
-      setFormData({
-        id: null,
-        date: todayString(),
-        incenseName: '',
-        purchasePlace: '',
-        purchasePrice: '',
-        purchaseCurrency: 'KRW',
-        heatingMethod: 'charcoal',
-        weather: 'sunny',
-        mood: undefined,
-        rikkoku: undefined,
-        gomi: [],
-        aroma: { ...initialAroma },
-        warmCool: 3,
-        note: '',
-        images: [],
-      });
+      resetForm();
     }
     setMode('form');
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  /* --------------------------- 저장 / 삭제 --------------------------- */
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.incenseName.trim()) return;
-    const newEntry = {
-      ...formData,
-      id: formData.id || Date.now().toString(),
+
+    const imageUrls = formData.images.map((img) => img.url);
+
+    const payload: any = {
+      date: formData.date,
+      incenseName: formData.incenseName.trim(),
+      purchasePlace: formData.purchasePlace.trim(),
       purchasePrice: formData.purchasePrice
         ? Number(formData.purchasePrice)
         : null,
-      imageUrls: formData.images.map((img: any) => img.url),
+      purchaseCurrency: formData.purchaseCurrency,
+      heatingMethod: formData.heatingMethod,
+      weather: formData.weather,
+      mood: formData.mood || null,
+      rikkoku: formData.rikkoku || null,
+      gomi: formData.gomi,
+      aroma: formData.aroma,
+      warmCool: formData.warmCool,
+      note: formData.note,
+      imageUrls,
+      updatedAt: serverTimestamp(),
     };
-    if (formData.id) {
-      setEntries((prev) =>
-        prev.map((item) => (item.id === formData.id ? newEntry : item))
-      );
-    } else {
-      setEntries((prev) => [newEntry, ...prev]);
+
+    try {
+      if (formData.id) {
+        const docRef = doc(db, 'incenseEntries', formData.id);
+        await updateDoc(docRef, payload);
+      } else {
+        const colRef = collection(db, 'incenseEntries');
+        await addDoc(colRef, {
+          ...payload,
+          createdAt: serverTimestamp(),
+        });
+      }
+      setMode('list');
+      resetForm();
+    } catch (err) {
+      console.error('Saving incense entry failed', err);
+      alert('저장 중 오류가 발생했어요. 콘솔 로그를 확인해줘!');
     }
-    setMode('list');
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('정말 삭제하시겠습니까?')) {
-      setEntries((prev) => prev.filter((item) => item.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!confirm('정말 삭제하시겠습니까?')) return;
+    try {
+      const docRef = doc(db, 'incenseEntries', id);
+      await deleteDoc(docRef);
       setMode('list');
+      setSelectedEntry(null);
+    } catch (err) {
+      console.error('Delete incense entry failed', err);
+      alert('삭제 중 오류가 발생했어요.');
     }
   };
+
+  /* --------------------------- 이미지 업로드 --------------------------- */
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const newImages = Array.from(e.target.files).map((file) => ({
-        url: URL.createObjectURL(file),
-        file,
-      }));
-      setFormData((prev: any) => ({
+      const newImages: FormImage[] = Array.from(e.target.files).map(
+        (file) => ({
+          url: URL.createObjectURL(file),
+          file,
+        }),
+      );
+      setFormData((prev) => ({
         ...prev,
         images: [...prev.images, ...newImages],
       }));
@@ -665,14 +842,14 @@ const IncensePage = () => {
   };
 
   /* ------------------------------- 리스트 뷰 ------------------------------ */
+
   if (mode === 'list') {
     return (
       <div style={Styles.containerWrapper}>
         <div style={Styles.pageContainer}>
-          {/* 상단 제목 영역 (빈 영역, 상위 PRIVATE ARCHIVE 헤더랑 간격용) */}
+          {/* 상단 여백 (PRIVATE ARCHIVE 헤더와 간격) */}
           <div style={{ padding: '1px 20px 8px' }}></div>
 
-          {/* 리스트 영역 */}
           <div style={{ padding: '0 20px 20px' }}>
             {entries.length === 0 ? (
               <div
@@ -695,12 +872,13 @@ const IncensePage = () => {
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {entries.map((entry) => {
                   const rikkokuLabel = RIKKOKU_OPTIONS.find(
-                    (r) => r.id === entry.rikkoku
+                    (r) => r.id === entry.rikkoku,
                   )?.label;
 
                   const gomiLabels = (entry.gomi || [])
                     .map(
-                      (g: string) => GOMI_OPTIONS.find((o) => o.id === g)?.label
+                      (g) =>
+                        GOMI_OPTIONS.find((o) => o.id === g)?.label,
                     )
                     .filter(Boolean)
                     .join(' · ');
@@ -767,13 +945,13 @@ const IncensePage = () => {
                         {entry.incenseName}
                       </h3>
 
-                      {/* 3줄 – (왼) 육국 / (오른쪽) 날씨·마음 아이콘 */}
+                      {/* 3줄 – 육국 / 날씨·마음 */}
                       <div
                         style={{
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                          marginBottom: gomiLabels || notePreview ? 10 : 0,
+                          marginBottom: gomiLabels || notePreview ? 4 : 0,
                         }}
                       >
                         <div
@@ -796,7 +974,7 @@ const IncensePage = () => {
                             <span style={{ fontSize: '12px' }}>
                               {
                                 WEATHER_OPTIONS.find(
-                                  (w) => w.id === entry.weather
+                                  (w) => w.id === entry.weather,
                                 )?.icon
                               }
                             </span>
@@ -804,28 +982,29 @@ const IncensePage = () => {
                           {entry.mood && (
                             <span style={{ fontSize: '12px' }}>
                               {
-                                MOOD_OPTIONS.find((m) => m.id === entry.mood)
-                                  ?.icon
+                                MOOD_OPTIONS.find(
+                                  (m) => m.id === entry.mood,
+                                )?.icon
                               }
                             </span>
                           )}
                         </div>
                       </div>
 
-                      {/* 4줄 – 오미 표기 */}
+                      {/* 4줄 – 오미 */}
                       {gomiLabels && (
                         <div
                           style={{
                             fontSize: '12px',
                             color: Colors.textSub,
-                            marginBottom: notePreview ? 8 : 0,
+                            marginBottom: notePreview ? 4 : 0,
                           }}
                         >
                           {gomiLabels}
                         </div>
                       )}
 
-                      {/* 5줄 – 감상 메모 일부 프리뷰 */}
+                      {/* 5줄 – 메모 프리뷰 */}
                       {notePreview && (
                         <p
                           style={{
@@ -844,7 +1023,6 @@ const IncensePage = () => {
             )}
           </div>
 
-          {/* + 플로팅 버튼 */}
           <button style={Styles.fab} onClick={() => handleOpenForm(null)}>
             <Plus size={24} />
           </button>
@@ -854,18 +1032,21 @@ const IncensePage = () => {
   }
 
   /* ------------------------------- 상세 뷰 ------------------------------ */
+
   if (mode === 'detail' && selectedEntry) {
-    const weather = WEATHER_OPTIONS.find((w) => w.id === selectedEntry.weather);
+    const weather = WEATHER_OPTIONS.find(
+      (w) => w.id === selectedEntry.weather,
+    );
     const mood = MOOD_OPTIONS.find((m) => m.id === selectedEntry.mood);
     const rikkokuLabel = RIKKOKU_OPTIONS.find(
-      (r) => r.id === selectedEntry.rikkoku
+      (r) => r.id === selectedEntry.rikkoku,
     )?.label;
     const gomiLabels = selectedEntry.gomi
-      ?.map((g: any) => GOMI_OPTIONS.find((o) => o.id === g)?.label)
+      ?.map((g) => GOMI_OPTIONS.find((o) => o.id === g)?.label)
       .join(', ');
     const currencySymbol =
       CURRENCY_OPTIONS.find(
-        (c) => c.id === (selectedEntry.purchaseCurrency || 'KRW')
+        (c) => c.id === (selectedEntry.purchaseCurrency || 'KRW'),
       )?.symbol || '₩';
 
     return (
@@ -977,7 +1158,8 @@ const IncensePage = () => {
                   </span>
                 </div>
               </div>
-              {(selectedEntry.purchasePlace || selectedEntry.purchasePrice) && (
+              {(selectedEntry.purchasePlace ||
+                selectedEntry.purchasePrice) && (
                 <div style={{ gridColumn: '1 / -1' }}>
                   <span style={Styles.label}>구입 정보</span>
                   <div
@@ -990,7 +1172,7 @@ const IncensePage = () => {
                     {selectedEntry.purchasePlace}{' '}
                     {selectedEntry.purchasePrice
                       ? `(${currencySymbol}${Number(
-                          selectedEntry.purchasePrice
+                          selectedEntry.purchasePrice,
                         ).toLocaleString()})`
                       : ''}
                   </div>
@@ -1082,14 +1264,15 @@ const IncensePage = () => {
   }
 
   /* ------------------------------- 입력 폼 ------------------------------ */
+
   if (mode === 'form') {
     return (
       <div style={Styles.containerWrapper}>
         <div style={Styles.pageContainer}>
-          {/* 상단 X 버튼만 (본문 안쪽 헤더) */}
+          {/* 상단 X 버튼 */}
           <div
             style={{
-              padding: '1px 20px 8px',
+              padding: '4px 20px 8px',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
@@ -1097,7 +1280,10 @@ const IncensePage = () => {
           >
             <button
               type="button"
-              onClick={() => setMode('list')}
+              onClick={() => {
+                setMode('list');
+                resetForm();
+              }}
               style={{
                 background: 'none',
                 border: 'none',
@@ -1135,7 +1321,10 @@ const IncensePage = () => {
                   placeholder="예: 침향 조각"
                   value={formData.incenseName}
                   onChange={(e) =>
-                    setFormData({ ...formData, incenseName: e.target.value })
+                    setFormData({
+                      ...formData,
+                      incenseName: e.target.value,
+                    })
                   }
                 />
               </div>
@@ -1218,16 +1407,17 @@ const IncensePage = () => {
               >
                 문향 환경
               </h3>
+
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>문향 방식</span>
-                <div style={Styles.chipContainer}>
+                <div style={Styles.chipRowTight}>
                   {HEATING_OPTIONS.map((opt) => (
                     <button
                       key={opt.id}
                       type="button"
                       style={Styles.chip(formData.heatingMethod === opt.id)}
                       onClick={() =>
-                        setFormData({ ...formData, heatingMethod: opt.id })
+                        setFormData({ ...formData, heatingMethod: opt.id as any })
                       }
                     >
                       {opt.label}
@@ -1235,24 +1425,15 @@ const IncensePage = () => {
                   ))}
                 </div>
               </div>
+
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>오늘의 날씨</span>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-                    gap: '8px',
-                    width: '100%',
-                  }}
-                >
+                <div style={Styles.chipRowTight}>
                   {WEATHER_OPTIONS.map((opt) => (
                     <button
                       key={opt.id}
                       type="button"
-                      style={{
-                        ...Styles.chip(formData.weather === opt.id),
-                        width: '100%',
-                      }}
+                      style={Styles.chip(formData.weather === opt.id)}
                       onClick={() =>
                         setFormData({ ...formData, weather: opt.id })
                       }
@@ -1262,24 +1443,15 @@ const IncensePage = () => {
                   ))}
                 </div>
               </div>
+
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>오늘의 마음</span>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                    gap: '8px',
-                    width: '100%',
-                  }}
-                >
+                <div style={Styles.chipRowTight}>
                   {MOOD_OPTIONS.map((opt) => (
                     <button
                       key={opt.id}
                       type="button"
-                      style={{
-                        ...Styles.chip(formData.mood === opt.id),
-                        width: '100%',
-                      }}
+                      style={Styles.chip(formData.mood === opt.id)}
                       onClick={() =>
                         setFormData({ ...formData, mood: opt.id })
                       }
@@ -1298,58 +1470,68 @@ const IncensePage = () => {
               {/* 육국 */}
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>육국</span>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-                    gap: '8px',
-                    width: '100%',
-                  }}
-                >
-                  {RIKKOKU_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      style={{
-                        ...Styles.chip(formData.rikkoku === opt.id),
-                        width: '100%',
-                      }}
-                      onClick={() =>
-                        setFormData({
-                          ...formData,
-                          rikkoku:
-                            formData.rikkoku === opt.id ? undefined : opt.id,
-                        })
-                      }
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                <div>
+                  <div style={Styles.chipRowTight}>
+                    {RIKKOKU_ROW1_IDS.map((id) => {
+                      const opt = RIKKOKU_OPTIONS.find((o) => o.id === id)!;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          style={Styles.chip(formData.rikkoku === opt.id)}
+                          onClick={() =>
+                            setFormData({
+                              ...formData,
+                              rikkoku:
+                                formData.rikkoku === opt.id
+                                  ? undefined
+                                  : opt.id,
+                            })
+                          }
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ ...Styles.chipRowTight, marginTop: 6 }}>
+                    {RIKKOKU_ROW2_IDS.map((id) => {
+                      const opt = RIKKOKU_OPTIONS.find((o) => o.id === id)!;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          style={Styles.chip(formData.rikkoku === opt.id)}
+                          onClick={() =>
+                            setFormData({
+                              ...formData,
+                              rikkoku:
+                                formData.rikkoku === opt.id
+                                  ? undefined
+                                  : opt.id,
+                            })
+                          }
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
               {/* 오미 */}
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>오미</span>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-                    gap: '8px',
-                    width: '100%',
-                  }}
-                >
+                <div style={Styles.chipRowTight}>
                   {GOMI_OPTIONS.map((opt) => (
                     <button
                       key={opt.id}
                       type="button"
-                      style={{
-                        ...Styles.chip(formData.gomi.includes(opt.id)),
-                        width: '100%',
-                      }}
+                      style={Styles.chip(formData.gomi.includes(opt.id))}
                       onClick={() => {
                         const newGomi = formData.gomi.includes(opt.id)
-                          ? formData.gomi.filter((id: string) => id !== opt.id)
+                          ? formData.gomi.filter((id) => id !== opt.id)
                           : [...formData.gomi, opt.id];
                         setFormData({ ...formData, gomi: newGomi });
                       }}
@@ -1360,6 +1542,7 @@ const IncensePage = () => {
                 </div>
               </div>
 
+              {/* 레이더 + 슬라이더 */}
               <div style={{ margin: '32px 0' }}>
                 <SVGRadarChart values={formData.aroma} />
               </div>
@@ -1380,7 +1563,9 @@ const IncensePage = () => {
                         marginBottom: '2px',
                       }}
                     >
-                      <span style={{ fontSize: '12px', color: Colors.textSub }}>
+                      <span
+                        style={{ fontSize: '12px', color: Colors.textSub }}
+                      >
                         {axis.label}
                       </span>
                       <span
@@ -1397,7 +1582,7 @@ const IncensePage = () => {
                       max={5}
                       value={formData.aroma[axis.key]}
                       onChange={(val) =>
-                        setFormData((prev: any) => ({
+                        setFormData((prev) => ({
                           ...prev,
                           aroma: { ...prev.aroma, [axis.key]: val },
                         }))
@@ -1467,7 +1652,7 @@ const IncensePage = () => {
                   {formData.images.length > 0 && (
                     <div style={{ flex: 1, overflowX: 'auto' }}>
                       <ImageStrip
-                        images={formData.images.map((i: any) => i.url)}
+                        images={formData.images.map((i) => i.url)}
                         onImageClick={() => {}}
                       />
                     </div>
