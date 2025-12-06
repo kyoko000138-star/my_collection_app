@@ -433,7 +433,7 @@ const SVGRadarChart = ({ values }: { values: any }) => {
               textAnchor={anchor}
               dominantBaseline="middle"
               fill={Colors.textSub}
-              fontSize="10"
+              fontSize={10}
               fontWeight={values[label.key] > 0 ? 'bold' : 'normal'}
             >
               {label.label}
@@ -809,7 +809,7 @@ const IncensePage = () => {
                         </div>
                       </div>
 
-                      {/* 4줄 – 오미 표기 (파란 자리 느낌) */}
+                      {/* 4줄 – 오미 표기 */}
                       {gomiLabels && (
                         <div
                           style={{
@@ -1232,14 +1232,29 @@ const IncensePage = () => {
                   ))}
                 </div>
               </div>
+
+              {/* 오늘의 날씨 - 한 줄 꽉 차게 */}
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>오늘의 날씨</span>
-                <div style={Styles.chipContainer}>
+                <div
+                  style={{
+                    ...Styles.chipContainer,
+                    flexWrap: 'nowrap',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                  }}
+                >
                   {WEATHER_OPTIONS.map((opt) => (
                     <button
                       key={opt.id}
                       type="button"
-                      style={Styles.chip(formData.weather === opt.id)}
+                      style={{
+                        ...Styles.chip(formData.weather === opt.id),
+                        flex: 1,
+                        justifyContent: 'center',
+                        minWidth: 0,
+                        whiteSpace: 'nowrap',
+                      }}
                       onClick={() =>
                         setFormData({ ...formData, weather: opt.id })
                       }
@@ -1249,15 +1264,32 @@ const IncensePage = () => {
                   ))}
                 </div>
               </div>
+
+              {/* 오늘의 마음 - 한 줄 꽉 차게 */}
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>오늘의 마음</span>
-                <div style={Styles.chipContainer}>
+                <div
+                  style={{
+                    ...Styles.chipContainer,
+                    flexWrap: 'nowrap',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                  }}
+                >
                   {MOOD_OPTIONS.map((opt) => (
                     <button
                       key={opt.id}
                       type="button"
-                      style={Styles.chip(formData.mood === opt.id)}
-                      onClick={() => setFormData({ ...formData, mood: opt.id })}
+                      style={{
+                        ...Styles.chip(formData.mood === opt.id),
+                        flex: 1,
+                        justifyContent: 'center',
+                        minWidth: 0,
+                        whiteSpace: 'nowrap',
+                      }}
+                      onClick={() =>
+                        setFormData({ ...formData, mood: opt.id })
+                      }
                     >
                       {opt.icon} {opt.label}
                     </button>
