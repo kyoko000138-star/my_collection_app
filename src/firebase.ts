@@ -7,7 +7,7 @@ import { getFirestore } from 'firebase/firestore';
 const firebaseConfig = {
   apiKey: 'AIzaSyB_U8Zh16n250tTc7i8X8kKUpSVP5P337Y',
   authDomain: 'my-project-0076-b774a.firebaseapp.com',
-  projectId: 'YOUR_PROJECT_ID',
+  projectId: 'my-project-0076-b774a',
   // 필요한 key 더 있으면 그대로 붙여넣기
 };
 
