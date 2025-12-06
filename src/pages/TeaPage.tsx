@@ -6,9 +6,6 @@ import {
   Camera,
   X,
   ArrowLeft,
-  Coffee,
-  Thermometer,
-  Timer,
   Leaf,
   Flower,
   Flame,
@@ -24,12 +21,7 @@ import {
 } from 'lucide-react';
 
 import { auth, db } from '../firebase';
-import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  onAuthStateChanged,
-  signOut,
-} from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import {
   collection,
   addDoc,
@@ -44,7 +36,7 @@ import {
 } from 'firebase/firestore';
 
 /* --------------------------------------------------------------------------
- * 1. 디자인 시스템 (Black & Gray Museum Theme)
+ * 1. 디자인 시스템
  * -------------------------------------------------------------------------- */
 const Colors = {
   bg: '#FDFDFD',
@@ -309,7 +301,7 @@ const Styles: { [k: string]: any } = {
 };
 
 /* --------------------------------------------------------------------------
- * 2. 데이터 상수
+ * 2. 상수 / 타입
  * -------------------------------------------------------------------------- */
 const todayString = () => new Date().toISOString().slice(0, 10);
 const TEA_COLLECTION = 'teaSessions';
@@ -549,7 +541,7 @@ const TeaRadarChart = ({ values }: { values: any }) => {
               x={labelX}
               y={labelY}
               textAnchor={anchor}
-              dominantBaseline="middle"
+              dominantBaseline="middle'
               fill={Colors.textSub}
               fontSize="11"
               fontWeight={values[label.key] > 0 ? 'bold' : 'normal'}
@@ -1631,7 +1623,7 @@ const TeaForm = ({
 };
 
 /* --------------------------------------------------------------------------
- * 5. 메인 페이지 컴포넌트 (Firestore + Google 로그인)
+ * 5. 메인 페이지 (로그인은 Home/App에서, 여기선 Firestore만)
  * -------------------------------------------------------------------------- */
 const TeaPage = () => {
   const [user, setUser] = useState<any>(null);
@@ -1664,8 +1656,7 @@ const TeaPage = () => {
     images: [] as { url: string; file: File | null }[],
   });
 
-  /* ----------------------------- Auth 설정 ------------------------------ */
-
+  /* ----------------------------- Auth 상태만 감지 ------------------------ */
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (fbUser) => {
       setUser(fbUser);
@@ -1674,29 +1665,7 @@ const TeaPage = () => {
     return () => unsub();
   }, []);
 
-  const handleLogin = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (e) {
-      console.error(e);
-      alert('로그인 중 오류가 발생했습니다.');
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      setMode('list');
-      setSelectedEntry(null);
-    } catch (e) {
-      console.error(e);
-      alert('로그아웃 중 오류가 발생했습니다.');
-    }
-  };
-
   /* --------------------------- Firestore 구독 --------------------------- */
-
   useEffect(() => {
     if (!user) {
       setEntries([]);
@@ -1750,32 +1719,7 @@ const TeaPage = () => {
     return () => unsub();
   }, [user, selectedEntry]);
 
-  /* ------------------------------ 공통 UI ------------------------------- */
-
-  const LogoutButton = () =>
-    user ? (
-      <button
-        type="button"
-        onClick={handleLogout}
-        style={{
-          position: 'absolute',
-          top: 10,
-          right: 12,
-          border: 'none',
-          background: 'none',
-          fontSize: 11,
-          color: Colors.textSub,
-          cursor: 'pointer',
-          textDecoration: 'underline',
-          zIndex: 20,
-        }}
-      >
-        로그아웃
-      </button>
-    ) : null;
-
-  /* ------------------------------ 폼 열기 ------------------------------- */
-
+  /* --------------------------- 폼 열기 로직 ----------------------------- */
   const handleOpenForm = (entry: any = null) => {
     if (entry) {
       setFormData({
@@ -1807,11 +1751,10 @@ const TeaPage = () => {
   };
 
   /* --------------------------- 저장 / 삭제 ----------------------------- */
-
   const handleSave = async (e: React.FormEvent | React.MouseEvent) => {
     e.preventDefault();
     if (!user) {
-      alert('로그인 후 이용해주세요.');
+      alert('홈 화면에서 먼저 로그인해 주세요.');
       return;
     }
     if (!formData.teaName.trim()) return;
@@ -1869,11 +1812,10 @@ const TeaPage = () => {
   };
 
   /* ------------------------ 이미지 업로드 핸들러 ------------------------ */
-
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newImages = Array.from(e.target.files).map((file) => ({
-        url: URL.createObjectURL(file), // ⚠️ 새로고침 후엔 사라짐 (나중에 Storage로 교체)
+        url: URL.createObjectURL(file), // ⚠️ 새로고침 시 사라짐 (나중에 Storage 붙이면 교체)
         file,
       }));
       setFormData((prev: any) => ({
@@ -1887,8 +1829,6 @@ const TeaPage = () => {
     fileInputRef.current?.click();
   };
 
-  /* ------------------------------ 폼 Props ------------------------------ */
-
   const formState = { formData };
   const formHandlers = {
     setFormData,
@@ -1901,7 +1841,6 @@ const TeaPage = () => {
   };
 
   /* ------------------------------ 렌더링 ------------------------------- */
-
   if (authLoading) {
     return (
       <div style={Styles.containerWrapper}>
@@ -1922,6 +1861,7 @@ const TeaPage = () => {
   }
 
   if (!user) {
+    // 홈에서 로그인 안 했는데 URL로 바로 들어온 경우 대비
     return (
       <div style={Styles.containerWrapper}>
         <div style={Styles.pageContainer}>
@@ -1929,45 +1869,14 @@ const TeaPage = () => {
             style={{
               padding: '80px 24px',
               textAlign: 'center',
+              fontFamily: Fonts.serif,
+              fontSize: 14,
+              color: Colors.textSub,
             }}
           >
-            <h1
-              style={{
-                fontFamily: Fonts.serif,
-                fontSize: 20,
-                letterSpacing: '0.16em',
-                textTransform: 'uppercase',
-                marginBottom: 12,
-              }}
-            >
-              TEA SESSION LOG
-            </h1>
-            <p
-              style={{
-                fontSize: 13,
-                color: Colors.textSub,
-                lineHeight: 1.7,
-                marginBottom: 24,
-              }}
-            >
-              구글 계정으로 로그인하면
-              <br />
-              나만 보는 찻자리 기록장이 열립니다.
-            </p>
-            <button
-              type="button"
-              onClick={handleLogin}
-              style={{
-                padding: '10px 18px',
-                borderRadius: 999,
-                border: `1px solid ${Colors.accent}`,
-                background: '#FFFFFF',
-                fontSize: 13,
-                cursor: 'pointer',
-              }}
-            >
-              Google 계정으로 로그인
-            </button>
+            찻자리 기록장은
+            <br />
+            홈 화면에서 로그인 후 이용할 수 있습니다.
           </div>
         </div>
       </div>
@@ -1978,7 +1887,6 @@ const TeaPage = () => {
     return (
       <div style={Styles.containerWrapper}>
         <div style={Styles.pageContainer}>
-          <LogoutButton />
           {entriesLoading ? (
             <div
               style={{
