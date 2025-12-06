@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 
 import { auth, db, appId } from '../firebase';
-import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import {
   collection,
   addDoc,
@@ -409,6 +409,8 @@ const StarRating: React.FC<{
 // ----------------- 메인 컴포넌트 -----------------
 const App: React.FC = () => {
   const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [view, setView] = useState<
     'travel_list' | 'travel_detail' | 'travel_create_form'
   >('travel_list');
@@ -447,15 +449,10 @@ const App: React.FC = () => {
 
   // ---- Auth & Firestore 구독 ----
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        await signInAnonymously(auth);
-      } catch (error) {
-        console.error('Auth init failed:', error);
-      }
-    };
-    initAuth();
-    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setAuthLoading(false);
+    });
     return () => unsub();
   }, []);
 
@@ -614,7 +611,7 @@ const App: React.FC = () => {
 
     // 2) 유저 체크
     if (!user) {
-      alert('로그인이 아직 준비되지 않았어요. 잠시 후 다시 시도해 주세요.');
+      alert('홈 화면에서 먼저 로그인해 주세요.');
       return;
     }
 
@@ -975,7 +972,7 @@ const App: React.FC = () => {
   // ----------- 각 View 렌더링 ------------
   const renderTravelList = () => (
     <div className="p-4 space-y-4 animate-fade-in">
-      {/* 탭 바만 남기고, 상단 Travel Archive 텍스트는 제거 (상위 헤더와 중복 방지) */}
+      {/* 탭 바 */}
       <div className="flex bg-white rounded-xl shadow-sm p-1 border border-stone-100 mb-4 sticky top-0 z-10">
         <button
           onClick={() => setMainListTab('trips')}
@@ -1736,6 +1733,37 @@ const App: React.FC = () => {
     </div>
   );
 
+  // -------- Auth 상태에 따른 분기 --------
+  if (authLoading) {
+    return (
+      <div className="w-full min-h-screen bg-[#F7F6F2] text-[#2C2C2C] font-sans flex flex-col">
+        <style>{fontStyle}</style>
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-sm text-stone-500 font-serif">
+            불러오는 중입니다…
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (!user) {
+    // 홈에서 로그인 안 했는데 직접 URL로 들어온 경우
+    return (
+      <div className="w-full min-h-screen bg-[#F7F6F2] text-[#2C2C2C] font-sans flex flex-col">
+        <style>{fontStyle}</style>
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center text-sm text-stone-500 font-serif leading-relaxed px-6">
+            여행 기록장은
+            <br />
+            홈 화면에서 로그인 후 이용할 수 있습니다.
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // -------- 메인 UI --------
   return (
     <div className="w-full min-h-screen bg-[#F7F6F2] text-[#2C2C2C] font-sans flex flex-col">
       <style>{fontStyle}</style>
