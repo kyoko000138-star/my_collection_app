@@ -149,7 +149,7 @@ const Styles = {
     gap: '8px',
   } as React.CSSProperties,
   chip: (active: boolean): React.CSSProperties => ({
-    padding: '8px 14px',
+    padding: '7px 12px',
     borderRadius: '20px',
     border: `1px solid ${active ? Colors.textMain : Colors.border}`,
     backgroundColor: active ? Colors.textMain : 'transparent',
@@ -160,16 +160,11 @@ const Styles = {
     transition: 'all 0.2s ease',
     display: 'inline-flex',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: '6px',
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
   }),
-  // ⬇⬇ 추가: 아이콘을 화면에 꽉 채우되, 가능하면 한 줄에 들어가게 해주는 그리드
-  iconGridRow: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(72px, 1fr))',
-    gap: '8px',
-    width: '100%',
-    justifyItems: 'center',
-  } as React.CSSProperties,
 
   card: {
     backgroundColor: Colors.cardBg,
@@ -299,6 +294,7 @@ const HEATING_OPTIONS = [
   { id: 'electric', label: '전기향로' },
 ];
 
+/** 육국: 기본 정의 */
 const RIKKOKU_OPTIONS = [
   { id: 'gara', label: '가라' },
   { id: 'rakoku', label: '라국' },
@@ -440,7 +436,7 @@ const SVGRadarChart = ({ values }: { values: any }) => {
               textAnchor={anchor}
               dominantBaseline="middle"
               fill={Colors.textSub}
-              fontSize={10}
+              fontSize="10"
               fontWeight={values[label.key] > 0 ? 'bold' : 'normal'}
             >
               {label.label}
@@ -673,8 +669,10 @@ const IncensePage = () => {
     return (
       <div style={Styles.containerWrapper}>
         <div style={Styles.pageContainer}>
+          {/* 상단 제목 영역 (빈 영역, 상위 PRIVATE ARCHIVE 헤더랑 간격용) */}
           <div style={{ padding: '1px 20px 8px' }}></div>
 
+          {/* 리스트 영역 */}
           <div style={{ padding: '0 20px 20px' }}>
             {entries.length === 0 ? (
               <div
@@ -721,6 +719,7 @@ const IncensePage = () => {
                         setMode('detail');
                       }}
                     >
+                      {/* 1줄 – 날짜 / 문향 방식 */}
                       <div
                         style={{
                           display: 'flex',
@@ -754,6 +753,7 @@ const IncensePage = () => {
                         </span>
                       </div>
 
+                      {/* 2줄 – 향 이름 */}
                       <h3
                         style={{
                           fontFamily: Fonts.serif,
@@ -767,6 +767,7 @@ const IncensePage = () => {
                         {entry.incenseName}
                       </h3>
 
+                      {/* 3줄 – (왼) 육국 / (오른쪽) 날씨·마음 아이콘 */}
                       <div
                         style={{
                           display: 'flex',
@@ -811,6 +812,7 @@ const IncensePage = () => {
                         </div>
                       </div>
 
+                      {/* 4줄 – 오미 표기 */}
                       {gomiLabels && (
                         <div
                           style={{
@@ -823,6 +825,7 @@ const IncensePage = () => {
                         </div>
                       )}
 
+                      {/* 5줄 – 감상 메모 일부 프리뷰 */}
                       {notePreview && (
                         <p
                           style={{
@@ -841,6 +844,7 @@ const IncensePage = () => {
             )}
           </div>
 
+          {/* + 플로팅 버튼 */}
           <button style={Styles.fab} onClick={() => handleOpenForm(null)}>
             <Plus size={24} />
           </button>
@@ -1082,6 +1086,7 @@ const IncensePage = () => {
     return (
       <div style={Styles.containerWrapper}>
         <div style={Styles.pageContainer}>
+          {/* 상단 X 버튼 (본문 안쪽 헤더) */}
           <div
             style={{
               padding: '1px 20px 8px',
@@ -1108,7 +1113,9 @@ const IncensePage = () => {
             </button>
           </div>
 
-          <form style={{ padding: '0 20px 24px' }}>
+          {/* 폼 전체 패딩: 좌우 0 으로 바꿔서 더 왼쪽으로 붙게 */}
+          <form style={{ padding: '0 0 24px' }}>
+            {/* 기본 정보 */}
             <div style={{ ...Styles.section, paddingBottom: 1 }}>
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>문향 날짜</span>
@@ -1195,6 +1202,7 @@ const IncensePage = () => {
               </div>
             </div>
 
+            {/* 문향 환경 */}
             <div
               style={{
                 ...Styles.section,
@@ -1228,22 +1236,20 @@ const IncensePage = () => {
                   ))}
                 </div>
               </div>
-
-              {/* 오늘의 날씨: 한 줄에 최대한, 안 되면 자동 줄바꿈 + 가운데 */}
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>오늘의 날씨</span>
-                <div style={Styles.iconGridRow}>
+                <div
+                  style={{
+                    ...Styles.chipContainer,
+                    justifyContent: 'space-between',
+                    width: '100%',
+                  }}
+                >
                   {WEATHER_OPTIONS.map((opt) => (
                     <button
                       key={opt.id}
                       type="button"
-                      style={{
-                        ...Styles.chip(formData.weather === opt.id),
-                        width: '100%',
-                        justifyContent: 'center',
-                        padding: '6px 8px',
-                        fontSize: '12px',
-                      }}
+                      style={Styles.chip(formData.weather === opt.id)}
                       onClick={() =>
                         setFormData({ ...formData, weather: opt.id })
                       }
@@ -1253,25 +1259,21 @@ const IncensePage = () => {
                   ))}
                 </div>
               </div>
-
-              {/* 오늘의 마음: 위와 동일한 방식 */}
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>오늘의 마음</span>
-                <div style={Styles.iconGridRow}>
+                <div
+                  style={{
+                    ...Styles.chipContainer,
+                    justifyContent: 'space-between',
+                    width: '100%',
+                  }}
+                >
                   {MOOD_OPTIONS.map((opt) => (
                     <button
                       key={opt.id}
                       type="button"
-                      style={{
-                        ...Styles.chip(formData.mood === opt.id),
-                        width: '100%',
-                        justifyContent: 'center',
-                        padding: '6px 8px',
-                        fontSize: '12px',
-                      }}
-                      onClick={() =>
-                        setFormData({ ...formData, mood: opt.id })
-                      }
+                      style={Styles.chip(formData.mood === opt.id)}
+                      onClick={() => setFormData({ ...formData, mood: opt.id })}
                     >
                       {opt.icon} {opt.label}
                     </button>
@@ -1287,15 +1289,15 @@ const IncensePage = () => {
               {/* 육국 */}
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>육국</span>
-                <div style={Styles.chipContainer}>
+                <div style={{ ...Styles.chipContainer, width: '100%' }}>
                   <div
                     style={{
                       display: 'flex',
-                      gap: '6px',
+                      gap: '8px',
                       flexWrap: 'wrap',
+                      justifyContent: 'space-between',
                       width: '100%',
-                      justifyContent: 'center',
-                      paddingBottom: '1px',
+                      paddingBottom: '4px',
                     }}
                   >
                     {RIKKOKU_ROW1_IDS.map((id) => {
@@ -1323,10 +1325,10 @@ const IncensePage = () => {
                   <div
                     style={{
                       display: 'flex',
-                      gap: '6px',
+                      gap: '8px',
                       flexWrap: 'wrap',
+                      justifyContent: 'space-between',
                       width: '100%',
-                      justifyContent: 'center',
                     }}
                   >
                     {RIKKOKU_ROW2_IDS.map((id) => {
@@ -1360,7 +1362,8 @@ const IncensePage = () => {
                 <div
                   style={{
                     ...Styles.chipContainer,
-                    justifyContent: 'center',
+                    justifyContent: 'space-between',
+                    width: '100%',
                   }}
                 >
                   {GOMI_OPTIONS.map((opt) => (
@@ -1508,7 +1511,7 @@ const IncensePage = () => {
               </div>
             </div>
 
-            <div style={{ padding: '20px 0' }}>
+            <div style={{ padding: '20px 20px 0' }}>
               <button
                 onClick={handleSave}
                 style={{
