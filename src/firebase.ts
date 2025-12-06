@@ -17,6 +17,7 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 // 공용으로 쓸 인스턴스들
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const googleProvider = new GoogleAuthProvider();
 
 // 🔑 Firestore 컬렉션 상위 키로 쓸 appId
 //   여기 문자열은 네 프로젝트 고유 이름으로 아무거나 정해도 돼
