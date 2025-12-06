@@ -541,7 +541,7 @@ const TeaRadarChart = ({ values }: { values: any }) => {
               x={labelX}
               y={labelY}
               textAnchor={anchor}
-              dominantBaseline="middle'
+              dominantBaseline="middle"
               fill={Colors.textSub}
               fontSize="11"
               fontWeight={values[label.key] > 0 ? 'bold' : 'normal'}
