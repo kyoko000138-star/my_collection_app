@@ -69,38 +69,85 @@ const getAmbientSound = (month: number) => {
   return 'https://cdn.pixabay.com/download/audio/2022/04/27/audio_6858489857.mp3?filename=forest-wind-and-birds-6881.mp3';
 };
 
-// ─── 계절 / 시간대별 배경 이미지 시스템 ───
+// ─── 계절 배경 이미지 시스템 (시간대 없음 버전) ───
 type Season = 'spring' | 'summer' | 'autumn' | 'winter';
-type TimeOfDay = 'morning' | 'day' | 'evening' | 'night';
 
-// public/waka-images 폴더 안에 실제 존재하는 파일명으로 맞춰줘야 함
-const wakaImageMap: Record<Season, Record<TimeOfDay, string[]>> = {
-  spring: {
-    morning: ['spring_morning_01.jpg'],
-    day: ['spring_day_01.jpg'],
-    evening: ['spring_evening_01.jpg'],
-    night: ['spring_night_01.jpg'],
-  },
-  summer: {
-    morning: ['summer_morning_01.jpg'],
-    day: ['summer_day_01.jpg'],
-    evening: ['summer_evening_01.jpg'],
-    night: ['summer_night_01.jpg'],
-  },
-  autumn: {
-    morning: ['autumn_morning_01.jpg'],
-    day: ['autumn_day_01.jpg'],
-    evening: ['autumn_evening_01.jpg'],
-    night: ['autumn_night_01.jpg'],
-  },
-  winter: {
-    morning: ['winter_morning_01.jpg'],
-    day: ['winter_day_01.jpg'],
-    evening: ['winter_evening_01.jpg'],
-    night: ['winter_night_01.jpg'],
-  },
+// public/waka-images 안의 실제 파일명 그대로
+const SPRING_IMAGES = [
+  'spring_1.jpg',
+  'spring_2.jpg',
+  'spring_3.jpg',
+  'spring_4.jpg',
+  'spring_5.jpg',
+  'spring_6.jpg',
+  'spring_7.jpg',
+  'spring_8.jpg',
+  'spring_9.jpg',
+  'spring_10.jpg',
+  'spring_11.jpg',
+  'spring_12.jpg',
+];
+
+const SUMMER_IMAGES = [
+  'summer (2).jpg',
+  'summer (3).jpg',
+  'summer (4).jpg',
+  'summer (5).jpg',
+  'summer (6).jpg',
+  'summer (7).jpg',
+  'summer (8).jpg',
+  'summer (9).jpg',
+  'summer (10).jpg',
+  'summer (11).jpg',
+  'summer (12).jpg',
+  'summer (13).jpg',
+  'summer (14).jpg',
+  'summer (15).jpg',
+  'summer (16).jpg',
+  'summer (17).jpg',
+  // 만약 폴더에 `summer (1).jpg` 도 있으면 여기 맨 위에 추가해줘!
+];
+
+const AUTUMN_IMAGES = [
+  'autumn (1).jpg',
+  'autumn (2).jpg',
+  'autumn (3).jpg',
+  'autumn (4).jpg',
+  'autumn (5).jpg',
+  'autumn (6).jpg',
+  'autumn (7).jpg',
+  'autumn (8).jpg',
+  'autumn (9).jpg',
+  'autumn (10).jpg',
+  'autumn (11).jpg',
+  'autumn (12).jpg',
+  'autumn (13).jpg',
+  'autumn (14).jpg',
+  'autumn (15).jpg',
+];
+
+const WINTER_IMAGES = [
+  'winnter (1).jpg',
+  'winnter (2).jpg',
+  'winnter (3).jpg',
+  'winnter (4).jpg',
+  'winnter (5).jpg',
+  'winnter (6).jpg',
+  'winnter (7).jpg',
+  'winnter (8).jpg',
+  'winnter (9).jpg',
+  'winnter (10).jpg',
+];
+
+// 계절 → 이미지 목록 매핑 (시간대 없음)
+const wakaImageMap: Record<Season, string[]> = {
+  spring: SPRING_IMAGES,
+  summer: SUMMER_IMAGES,
+  autumn: AUTUMN_IMAGES,
+  winter: WINTER_IMAGES,
 };
 
+// 이미 있는 getSeason 그대로 사용
 function getSeason(month: number): Season {
   if (month >= 3 && month <= 5) return 'spring';
   if (month >= 6 && month <= 8) return 'summer';
@@ -108,26 +155,17 @@ function getSeason(month: number): Season {
   return 'winter';
 }
 
-function getTimeOfDay(): TimeOfDay {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 11) return 'morning';
-  if (hour >= 11 && hour < 17) return 'day';
-  if (hour >= 17 && hour < 21) return 'evening';
-  return 'night';
-}
-
-// 계절+시간대에 맞는 이미지를 선택 (없으면 fallback)
+// 계절만 보고 랜덤으로 1장 선택
 function getSeasonalImage(month: number, fallback?: string): string {
   const season = getSeason(month);
-  const timeOfDay = getTimeOfDay();
-  const list = wakaImageMap[season][timeOfDay];
+  const list = wakaImageMap[season];
 
   if (list && list.length > 0) {
     const idx = Math.floor(Math.random() * list.length);
     return `/waka-images/${list[idx]}`;
   }
 
-  // 아무것도 없으면 기존 이미지나 디폴트 사용
+  // 아무 것도 없으면 기본 이미지
   return fallback || '/waka-images/default.jpg';
 }
 
