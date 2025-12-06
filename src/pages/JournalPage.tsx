@@ -749,14 +749,6 @@ const styles: any = {
     fontFamily: "'Noto Sans KR', sans-serif",
   },
 
-  dateTitle: {
-    fontSize: '18px',
-    fontWeight: '700',
-    color: '#111',
-    fontFamily: "'Noto Sans KR', sans-serif",
-    letterSpacing: '-0.5px',
-  },
-
   headerStatusRow: {
     display: 'flex',
     alignItems: 'center',
