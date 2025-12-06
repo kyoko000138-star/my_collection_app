@@ -1,12 +1,12 @@
 // src/App.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { auth } from './firebase';
+import { auth, googleProvider } from './firebase';
 import {
   onAuthStateChanged,
-  GoogleAuthProvider,
   signInWithPopup,
-  type User,
+  signInWithRedirect,
+  signOut,
 } from 'firebase/auth';
 
 import {
@@ -46,10 +46,7 @@ const theme = {
   },
 };
 
-// 🔐 Google Provider
-const googleProvider = new GoogleAuthProvider();
-
-// --- 🧱 Layout Component (공통 레이아웃) ---
+// --- 🧱 Layout Component ---
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -360,130 +357,98 @@ const HomePage = () => {
   );
 };
 
-// --- 🔐 로그인 화면 (구글 계정으로 시작하기) ---
-const LoginScreen: React.FC = () => {
+// --- 🔐 로그인 페이지 ---
+const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const handleGoogleLogin = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      await signInWithPopup(auth, googleProvider);
-      // onAuthStateChanged 에서 user 상태가 업데이트되면서 App이 라우트 화면으로 바뀜
+      const ua = navigator.userAgent || '';
+      const isIOS = /iPhone|iPad|iPod/i.test(ua);
+
+      // ✅ iOS Safari는 popup 안되니까 redirect 사용
+      if (isIOS) {
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        await signInWithPopup(auth, googleProvider);
+      }
     } catch (e) {
-      console.error('Google 로그인 실패', e);
-      alert('구글 로그인 중 오류가 발생했습니다. 콘솔을 확인해주세요.');
+      console.error('구글 로그인 실패', e);
+      alert('로그인 중 오류가 발생했습니다. (콘솔 확인)');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div
-      style={{
-        padding: '80px 24px',
-        minHeight: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-      }}
-    >
-      <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+    <Layout>
+      <div
+        style={{
+          padding: '80px 24px',
+          textAlign: 'center',
+        }}
+      >
         <h1
           style={{
-            fontFamily: theme.fonts.sans,
-            fontSize: '32px',
-            fontWeight: '900',
-            color: theme.colors.ink,
-            margin: '0 0 12px 0',
-            letterSpacing: '-0.02em',
-            lineHeight: 0.9,
-          }}
-        >
-          MY
-          <br />
-          COLLECTION
-        </h1>
-        <div
-          style={{
             fontFamily: theme.fonts.serif,
-            fontSize: '12px',
-            color: theme.colors.inkLight,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
+            fontSize: 22,
+            marginBottom: 8,
           }}
         >
-          Private Archive
-        </div>
-      </div>
-
-      <button
-        onClick={handleGoogleLogin}
-        disabled={loading}
-        style={{
-          width: '100%',
-          padding: '14px 16px',
-          borderRadius: '999px',
-          border: '1px solid #ddd',
-          backgroundColor: '#fff',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px',
-          cursor: loading ? 'default' : 'pointer',
-          fontFamily: theme.fonts.sans,
-          fontSize: '14px',
-          fontWeight: 500,
-        }}
-      >
-        {/* 간단한 G 아이콘 모양 */}
-        <div
+          MY COLLECTION
+        </h1>
+        <p
           style={{
-            width: 18,
-            height: 18,
-            borderRadius: 4,
-            border: '1px solid #ddd',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 12,
+            fontSize: 13,
+            color: '#666',
+            marginBottom: 32,
           }}
         >
-          G
-        </div>
-        {loading ? '로그인 중...' : 'Google 계정으로 시작하기'}
-      </button>
+          개인 아카이브에 들어가기 위해
+          <br />
+          구글 계정으로 로그인해 주세요.
+        </p>
 
-      <p
-        style={{
-          marginTop: '16px',
-          fontSize: '11px',
-          color: '#999',
-          textAlign: 'center',
-          lineHeight: 1.4,
-        }}
-      >
-        개인 기록을 위해 구글 계정으로 로그인합니다.
-        <br />
-        모든 데이터는 Firebase Firestore에 저장됩니다.
-      </p>
-    </div>
+        <button
+          onClick={handleGoogleLogin}
+          disabled={loading}
+          style={{
+            border: '1px solid #ddd',
+            borderRadius: 999,
+            padding: '10px 18px',
+            fontSize: 14,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            cursor: 'pointer',
+            backgroundColor: '#fff',
+          }}
+        >
+          {loading ? '로그인 중...' : 'Google 계정으로 로그인'}
+        </button>
+      </div>
+    </Layout>
   );
 };
 
 // --- 🚀 Main App Component ---
 function App() {
   const [authReady, setAuthReady] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<null | { uid: string }>(null);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
+    const unsub = onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser) {
+        setUser({ uid: fbUser.uid });
+      } else {
+        setUser(null);
+      }
       setAuthReady(true);
     });
     return () => unsub();
   }, []);
 
-  // 1) Firebase가 로그인 상태 파악 중
   if (!authReady) {
     return (
       <Layout>
@@ -495,22 +460,18 @@ function App() {
             color: '#777',
           }}
         >
-          개인 아카이브를 준비하는 중입니다...
+          개인 아카이브를 여는 중입니다...
         </div>
       </Layout>
     );
   }
 
-  // 2) 로그인 안 된 경우 → 로그인 화면
+  // 🔐 로그인 안 된 상태 → 로그인 화면
   if (!user) {
-    return (
-      <Layout>
-        <LoginScreen />
-      </Layout>
-    );
+    return <LoginPage />;
   }
 
-  // 3) 로그인 완료 → 기존 홈/페이지 라우트
+  // ✅ 로그인 완료 → 기존 라우트
   return (
     <Layout>
       <Routes>
