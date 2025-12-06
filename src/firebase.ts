@@ -25,3 +25,35 @@ export const appId = 'my-collection-app';
 
 // 필요하면 default export도 유지
 export default app;
+
+
+// src/firebase.ts
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+
+// ✅ Firebase 콘솔에서 복사해 온 설정 값으로 교체해줘!
+const firebaseConfig = {
+  apiKey: 'AIzaSyB_U8Zh16n250tTc7i8X8kKUpSVP5P337Y',
+  authDomain: 'my-project-0076-b774a.firebaseapp.com',
+  projectId: 'my-project-0076-b774a',
+  storageBucket: 'YOUR_STORAGE_BUCKET',
+  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
+  appId: 'YOUR_APP_ID',
+  // measurementId: 'YOUR_MEASUREMENT_ID', // 있으면 추가
+};
+
+// 🔥 중복 초기화 방지
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+
+// 공용 인스턴스
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+
+// 🔑 Google 로그인용 Provider
+export const googleProvider = new GoogleAuthProvider();
+
+// Firestore에서 상위 키로 쓰고 싶으면 아무 문자열이나
+export const appId = 'my-collection-app';
+
+export default app;
