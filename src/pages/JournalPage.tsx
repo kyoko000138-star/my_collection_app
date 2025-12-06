@@ -32,6 +32,20 @@ import {
   Pin,
 } from 'lucide-react';
 
+import { auth, db, appId } from '../firebase';
+import {
+  onAuthStateChanged,
+  signInAnonymously,
+  type User,
+} from 'firebase/auth';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  collection,
+} from 'firebase/firestore';
+
 // ===========================================
 // 1. Constants & Data
 // ===========================================
@@ -213,7 +227,7 @@ const STAMP_VARIANTS = {
   ],
 };
 
-// 멘탈케어 글감 60개 (생략 없이 그대로)
+// 멘탈케어 글감 60개
 const PROMPTS = [
   {
     id: 1,
@@ -566,71 +580,132 @@ function getSmartStamp(moodId: string | null, promptId: number) {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-const STORAGE_KEY = 'journal_v25_final_v13';
-const MEMO_STORAGE_KEY = 'journal_monthly_memos';
+// ===========================================
+// 2-1. Firestore Helpers (user별 저장)
+// ===========================================
 
-// localStorage helpers
-async function loadAllEntries(): Promise<Record<string, JournalEntryData>> {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return {};
-  return JSON.parse(raw);
+const JOURNAL_COLLECTION_NAME = 'journalEntries';
+const MEMO_COLLECTION_NAME = 'journalMonthlyMemos';
+
+// user 전체 기록 로드
+async function loadAllEntries(
+  userId: string
+): Promise<Record<string, JournalEntryData>> {
+  try {
+    const colRef = collection(
+      db,
+      'apps',
+      appId,
+      'users',
+      userId,
+      JOURNAL_COLLECTION_NAME
+    );
+    const snap = await getDocs(colRef);
+    const result: Record<string, JournalEntryData> = {};
+    snap.forEach((docSnap) => {
+      const data = docSnap.data() as JournalEntryData;
+      const key = data.dateKey || docSnap.id;
+      result[key] = data;
+    });
+    return result;
+  } catch (e) {
+    console.error('loadAllEntries error', e);
+    return {};
+  }
 }
 
 async function loadJournalEntry(
+  userId: string,
   dateKey: string
 ): Promise<JournalEntryData | null> {
-  const all = await loadAllEntries();
-  return all[dateKey] || null;
-}
-
-async function saveJournalEntry(dateKey: string, data: JournalEntryData) {
-  const all = await loadAllEntries();
-  all[dateKey] = data;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-}
-
-// 이달의 메모 체크리스트 로딩
-function loadMonthlyMemo(year: number, month: number): MonthlyMemoItem[] {
-  const raw = localStorage.getItem(MEMO_STORAGE_KEY);
-  if (!raw) return [];
   try {
-    const memos = JSON.parse(raw);
+    const ref = doc(
+      db,
+      'apps',
+      appId,
+      'users',
+      userId,
+      JOURNAL_COLLECTION_NAME,
+      dateKey
+    );
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return null;
+    return snap.data() as JournalEntryData;
+  } catch (e) {
+    console.error('loadJournalEntry error', e);
+    return null;
+  }
+}
+
+async function saveJournalEntry(
+  userId: string,
+  dateKey: string,
+  data: JournalEntryData
+) {
+  try {
+    const ref = doc(
+      db,
+      'apps',
+      appId,
+      'users',
+      userId,
+      JOURNAL_COLLECTION_NAME,
+      dateKey
+    );
+    await setDoc(ref, data, { merge: true });
+  } catch (e) {
+    console.error('saveJournalEntry error', e);
+  }
+}
+
+async function loadMonthlyMemo(
+  userId: string,
+  year: number,
+  month: number
+): Promise<MonthlyMemoItem[]> {
+  try {
     const key = `${year}-${month}`;
-    const data = memos[key];
-
-    if (!data) return [];
-
-    if (Array.isArray(data)) return data as MonthlyMemoItem[];
-
-    if (typeof data === 'string') {
-      if (!data.trim()) return [];
-      return data.split('\n').map((line: string) => ({
-        id: Math.random().toString(36).slice(2),
-        text: line.trim(),
-        done: false,
-      }));
-    }
+    const ref = doc(
+      db,
+      'apps',
+      appId,
+      'users',
+      userId,
+      MEMO_COLLECTION_NAME,
+      key
+    );
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return [];
+    const data = snap.data() as { items?: MonthlyMemoItem[] };
+    if (Array.isArray(data.items)) return data.items;
     return [];
   } catch (e) {
-    console.error('Failed to load monthly memo', e);
+    console.error('loadMonthlyMemo error', e);
     return [];
   }
 }
 
-function saveMonthlyMemo(
+async function saveMonthlyMemo(
+  userId: string,
   year: number,
   month: number,
   items: MonthlyMemoItem[]
 ) {
-  const raw = localStorage.getItem(MEMO_STORAGE_KEY);
-  let memos: any = {};
   try {
-    memos = raw ? JSON.parse(raw) : {};
-  } catch {
-    memos = {};
+    const key = `${year}-${month}`;
+    const ref = doc(
+      db,
+      'apps',
+      appId,
+      'users',
+      userId,
+      MEMO_COLLECTION_NAME,
+      key
+    );
+    await setDoc(ref, { items }, { merge: true });
+  } catch (e) {
+    console.error('saveMonthlyMemo error', e);
   }
-  memos[`${year}-${month}`] = items;
-  localStorage.setItem(MEMO_STORAGE_KEY, JSON.stringify(memos));
 }
 
 // ===========================================
@@ -664,7 +739,6 @@ const fontStyle = `
     font-style: normal;
   }
 
-  /* ✨ 오늘의 생각 전용: 폰트/줄간격 줄이기 */
   .answer-textarea {
     font-size: 14px !important;
     line-height: 24px !important;
@@ -707,6 +781,24 @@ const styles: any = {
     margin: '0 auto',
   },
 
+  appHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: '12px',
+  },
+  appTitle: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#555',
+    fontFamily: "'Noto Sans KR', sans-serif",
+  },
+  appSub: {
+    fontSize: '11px',
+    color: '#999',
+    fontFamily: "'Noto Sans KR', sans-serif",
+  },
+
   headerRow: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -719,7 +811,7 @@ const styles: any = {
   dateBlock: {
     flex: 1,
     marginLeft: '8px',
-    textAlign: 'center' as const, // ✅ 가운데 정렬
+    textAlign: 'center' as const,
   },
 
   dateTitle: {
@@ -728,31 +820,13 @@ const styles: any = {
     color: '#111',
     fontFamily: "'Noto Sans KR', sans-serif",
     letterSpacing: '-0.5px',
-    whiteSpace: 'nowrap' as const, // ✅ "화요일"이 둘로 안 찢어지게
-  },
-
-  dateMetaRow: {
-    display: 'flex',
-    alignItems: 'baseline',
-    gap: '6px',
-  },
-
-  dateMetaLabel: {
-    fontSize: '12px',
-    color: '#999',
-    fontFamily: "'Noto Sans KR', sans-serif",
-  },
-
-  dateSubTitle: {
-    fontSize: '14px',
-    color: '#444',
-    fontFamily: "'Noto Sans KR', sans-serif",
+    whiteSpace: 'nowrap' as const,
   },
 
   headerStatusRow: {
     display: 'flex',
     alignItems: 'center',
-    flexDirection: 'column', // 위·아래로 쌓기
+    flexDirection: 'column' as const,
     justifyContent: 'space-between',
     marginTop: '6px',
     marginBottom: '16px',
@@ -761,7 +835,7 @@ const styles: any = {
   statusGroup: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between', // 왼쪽: 라벨, 오른쪽: 아이콘
+    justifyContent: 'space-between',
     width: '100%',
   },
 
@@ -876,25 +950,6 @@ const styles: any = {
     gap: '6px',
   },
 
-  weatherArea: {
-    display: 'flex',
-    justifyContent: 'center',
-    gap: '24px',
-    marginBottom: '40px',
-  },
-  weatherBtn: (isSelected: boolean) => ({
-    border: 'none',
-    background: 'transparent',
-    opacity: isSelected ? 1 : 0.3,
-    transform: isSelected ? 'scale(1.1)' : 'scale(1)',
-    transition: 'all 0.2s',
-    cursor: 'pointer',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    gap: '6px',
-  }),
-
   sectionHeader: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -961,7 +1016,6 @@ const styles: any = {
     boxSizing: 'border-box' as const,
   },
 
-  // 스탬프 위치/스타일
   stampZone: {
     position: 'absolute' as const,
     right: '-10px',
@@ -1033,7 +1087,6 @@ const styles: any = {
     color: '#666',
   },
 
-  // 오늘의 여정 프리셋
   presetGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(4, 1fr)',
@@ -1066,7 +1119,7 @@ const styles: any = {
     boxSizing: 'border-box',
     paddingBottom: '8px',
     borderBottom: '1px solid #ccc',
-    overflow: 'hidden', // 줄 안에서만 보이게
+    overflow: 'hidden',
   },
   selectedBadge: {
     display: 'flex',
@@ -1097,12 +1150,34 @@ const styles: any = {
 };
 
 // ===========================================
-// 4. Components
+// 4. App (로그인 + 홈)
 // ===========================================
 
 export default function App() {
   const [view, setView] = useState<'calendar' | 'journal'>('calendar');
   const [targetDate, setTargetDate] = useState(new Date());
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        setUser(u);
+        setAuthLoading(false);
+      } else {
+        try {
+          const cred = await signInAnonymously(auth);
+          setUser(cred.user);
+        } catch (e) {
+          console.error('anonymous sign-in error', e);
+        } finally {
+          setAuthLoading(false);
+        }
+      }
+    });
+
+    return () => unsub();
+  }, []);
 
   const handleDateClick = (date: Date) => {
     setTargetDate(date);
@@ -1111,21 +1186,62 @@ export default function App() {
 
   const handleBack = () => setView('calendar');
 
+  if (authLoading || !user) {
+    return (
+      <>
+        <style>{fontStyle}</style>
+        <div style={styles.wrapper}>
+          <div style={styles.paper}>
+            <div style={styles.appHeader}>
+              <div>
+                <div style={styles.appTitle}>나만 보는 하루 기록</div>
+                <div style={styles.appSub}>잠시만요, 일기장을 여는 중...</div>
+              </div>
+              <div style={{ fontSize: 11, color: '#bbb' }}>로그인 중...</div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <style>{fontStyle}</style>
       <div style={styles.wrapper}>
-        {view === 'calendar' ? (
-          <CalendarView onDateSelect={handleDateClick} />
-        ) : (
-          <JournalView targetDate={targetDate} onBack={handleBack} />
-        )}
+        <div style={styles.paper}>
+          <div style={styles.appHeader}>
+            <div>
+              <div style={styles.appTitle}>나만 보는 하루 기록</div>
+              <div style={styles.appSub}>하루를 가볍게 정리하는 심리 일기장</div>
+            </div>
+            <div style={{ fontSize: 11, color: '#bbb' }}>
+              로그인: {user.isAnonymous ? '익명 계정' : user.email || '계정'}
+            </div>
+          </div>
+
+          {view === 'calendar' ? (
+            <CalendarView onDateSelect={handleDateClick} user={user} />
+          ) : (
+            <JournalView targetDate={targetDate} onBack={handleBack} user={user} />
+          )}
+        </div>
       </div>
     </>
   );
 }
 
-function CalendarView({ onDateSelect }: { onDateSelect: (d: Date) => void }) {
+// ===========================================
+// 5. Calendar View (월간 + 통계 + 메모)
+// ===========================================
+
+function CalendarView({
+  onDateSelect,
+  user,
+}: {
+  onDateSelect: (d: Date) => void;
+  user: User;
+}) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
   const [entryMap, setEntryMap] = useState<Record<string, boolean>>({});
@@ -1140,23 +1256,40 @@ function CalendarView({ onDateSelect }: { onDateSelect: (d: Date) => void }) {
   >([]);
   const [allData, setAllData] = useState<Record<string, JournalEntryData>>({});
 
+  // 전체 일기 로드
   useEffect(() => {
-    loadAllEntries().then((data) => {
+    let cancelled = false;
+    loadAllEntries(user.uid).then((data) => {
+      if (cancelled) return;
       setAllData(data);
       const map: Record<string, boolean> = {};
       Object.keys(data).forEach((key) => (map[key] = true));
       setEntryMap(map);
     });
-  }, [year, month]);
+    return () => {
+      cancelled = true;
+    };
+  }, [user.uid, year, month]);
 
+  // 이달 메모 + 통계 계산
   useEffect(() => {
-    setMonthlyMemoItems(loadMonthlyMemo(year, month + 1));
+    let cancelled = false;
+
+    loadMonthlyMemo(user.uid, year, month + 1).then((items) => {
+      if (!cancelled) setMonthlyMemoItems(items);
+    });
+
     calculateStats(allData, year, month);
-  }, [allData, year, month]);
 
+    return () => {
+      cancelled = true;
+    };
+  }, [user.uid, allData, year, month]);
+
+  // 메모 자동 저장
   useEffect(() => {
-    saveMonthlyMemo(year, month + 1, monthlyMemoItems);
-  }, [monthlyMemoItems, year, month]);
+    saveMonthlyMemo(user.uid, year, month + 1, monthlyMemoItems);
+  }, [user.uid, monthlyMemoItems, year, month]);
 
   const calculateStats = (
     data: Record<string, JournalEntryData>,
@@ -1254,7 +1387,7 @@ function CalendarView({ onDateSelect }: { onDateSelect: (d: Date) => void }) {
   };
 
   return (
-    <div style={styles.paper}>
+    <>
       <div style={styles.calendarHeader}>
         <button onClick={handlePrev} style={styles.backBtn}>
           <ChevronLeft size={20} />
@@ -1433,16 +1566,22 @@ function CalendarView({ onDateSelect }: { onDateSelect: (d: Date) => void }) {
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
+
+// ===========================================
+// 6. Journal View (일별 작성)
+// ===========================================
 
 function JournalView({
   targetDate,
   onBack,
+  user,
 }: {
   targetDate: Date;
   onBack: () => void;
+  user: User;
 }) {
   const dateKey = useMemo(() => formatDateKey(targetDate), [targetDate]);
 
@@ -1464,7 +1603,10 @@ function JournalView({
   );
 
   useEffect(() => {
-    loadJournalEntry(dateKey).then((data) => {
+    let cancelled = false;
+
+    loadJournalEntry(user.uid, dateKey).then((data) => {
+      if (cancelled) return;
       if (data) {
         setSelectedWeatherId(data.weatherId || null);
         setDayMoodId(data.dayMoodId || null);
@@ -1475,9 +1617,17 @@ function JournalView({
       } else {
         setSelectedPromptIds(pickRandomPromptIds(PROMPTS_PER_DAY));
         setAnswers({});
+        setSelectedWeatherId(null);
+        setDayMoodId(null);
+        setFreeContent('');
+        setTimeline([]);
       }
     });
-  }, [dateKey]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user.uid, dateKey]);
 
   const handleShuffle = () => {
     setSelectedPromptIds(pickRandomPromptIds(PROMPTS_PER_DAY));
@@ -1561,7 +1711,6 @@ function JournalView({
     setTimeline((prev) => [...prev, newItem]);
     setTlTime('');
     setTlPlace('');
-    // 카테고리는 유지
   };
 
   const handleUpdateTimeline = (id: string, newVal: string) => {
@@ -1584,18 +1733,17 @@ function JournalView({
       timeline,
       updatedAt: Date.now(),
     };
-    await saveJournalEntry(dateKey, data);
+    await saveJournalEntry(user.uid, dateKey, data);
     alert('저장되었습니다.');
   };
 
   return (
-    <div style={styles.paper}>
+    <>
       <div style={styles.headerRow}>
         <button onClick={onBack} style={styles.backBtn}>
-          <ChevronLeft size={1} /> 목록
+          <ChevronLeft size={14} /> 목록
         </button>
 
-        {/* ✅ 가운데 정렬된 날짜 한 줄 */}
         <div style={styles.dateBlock}>
           <span style={styles.dateTitle}>
             {formatHandwrittenDate(targetDate)}
@@ -1687,7 +1835,7 @@ function JournalView({
             </div>
           )}
 
-          {/* 장소 텍스트 입력 – 여기만 한 개! */}
+          {/* 장소 텍스트 입력 */}
           <input
             placeholder={
               tlCategory ? '오늘 다녀온 곳은' : '위의 장소를 선택해주세요'
@@ -1697,8 +1845,8 @@ function JournalView({
             style={{
               border: 'none',
               background: 'transparent',
-              flex: 1, // 남는 공간 다 먹고
-              minWidth: 0, // 👉 줄 밖으로 안 튀어나오게
+              flex: 1,
+              minWidth: 0,
               fontFamily: "'Noto Sans KR'",
               fontSize: '13px',
               paddingLeft: '1px',
@@ -1736,7 +1884,7 @@ function JournalView({
                   marginBottom: '12px',
                   width: '100%',
                   boxSizing: 'border-box',
-                  overflow: 'hidden', // 여기도 혹시 모를 튀어나옴 방지
+                  overflow: 'hidden',
                 }}
               >
                 {/* 시간 */}
@@ -1778,7 +1926,7 @@ function JournalView({
                     border: 'none',
                     background: 'transparent',
                     flex: 1,
-                    minWidth: 0, // 여기도 핵심!
+                    minWidth: 0,
                     fontFamily: "'Nanum Myeongjo'",
                     fontSize: '16px',
                     borderBottom: '1px dashed #eee',
@@ -1858,8 +2006,8 @@ function JournalView({
                 className="light-placeholder lined-textarea answer-textarea"
                 style={{
                   ...styles.textarea,
-                  maxHeight: 96, // 3줄 정도까지만 보이고
-                  overflowY: 'auto', // 길어지면 안에서 스크롤
+                  maxHeight: 96,
+                  overflowY: 'auto',
                 }}
                 value={ans.text}
                 onChange={(e) => handleAnswerChange(pid, e.target.value)}
@@ -1908,6 +2056,6 @@ function JournalView({
           작성 완료
         </button>
       </div>
-    </div>
+    </>
   );
 }
