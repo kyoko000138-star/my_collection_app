@@ -1,5 +1,5 @@
 // src/App.tsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { auth } from './firebase';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
@@ -239,7 +239,7 @@ const MinimalCard = ({ roomNo, title, desc, icon: Icon, path }: any) => {
   );
 };
 
-// --- 🏠 Home Page (이 디자인 유지) ---
+// --- 🏠 Home Page ---
 const HomePage = () => {
   return (
     <div style={{ padding: '60px 24px 80px' }}>
@@ -359,10 +359,8 @@ function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // 이미 로그인된 경우
         setAuthReady(true);
       } else {
-        // 아직 유저 없으면 익명 로그인
         try {
           await signInAnonymously(auth);
         } catch (e) {
@@ -376,7 +374,6 @@ function App() {
     return () => unsub();
   }, []);
 
-  // ✅ 로그인 준비되기 전: 홈에서 간단한 로딩 화면
   if (!authReady) {
     return (
       <Layout>
@@ -394,7 +391,6 @@ function App() {
     );
   }
 
-  // ✅ 로그인 완료 후: 기존 라우트 그대로
   return (
     <Layout>
       <Routes>
