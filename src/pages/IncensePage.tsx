@@ -149,8 +149,9 @@ const Styles = {
     gap: '8px',
   } as React.CSSProperties,
   chip: (active: boolean): React.CSSProperties => ({
-    padding: '7px 12px',
-    borderRadius: '20px',
+    padding: '6px 10px',
+    minHeight: '32px',
+    borderRadius: '999px',
     border: `1px solid ${active ? Colors.textMain : Colors.border}`,
     backgroundColor: active ? Colors.textMain : 'transparent',
     color: active ? '#FFFFFF' : Colors.textSub,
@@ -161,9 +162,9 @@ const Styles = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '6px',
     textAlign: 'center',
-    whiteSpace: 'nowrap',
+    gap: '6px',
+    boxSizing: 'border-box',
   }),
 
   card: {
@@ -305,9 +306,6 @@ const RIKKOKU_OPTIONS = [
   { id: 'jinko', label: '침향' },
 ];
 
-const RIKKOKU_ROW1_IDS = ['gara', 'rakoku', 'sasora', 'manaka'];
-const RIKKOKU_ROW2_IDS = ['manaban', 'sonbundara', 'jinko'];
-
 const GOMI_OPTIONS = [
   { id: 'san', label: '산 (酸)' },
   { id: 'ku', label: '고 (苦)' },
@@ -436,7 +434,7 @@ const SVGRadarChart = ({ values }: { values: any }) => {
               textAnchor={anchor}
               dominantBaseline="middle"
               fill={Colors.textSub}
-              fontSize="10"
+              fontSize={10}
               fontWeight={values[label.key] > 0 ? 'bold' : 'normal'}
             >
               {label.label}
@@ -1086,7 +1084,7 @@ const IncensePage = () => {
     return (
       <div style={Styles.containerWrapper}>
         <div style={Styles.pageContainer}>
-          {/* 상단 X 버튼 (본문 안쪽 헤더) */}
+          {/* 상단 X 버튼만 (본문 안쪽 헤더) */}
           <div
             style={{
               padding: '1px 20px 8px',
@@ -1113,8 +1111,7 @@ const IncensePage = () => {
             </button>
           </div>
 
-          {/* 폼 전체 패딩: 좌우 0 으로 바꿔서 더 왼쪽으로 붙게 */}
-          <form style={{ padding: '0 0 24px' }}>
+          <form style={{ padding: '0 20px 24px' }}>
             {/* 기본 정보 */}
             <div style={{ ...Styles.section, paddingBottom: 1 }}>
               <div style={Styles.inputGroup}>
@@ -1240,8 +1237,9 @@ const IncensePage = () => {
                 <span style={Styles.label}>오늘의 날씨</span>
                 <div
                   style={{
-                    ...Styles.chipContainer,
-                    justifyContent: 'space-between',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+                    gap: '8px',
                     width: '100%',
                   }}
                 >
@@ -1249,7 +1247,10 @@ const IncensePage = () => {
                     <button
                       key={opt.id}
                       type="button"
-                      style={Styles.chip(formData.weather === opt.id)}
+                      style={{
+                        ...Styles.chip(formData.weather === opt.id),
+                        width: '100%',
+                      }}
                       onClick={() =>
                         setFormData({ ...formData, weather: opt.id })
                       }
@@ -1263,8 +1264,9 @@ const IncensePage = () => {
                 <span style={Styles.label}>오늘의 마음</span>
                 <div
                   style={{
-                    ...Styles.chipContainer,
-                    justifyContent: 'space-between',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                    gap: '8px',
                     width: '100%',
                   }}
                 >
@@ -1272,8 +1274,13 @@ const IncensePage = () => {
                     <button
                       key={opt.id}
                       type="button"
-                      style={Styles.chip(formData.mood === opt.id)}
-                      onClick={() => setFormData({ ...formData, mood: opt.id })}
+                      style={{
+                        ...Styles.chip(formData.mood === opt.id),
+                        width: '100%',
+                      }}
+                      onClick={() =>
+                        setFormData({ ...formData, mood: opt.id })
+                      }
                     >
                       {opt.icon} {opt.label}
                     </button>
@@ -1289,70 +1296,33 @@ const IncensePage = () => {
               {/* 육국 */}
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>육국</span>
-                <div style={{ ...Styles.chipContainer, width: '100%' }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: '8px',
-                      flexWrap: 'wrap',
-                      justifyContent: 'flex-start',
-                      width: '100%',
-                      paddingBottom: '4px',
-                    }}
-                  >
-                    {RIKKOKU_ROW1_IDS.map((id) => {
-                      const opt = RIKKOKU_OPTIONS.find((o) => o.id === id)!;
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          style={Styles.chip(formData.rikkoku === opt.id)}
-                          onClick={() =>
-                            setFormData({
-                              ...formData,
-                              rikkoku:
-                                formData.rikkoku === opt.id
-                                  ? undefined
-                                  : opt.id,
-                            })
-                          }
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: '8px',
-                      flexWrap: 'wrap',
-                      justifyContent: 'space-between',
-                      width: '100%',
-                    }}
-                  >
-                    {RIKKOKU_ROW2_IDS.map((id) => {
-                      const opt = RIKKOKU_OPTIONS.find((o) => o.id === id)!;
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          style={Styles.chip(formData.rikkoku === opt.id)}
-                          onClick={() =>
-                            setFormData({
-                              ...formData,
-                              rikkoku:
-                                formData.rikkoku === opt.id
-                                  ? undefined
-                                  : opt.id,
-                            })
-                          }
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+                    gap: '8px',
+                    width: '100%',
+                  }}
+                >
+                  {RIKKOKU_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      style={{
+                        ...Styles.chip(formData.rikkoku === opt.id),
+                        width: '100%',
+                      }}
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          rikkoku:
+                            formData.rikkoku === opt.id ? undefined : opt.id,
+                        })
+                      }
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -1361,8 +1331,9 @@ const IncensePage = () => {
                 <span style={Styles.label}>오미</span>
                 <div
                   style={{
-                    ...Styles.chipContainer,
-                    justifyContent: 'flex-start',   // stretch 금지
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+                    gap: '8px',
                     width: '100%',
                   }}
                 >
@@ -1370,7 +1341,10 @@ const IncensePage = () => {
                     <button
                       key={opt.id}
                       type="button"
-                      style={Styles.chip(formData.gomi.includes(opt.id))}
+                      style={{
+                        ...Styles.chip(formData.gomi.includes(opt.id)),
+                        width: '100%',
+                      }}
                       onClick={() => {
                         const newGomi = formData.gomi.includes(opt.id)
                           ? formData.gomi.filter((id: string) => id !== opt.id)
@@ -1511,7 +1485,7 @@ const IncensePage = () => {
               </div>
             </div>
 
-            <div style={{ padding: '20px 20px 0' }}>
+            <div style={{ padding: '20px 0' }}>
               <button
                 onClick={handleSave}
                 style={{
