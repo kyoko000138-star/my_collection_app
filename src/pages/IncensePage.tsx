@@ -154,7 +154,7 @@ const Styles = {
     border: `1px solid ${active ? Colors.textMain : Colors.border}`,
     backgroundColor: active ? Colors.textMain : 'transparent',
     color: active ? '#FFFFFF' : Colors.textSub,
-    fontSize: '13px',
+    fontSize: '12px',
     fontWeight: active ? 500 : 400,
     cursor: 'pointer',
     transition: 'all 0.2s ease',
@@ -1295,7 +1295,7 @@ const IncensePage = () => {
                       display: 'flex',
                       gap: '8px',
                       flexWrap: 'wrap',
-                      justifyContent: 'space-between',
+                      justifyContent: 'flex-start',
                       width: '100%',
                       paddingBottom: '4px',
                     }}
@@ -1362,7 +1362,7 @@ const IncensePage = () => {
                 <div
                   style={{
                     ...Styles.chipContainer,
-                    justifyContent: 'space-between',
+                    justifyContent: 'flex-start',   // stretch 금지
                     width: '100%',
                   }}
                 >
