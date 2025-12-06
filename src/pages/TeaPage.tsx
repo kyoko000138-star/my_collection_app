@@ -87,15 +87,16 @@ const Styles: { [k: string]: any } = {
     height: '60px',
   },
   formHeader: {
-    position: 'sticky',
-    top: 0,
-    zIndex: 10,
-    padding: '1px 20px 8px',
-    backgroundColor: Colors.bg,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
+  position: 'sticky',
+  top: 0,
+  zIndex: 10,
+  // 🔧 before: padding: '1px 20px 8px',
+  padding: '8px 20px 8px',
+  backgroundColor: Colors.bg,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-start',
+ },
   headerTitle: {
     fontFamily: Fonts.serif,
     fontSize: '18px',
@@ -154,32 +155,45 @@ const Styles: { [k: string]: any } = {
     lineHeight: 1.6,
     fontFamily: Fonts.serif,
   },
-  chipContainer: { display: 'flex', flexWrap: 'wrap', gap: '8px' },
-  chip: (active: boolean) => ({
-    padding: '6px 12px',
-    borderRadius: '20px',
-    border: `1px solid ${active ? Colors.teaGreen : Colors.border}`,
-    backgroundColor: active ? Colors.teaGreen : 'transparent',
-    color: active ? '#FFFFFF' : Colors.textSub,
-    fontSize: '12px',
-    fontWeight: active ? 500 : 400,
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '6px',
-  }),
-  aromaChip: (active: boolean, color: string) => ({
-    padding: '6px 12px',
-    borderRadius: '20px',
-    border: `1px solid ${active ? color : Colors.border}`,
-    backgroundColor: active ? color : 'transparent',
-    color: active ? '#FFFFFF' : Colors.textSub,
-    fontSize: '12px',
-    fontWeight: active ? 600 : 400,
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-  }),
+  chipContainer: {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '8px',
+  justifyContent: 'center',   // 🔧 가운데 정렬
+  width: '100%',              // 🔧 줄 전체 사용
+},
+
+chip: (active: boolean) => ({
+  padding: '6px 12px',
+  borderRadius: '20px',
+  border: `1px solid ${active ? Colors.teaGreen : Colors.border}`,
+  backgroundColor: active ? Colors.teaGreen : 'transparent',
+  color: active ? '#FFFFFF' : Colors.textSub,
+  fontSize: '12px',
+  fontWeight: active ? 500 : 400,
+  cursor: 'pointer',
+  transition: 'all 0.2s ease',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '6px',
+  minWidth: '64px',           // 🔧 살짝 넓혀서 꽉찬 느낌
+  textAlign: 'center',
+}),
+
+aromaChip: (active: boolean, color: string) => ({
+  padding: '6px 12px',
+  borderRadius: '20px',
+  border: `1px solid ${active ? color : Colors.border}`,
+  backgroundColor: active ? color : 'transparent',
+  color: active ? '#FFFFFF' : Colors.textSub,
+  fontSize: '12px',
+  fontWeight: active ? 600 : 400,
+  cursor: 'pointer',
+  transition: 'all 0.2s ease',
+  minWidth: '64px',           // 🔧 이것도 동일하게
+  textAlign: 'center',
+}),
   card: {
     backgroundColor: Colors.cardBg,
     borderRadius: '8px',
@@ -303,6 +317,7 @@ const TEA_SUB_TYPES: { [k: string]: string[] } = {
     '대홍포',
     '동방미인',
     '아리산오룡',
+    '귀비우롱',     // 🔧 여기 추가
     '동정오룡',
     '문산포종',
     '기타',
@@ -1248,7 +1263,7 @@ const TeaForm = ({
                 key={i}
                 style={{
                   display: 'flex',
-                  gap: '8px',
+                  gap: '6px',   
                   alignItems: 'center',
                   marginBottom: '12px',
                   backgroundColor: '#FAFAFA',
@@ -1367,7 +1382,7 @@ const TeaForm = ({
             <div
               style={{
                 display: 'flex',
-                justifyContent: 'center',
+                justifyContent: 'space-evenly',   // 🔧 폭을 고르게 사용
                 gap: '20px',
                 marginBottom: '16px',
                 paddingBottom: '16px',
