@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Plus,
   Camera,
@@ -9,6 +9,26 @@ import {
   Search,
   ArrowLeft,
 } from 'lucide-react';
+
+import { auth, db } from '../firebase';
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  onAuthStateChanged,
+  signOut,
+} from 'firebase/auth';
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+  onSnapshot,
+  query,
+  where,
+  orderBy,
+} from 'firebase/firestore';
 
 /* --------------------------------------------------------------------------
  * 공통 스타일 (도록 / 박물관 캡션 느낌)
@@ -29,7 +49,6 @@ const Colors = {
 };
 
 const Fonts = {
-  // 폰트 통일: 전체를 같은 계열로 사용
   serif: '"Gowun Batang","Noto Serif KR",serif',
   sans: '"Gowun Batang","Noto Serif KR",serif',
 };
@@ -215,6 +234,8 @@ const CATEGORY_MAP: Record<string, string[]> = {
   기타: ['기타'],
 };
 
+const COLLECTION_NAME = 'collectionItems';
+
 const todayString = () => new Date().toISOString().slice(0, 10);
 
 /* -------------------------------------------------------------------------- */
@@ -238,7 +259,7 @@ interface CollectionItem {
   locationNote: string;
   notes: string;
   material: string;
-  period: string; // ★ 추정 연대
+  period: string;
   size: string;
   weight: string;
   condition: string;
@@ -332,12 +353,18 @@ const formatPrice = (amount: number | null, currency: string) => {
 /* -------------------------------------------------------------------------- */
 
 const CollectionsPage: React.FC = () => {
+  const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [items, setItems] = useState<CollectionItem[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
+
   const [mode, setMode] = useState<'list' | 'detail' | 'form'>('list');
   const [selectedItem, setSelectedItem] = useState<CollectionItem | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMain, setFilterMain] = useState<string>('전체');
   const [fullImage, setFullImage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -353,7 +380,7 @@ const CollectionsPage: React.FC = () => {
     locationNote: string;
     notes: string;
     material: string;
-    period: string; // ★ 추정 연대 (폼)
+    period: string;
     size: string;
     weight: string;
     condition: string;
@@ -379,6 +406,95 @@ const CollectionsPage: React.FC = () => {
     images: [],
   });
 
+  /* ---------------------------- Auth & Firestore ------------------------- */
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (fbUser) => {
+      setUser(fbUser);
+      setAuthLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setItems([]);
+      return;
+    }
+    setItemsLoading(true);
+
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const list: CollectionItem[] = snapshot.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            name: data.name ?? '',
+            mainCategory: data.mainCategory ?? '향목',
+            subCategory:
+              data.subCategory ?? CATEGORY_MAP[data.mainCategory ?? '향목'][0],
+            date: data.date ?? todayString(),
+            priceAmount:
+              typeof data.priceAmount === 'number' ? data.priceAmount : null,
+            priceCurrency: data.priceCurrency ?? 'KRW',
+            shop: data.shop ?? '',
+            locationNote: data.locationNote ?? '',
+            notes: data.notes ?? '',
+            material: data.material ?? '',
+            period: data.period ?? '',
+            size: data.size ?? '',
+            weight: data.weight ?? '',
+            condition: data.condition ?? '양호',
+            tags: Array.isArray(data.tags) ? data.tags : [],
+            imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [],
+          };
+        });
+        setItems(list);
+        setItemsLoading(false);
+
+        // detail 화면을 보고 있었다면 최신 데이터로 selectedItem 갱신
+        if (selectedItem) {
+          const updated = list.find((it) => it.id === selectedItem.id);
+          if (updated) setSelectedItem(updated);
+        }
+      },
+      (err) => {
+        console.error(err);
+        setItemsLoading(false);
+      }
+    );
+
+    return () => unsub();
+  }, [user, selectedItem]);
+
+  const handleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (e) {
+      console.error(e);
+      alert('로그인 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setMode('list');
+      setSelectedItem(null);
+    } catch (e) {
+      console.error(e);
+      alert('로그아웃 중 오류가 발생했습니다.');
+    }
+  };
+
   /* ---------------------- 공통: 폼 열기/초기값 채우기 --------------------- */
 
   const openForm = (item: CollectionItem | null) => {
@@ -390,7 +506,8 @@ const CollectionsPage: React.FC = () => {
         subCategory:
           item.subCategory || CATEGORY_MAP[item.mainCategory || '향목'][0],
         date: item.date || todayString(),
-        priceAmount: item.priceAmount != null ? String(item.priceAmount) : '',
+        priceAmount:
+          item.priceAmount != null ? String(item.priceAmount) : '',
         priceCurrency: item.priceCurrency || 'KRW',
         shop: item.shop || '',
         locationNote: item.locationNote || '',
@@ -429,49 +546,74 @@ const CollectionsPage: React.FC = () => {
 
   /* ----------------------------- 저장 / 삭제 ----------------------------- */
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      alert('로그인 후 이용해주세요.');
+      return;
+    }
     if (!formData.name.trim()) return;
 
-    const amountNumber = formData.priceAmount
-      ? Number(formData.priceAmount)
-      : null;
+    setSaving(true);
+    try {
+      const amountNumber = formData.priceAmount
+        ? Number(formData.priceAmount)
+        : null;
 
-    const newItem: CollectionItem = {
-      id: formData.id || Date.now().toString(),
-      name: formData.name.trim(),
-      mainCategory: formData.mainCategory,
-      subCategory: formData.subCategory,
-      date: formData.date,
-      priceAmount: Number.isNaN(amountNumber) ? null : amountNumber,
-      priceCurrency: formData.priceCurrency,
-      shop: formData.shop.trim(),
-      locationNote: formData.locationNote.trim(),
-      notes: formData.notes.trim(),
-      material: formData.material.trim(),
-      period: formData.period.trim(),
-      size: formData.size.trim(),
-      weight: formData.weight.trim(),
-      condition: formData.condition,
-      tags: formData.tags,
-      imageUrls: formData.images.map((i) => i.url),
-    };
+      const payload = {
+        name: formData.name.trim(),
+        mainCategory: formData.mainCategory,
+        subCategory: formData.subCategory,
+        date: formData.date,
+        priceAmount: Number.isNaN(amountNumber) ? null : amountNumber,
+        priceCurrency: formData.priceCurrency,
+        shop: formData.shop.trim(),
+        locationNote: formData.locationNote.trim(),
+        notes: formData.notes.trim(),
+        material: formData.material.trim(),
+        period: formData.period.trim(),
+        size: formData.size.trim(),
+        weight: formData.weight.trim(),
+        condition: formData.condition,
+        tags: formData.tags,
+        imageUrls: formData.images.map((i) => i.url),
+        userId: user.uid,
+        updatedAt: serverTimestamp(),
+      };
 
-    setItems((prev) =>
-      formData.id
-        ? prev.map((it) => (it.id === newItem.id ? newItem : it))
-        : [newItem, ...prev]
-    );
+      if (formData.id) {
+        const docRef = doc(db, COLLECTION_NAME, formData.id);
+        await updateDoc(docRef, payload);
+        setSelectedItem({ ...(payload as any), id: formData.id });
+      } else {
+        const docRef = await addDoc(collection(db, COLLECTION_NAME), {
+          ...payload,
+          createdAt: serverTimestamp(),
+        });
+        setSelectedItem({ ...(payload as any), id: docRef.id });
+      }
 
-    setSelectedItem(newItem);
-    setMode('detail');
+      setMode('detail');
+    } catch (err) {
+      console.error(err);
+      alert('저장 중 오류가 발생했습니다.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!window.confirm('정말 삭제하시겠습니까?')) return;
-    setItems((prev) => prev.filter((it) => it.id !== id));
-    setSelectedItem(null);
-    setMode('list');
+    try {
+      await deleteDoc(doc(db, COLLECTION_NAME, id));
+      if (selectedItem && selectedItem.id === id) {
+        setSelectedItem(null);
+      }
+      setMode('list');
+    } catch (err) {
+      console.error(err);
+      alert('삭제 중 오류가 발생했습니다.');
+    }
   };
 
   /* ---------------------------- 이미지 업로드 ---------------------------- */
@@ -481,7 +623,7 @@ const CollectionsPage: React.FC = () => {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const newImages: FormImage[] = Array.from(e.target.files).map((file) => ({
-      url: URL.createObjectURL(file),
+      url: URL.createObjectURL(file), // ⚠️ 실제 배포 시에는 Storage URL로 변경 필요
       file,
     }));
     setFormData((prev) => ({
@@ -503,6 +645,105 @@ const CollectionsPage: React.FC = () => {
     return catOk && searchOk;
   });
 
+  /* ------------------------------- 공통 로그아웃 버튼 --------------------- */
+
+  const LogoutButton = () =>
+    user ? (
+      <button
+        type="button"
+        onClick={handleLogout}
+        style={{
+          position: 'absolute',
+          top: 10,
+          right: 12,
+          border: 'none',
+          background: 'none',
+          fontSize: 11,
+          color: Colors.textSub,
+          cursor: 'pointer',
+          textDecoration: 'underline',
+        }}
+      >
+        로그아웃
+      </button>
+    ) : null;
+
+  /* ====================================================================== */
+  /*  Auth 상태에 따른 분기                                                 */
+  /* ====================================================================== */
+
+  if (authLoading) {
+    return (
+      <div style={Styles.wrapper}>
+        <div style={Styles.container}>
+          <div
+            style={{
+              padding: '60px 24px',
+              textAlign: 'center',
+              fontFamily: Fonts.serif,
+              fontSize: 14,
+            }}
+          >
+            불러오는 중입니다…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div style={Styles.wrapper}>
+        <div style={Styles.container}>
+          <div
+            style={{
+              padding: '80px 24px',
+              textAlign: 'center',
+            }}
+          >
+            <h1
+              style={{
+                fontFamily: Fonts.serif,
+                fontSize: 20,
+                letterSpacing: '0.16em',
+                textTransform: 'uppercase',
+                marginBottom: 12,
+              }}
+            >
+              MY COLLECTION
+            </h1>
+            <p
+              style={{
+                fontSize: 13,
+                color: Colors.textSub,
+                lineHeight: 1.7,
+                marginBottom: 24,
+              }}
+            >
+              구글 계정으로 로그인하면
+              <br />
+              나만 볼 수 있는 소장품 도록이 열립니다.
+            </p>
+            <button
+              type="button"
+              onClick={handleLogin}
+              style={{
+                padding: '10px 18px',
+                borderRadius: 999,
+                border: `1px solid ${Colors.accent}`,
+                background: '#FFFFFF',
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              Google 계정으로 로그인
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   /* ====================================================================== */
   /*  VIEW 1. 리스트 (갤러리)                                              */
   /* ====================================================================== */
@@ -511,6 +752,7 @@ const CollectionsPage: React.FC = () => {
     return (
       <div style={Styles.wrapper}>
         <div style={Styles.container}>
+          <LogoutButton />
           <main style={{ padding: '1px 18px' }}>
             {/* 검색창 */}
             <div style={{ marginBottom: 16 }}>
@@ -559,7 +801,18 @@ const CollectionsPage: React.FC = () => {
             </div>
 
             {/* 리스트 */}
-            {filteredItems.length === 0 ? (
+            {itemsLoading ? (
+              <div
+                style={{
+                  padding: '40px 20px',
+                  textAlign: 'center',
+                  fontSize: 13,
+                  color: Colors.textSub,
+                }}
+              >
+                소장품 목록을 불러오는 중입니다…
+              </div>
+            ) : filteredItems.length === 0 ? (
               <div
                 style={{
                   padding: '60px 20px',
@@ -764,6 +1017,7 @@ const CollectionsPage: React.FC = () => {
     return (
       <div style={Styles.wrapper}>
         <div style={Styles.container}>
+          <LogoutButton />
           <header style={Styles.header}>
             <button
               onClick={() => setMode('list')}
@@ -833,7 +1087,7 @@ const CollectionsPage: React.FC = () => {
               </section>
             )}
 
-            {/* 상세 스펙 – definition list 스타일 */}
+            {/* 상세 스펙 */}
             <section
               style={{
                 borderTop: `1px solid ${Colors.border}`,
@@ -946,9 +1200,9 @@ const CollectionsPage: React.FC = () => {
 
     return (
       <div style={Styles.wrapper}>
-        {/* X 버튼이 이 카드 안에서만 움직이도록 position: relative 추가 */}
         <div style={{ ...Styles.container, position: 'relative' }}>
-          {/* 상단 동그라미 X 버튼 */}
+          <LogoutButton />
+          {/* 상단 X 버튼 */}
           <button
             type="button"
             onClick={handleClose}
@@ -971,7 +1225,6 @@ const CollectionsPage: React.FC = () => {
 
           <form onSubmit={handleSave} style={{ paddingBottom: 40 }}>
             {/* 사진 */}
-            {/* 첫 섹션만 위에서 X와 겹치지 않게 paddingTop 조금 추가 */}
             <section style={{ ...Styles.section, paddingTop: 56 }}>
               <div style={Styles.label}>이미지</div>
               <button
@@ -1046,7 +1299,10 @@ const CollectionsPage: React.FC = () => {
                     style={Styles.input}
                     value={formData.date}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, date: e.target.value }))
+                      setFormData((prev) => ({
+                        ...prev,
+                        date: e.target.value,
+                      }))
                     }
                   />
                 </div>
@@ -1107,7 +1363,10 @@ const CollectionsPage: React.FC = () => {
                   placeholder="예: 에도 후기(19세기 전반)"
                   value={formData.period}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, period: e.target.value }))
+                    setFormData((prev) => ({
+                      ...prev,
+                      period: e.target.value,
+                    }))
                   }
                 />
               </div>
@@ -1279,7 +1538,10 @@ const CollectionsPage: React.FC = () => {
                   placeholder="이 기물을 만나게 된 계기, 상태, 향/차와의 궁합 등을 자유롭게 적어 보세요."
                   value={formData.notes}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, notes: e.target.value }))
+                    setFormData((prev) => ({
+                      ...prev,
+                      notes: e.target.value,
+                    }))
                   }
                 />
               </div>
@@ -1289,6 +1551,7 @@ const CollectionsPage: React.FC = () => {
             <div style={{ padding: '18px 18px 0' }}>
               <button
                 type="submit"
+                disabled={saving}
                 style={{
                   width: '100%',
                   height: 52,
@@ -1298,10 +1561,15 @@ const CollectionsPage: React.FC = () => {
                   color: '#FFF',
                   fontFamily: Fonts.serif,
                   fontSize: 16,
-                  cursor: 'pointer',
+                  cursor: saving ? 'default' : 'pointer',
+                  opacity: saving ? 0.7 : 1,
                 }}
               >
-                {formData.id ? '수정 완료' : '저장하기'}
+                {saving
+                  ? '저장 중...'
+                  : formData.id
+                  ? '수정 완료'
+                  : '저장하기'}
               </button>
             </div>
           </form>
