@@ -1,6 +1,9 @@
 // src/App.tsx
 import React from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { auth } from './firebase';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+
 import {
   ChevronLeft,
   Box,
@@ -351,6 +354,47 @@ const HomePage = () => {
 
 // --- 🚀 Main App Component ---
 function App() {
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // 이미 로그인된 경우
+        setAuthReady(true);
+      } else {
+        // 아직 유저 없으면 익명 로그인
+        try {
+          await signInAnonymously(auth);
+        } catch (e) {
+          console.error('익명 로그인 실패', e);
+        } finally {
+          setAuthReady(true);
+        }
+      }
+    });
+
+    return () => unsub();
+  }, []);
+
+  // ✅ 로그인 준비되기 전: 홈에서 간단한 로딩 화면
+  if (!authReady) {
+    return (
+      <Layout>
+        <div
+          style={{
+            padding: '80px 24px',
+            textAlign: 'center',
+            fontSize: 13,
+            color: '#777',
+          }}
+        >
+          개인 아카이브를 여는 중입니다...
+        </div>
+      </Layout>
+    );
+  }
+
+  // ✅ 로그인 완료 후: 기존 라우트 그대로
   return (
     <Layout>
       <Routes>
