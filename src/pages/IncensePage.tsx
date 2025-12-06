@@ -29,8 +29,9 @@ import {
   serverTimestamp,
   query,
   orderBy,
+  where,
 } from 'firebase/firestore';
-import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 
 /* -------------------------------------------------------------------------- */
 /* 1. 디자인 시스템 & 스타일 */
@@ -601,6 +602,8 @@ interface IncenseEntry {
   warmCool: number;
   note: string;
   imageUrls: string[];
+  // userId는 Firestore에 저장되지만 여기서는 안 써도 돼서 옵션
+  userId?: string;
 }
 
 interface FormImage {
@@ -627,6 +630,10 @@ interface FormData {
 }
 
 const IncensePage = () => {
+  const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [entriesLoading, setEntriesLoading] = useState(false);
+
   const [entries, setEntries] = useState<IncenseEntry[]>([]);
   const [mode, setMode] = useState<'list' | 'detail' | 'form'>('list');
   const [selectedEntry, setSelectedEntry] = useState<IncenseEntry | null>(null);
@@ -651,23 +658,36 @@ const IncensePage = () => {
     images: [],
   });
 
+  /* ----------------------------- Auth 상태만 감지 ------------------------ */
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (fbUser) => {
+      setUser(fbUser);
+      setAuthLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
   /* --------------------------- Firestore 구독 --------------------------- */
 
   useEffect(() => {
-    // 익명 로그인
-    const unsubAuth = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        signInAnonymously(auth).catch((err) => {
-          console.error('Anonymous sign-in failed', err);
-        });
-      }
-    });
+    if (!user) {
+      setEntries([]);
+      return;
+    }
+
+    setEntriesLoading(true);
 
     const colRef = collection(db, 'incenseEntries');
-    const q = query(colRef, orderBy('date', 'desc'), orderBy('createdAt', 'desc'));
+    const qRef = query(
+      colRef,
+      where('userId', '==', user.uid),
+      orderBy('date', 'desc'),
+      orderBy('createdAt', 'desc'),
+    );
 
     const unsubSnap = onSnapshot(
-      q,
+      qRef,
       (snapshot) => {
         const list: IncenseEntry[] = snapshot.docs.map((d) => {
           const data: any = d.data();
@@ -685,28 +705,33 @@ const IncensePage = () => {
             purchaseCurrency: data.purchaseCurrency || 'KRW',
             heatingMethod: (data.heatingMethod as any) || 'charcoal',
             weather: data.weather || 'sunny',
-            mood: data.mood,
-            rikkoku: data.rikkoku,
+            mood: data.mood || undefined,
+            rikkoku: data.rikkoku || undefined,
             gomi: Array.isArray(data.gomi) ? data.gomi : [],
             aroma: { ...initialAroma, ...(data.aroma || {}) },
             warmCool:
               typeof data.warmCool === 'number' ? data.warmCool : 3,
             note: data.note || '',
             imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [],
+            userId: data.userId,
           };
         });
         setEntries(list);
+        setEntriesLoading(false);
+
+        if (selectedEntry) {
+          const updated = list.find((e) => e.id === selectedEntry.id);
+          if (updated) setSelectedEntry(updated);
+        }
       },
       (err) => {
         console.error('incenseEntries onSnapshot error', err);
+        setEntriesLoading(false);
       },
     );
 
-    return () => {
-      unsubAuth();
-      unsubSnap();
-    };
-  }, []);
+  return () => unsubSnap();
+  }, [user, selectedEntry]);
 
   /* --------------------------- 폼 열기/리셋 --------------------------- */
 
@@ -762,8 +787,14 @@ const IncensePage = () => {
 
   /* --------------------------- 저장 / 삭제 --------------------------- */
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (
+    e: React.FormEvent | React.MouseEvent,
+  ) => {
     e.preventDefault();
+    if (!user) {
+      alert('홈 화면에서 먼저 로그인해 주세요.');
+      return;
+    }
     if (!formData.incenseName.trim()) return;
 
     const imageUrls = formData.images.map((img) => img.url);
@@ -785,6 +816,7 @@ const IncensePage = () => {
       warmCool: formData.warmCool,
       note: formData.note,
       imageUrls,
+      userId: user.uid,
       updatedAt: serverTimestamp(),
     };
 
@@ -841,6 +873,50 @@ const IncensePage = () => {
     fileInputRef.current?.click();
   };
 
+  /* ------------------------------ 렌더링 (Auth 게이트) ------------------- */
+
+  if (authLoading) {
+    return (
+      <div style={Styles.containerWrapper}>
+        <div style={Styles.pageContainer}>
+          <div
+            style={{
+              padding: '60px 24px',
+              textAlign: 'center',
+              fontFamily: Fonts.serif,
+              fontSize: 14,
+            }}
+          >
+            불러오는 중입니다…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    // 홈에서 로그인 안 했는데 직접 URL로 들어온 경우
+    return (
+      <div style={Styles.containerWrapper}>
+        <div style={Styles.pageContainer}>
+          <div
+            style={{
+              padding: '80px 24px',
+              textAlign: 'center',
+              fontFamily: Fonts.serif,
+              fontSize: 14,
+              color: Colors.textSub,
+            }}
+          >
+            문향 기록장은
+            <br />
+            홈 화면에서 로그인 후 이용할 수 있습니다.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   /* ------------------------------- 리스트 뷰 ------------------------------ */
 
   if (mode === 'list') {
@@ -851,7 +927,18 @@ const IncensePage = () => {
           <div style={{ padding: '1px 20px 8px' }}></div>
 
           <div style={{ padding: '0 20px 20px' }}>
-            {entries.length === 0 ? (
+            {entriesLoading ? (
+              <div
+                style={{
+                  padding: '40px 20px',
+                  textAlign: 'center',
+                  fontSize: 13,
+                  color: Colors.textSub,
+                }}
+              >
+                문향 기록을 불러오는 중입니다…
+              </div>
+            ) : entries.length === 0 ? (
               <div
                 style={{
                   padding: '60px 20px',
@@ -1417,7 +1504,10 @@ const IncensePage = () => {
                       type="button"
                       style={Styles.chip(formData.heatingMethod === opt.id)}
                       onClick={() =>
-                        setFormData({ ...formData, heatingMethod: opt.id as any })
+                        setFormData({
+                          ...formData,
+                          heatingMethod: opt.id as any,
+                        })
                       }
                     >
                       {opt.label}
