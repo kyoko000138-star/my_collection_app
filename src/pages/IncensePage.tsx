@@ -49,7 +49,8 @@ const Styles = {
   } as React.CSSProperties,
   pageContainer: {
     width: '100%',
-    maxWidth: '480px',
+  // maxWidth: '480px',   // 기존
+    maxWidth: '580px',      // ← 넓게 (원하면 540 / 600 등으로 조절 가능)
     minHeight: '100vh',
     backgroundColor: Colors.bg,
     fontFamily: Fonts.sans,
@@ -149,10 +150,11 @@ const Styles = {
     gap: '8px',
   } as React.CSSProperties,
   chip: (active: boolean): React.CSSProperties => ({
-    padding: '6px 10px',
-    minHeight: '32px',
-    borderRadius: '999px',
-    border: `1px solid ${active ? Colors.textMain : Colors.border}`,
+    padding: '6px 1px',           // 가로 패딩 넉넉하게
+    minHeight: 20,
+    minWidth: 55,                  // 1글자여도 가로가 더 길어서 원이 안 됨
+    borderRadius: 20,              // 알약 모양
+    border: `2px solid ${active ? Colors.textMain : Colors.border}`,
     backgroundColor: active ? Colors.textMain : 'transparent',
     color: active ? '#FFFFFF' : Colors.textSub,
     fontSize: '12px',
@@ -161,9 +163,9 @@ const Styles = {
     transition: 'all 0.2s ease',
     display: 'inline-flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    textAlign: 'center',
-    gap: '6px',
+    justifyContent: 'center',      // 아이콘+텍스트 가로 중앙
+    textAlign: 'center',           // 텍스트 중앙 정렬
+    gap: '3px',
     boxSizing: 'border-box',
   }),
 
@@ -771,7 +773,7 @@ const IncensePage = () => {
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                          marginBottom: gomiLabels || notePreview ? 4 : 0,
+                          marginBottom: gomiLabels || notePreview ? 10 : 0,
                         }}
                       >
                         <div
@@ -816,7 +818,7 @@ const IncensePage = () => {
                           style={{
                             fontSize: '12px',
                             color: Colors.textSub,
-                            marginBottom: notePreview ? 4 : 0,
+                            marginBottom: notePreview ? 8 : 0,
                           }}
                         >
                           {gomiLabels}
