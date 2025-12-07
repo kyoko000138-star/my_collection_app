@@ -61,13 +61,16 @@ const Fonts = {
 const Styles: { [k: string]: any } = {
   containerWrapper: {
     display: 'flex',
-    justifyContent: 'center',
+    justifyContent: 'flex-start'
     backgroundColor: '#F0F0F0',
     minHeight: '100vh',
+    padding: '0 24px', 
   },
   pageContainer: {
     width: '100%',
-    maxWidth: '560px',
+    maxWidth: '480px',
+    width: '100%',
+    maxWidth: '560px',              // ← 기존 480px → 조금 더 넓게
     minHeight: '100vh',
     backgroundColor: Colors.bg,
     fontFamily: Fonts.sans,
