@@ -61,21 +61,19 @@ const Fonts = {
 const Styles: { [k: string]: any } = {
   containerWrapper: {
     display: 'flex',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',      // 카드 가운데 정렬
     backgroundColor: '#F0F0F0',
     minHeight: '100vh',
-    padding: '0 24px', 
+    padding: '0 24px',             // 양옆 여백 (컬렉션이랑 비슷하게)
   },
   pageContainer: {
     width: '100%',
-    maxWidth: '560px',
-    width: '100%',
-    maxWidth: '560px',              // ← 기존 480px → 조금 더 넓게
+    maxWidth: '520px',             // 🔸 기존 480이었다면 520 정도로 살짝 넓혀주기
     minHeight: '100vh',
     backgroundColor: Colors.bg,
     fontFamily: Fonts.sans,
     color: Colors.textMain,
-    paddingBottom: '50px',
+    paddingBottom: '80px',
     boxShadow: '0 0 20px rgba(0,0,0,0.05)',
     position: 'relative',
   },
