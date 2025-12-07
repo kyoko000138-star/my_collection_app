@@ -169,9 +169,18 @@ const Styles: { [k: string]: any } = {
     gap: '6px',
     justifyContent: 'flex-start',
   },
+  
+ // 🔹 새로 추가: 버튼을 3개씩 넓게 깔아주는 그리드
+  chipRowGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', // 3개씩 → 필요하면 2줄로 자동 줄바꿈
+    gap: '8px',
+    width: '100%',
+  },
+
   chip: (active: boolean) => ({
-    padding: '8px 14px',
-    borderRadius: '20px',
+    padding: '10px 14px',
+    borderRadius: '999px',
     border: `1px solid ${active ? Colors.textMain : Colors.border}`,
     backgroundColor: active ? Colors.textMain : 'transparent',
     color: active ? '#FFFFFF' : Colors.textSub,
