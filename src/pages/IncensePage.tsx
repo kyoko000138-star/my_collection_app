@@ -504,9 +504,11 @@ const CustomSlider = ({
 const ImageStrip = ({
   images,
   onImageClick,
+  onRemove,
 }: {
   images: string[];
-  onImageClick: (url: string) => void;
+  onImageClick?: (url: string, index: number) => void;
+  onRemove?: (index: number) => void;
 }) => (
   <div
     style={{
@@ -517,24 +519,62 @@ const ImageStrip = ({
     }}
   >
     {images.map((url, idx) => (
-      <img
+      <div
         key={idx}
-        src={url}
-        alt={`thumb-${idx}`}
         style={{
+          position: 'relative',
           width: '70px',
           height: '70px',
-          objectFit: 'cover',
-          borderRadius: '4px',
-          border: `1px solid ${Colors.border}`,
-          cursor: 'pointer',
           flexShrink: 0,
         }}
-        onClick={() => onImageClick(url)}
-      />
+      >
+        <img
+          src={url}
+          alt={`thumb-${idx}`}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            borderRadius: '4px',
+            border: `1px solid ${Colors.border}`,
+            cursor: onImageClick ? 'pointer' : 'default',
+          }}
+          onClick={() => onImageClick && onImageClick(url, idx)}
+        />
+
+        {/* 삭제 버튼 (onRemove가 있을 때만 표시) */}
+        {onRemove && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(idx);
+            }}
+            style={{
+              position: 'absolute',
+              top: -6,
+              right: -6,
+              width: 18,
+              height: 18,
+              borderRadius: '50%',
+              border: 'none',
+              backgroundColor: 'rgba(0,0,0,0.65)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
     ))}
   </div>
 );
+
 
 const FullImageOverlay = ({
   url,
