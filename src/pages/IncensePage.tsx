@@ -61,7 +61,7 @@ const Fonts = {
 const Styles: { [k: string]: any } = {
   containerWrapper: {
     display: 'flex',
-    justifyContent: 'flex-start'
+    justifyContent: 'flex-start',
     backgroundColor: '#F0F0F0',
     minHeight: '100vh',
     padding: '0 24px', 
