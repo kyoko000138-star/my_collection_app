@@ -61,23 +61,25 @@ const Fonts = {
 const Styles: { [k: string]: any } = {
   // 🔹 바깥 회색 영역
   containerWrapper: {
-    display: 'flex',
-    justifyContent: 'center',   // 가운데 두되
+    // 🔥 flex 정렬 + 추가 패딩 제거
+    // display: 'flex',
+    // justifyContent: 'center',
     backgroundColor: '#F0F0F0',
     minHeight: '100vh',
-    padding: '0 24px',          // 양옆 여백 (컬렉션이랑 맞추기)
+    // padding: '0 24px',
+    width: '100%',            // 부모(paMain) 폭 그대로 따라가기
   },
 
   // 🔹 안쪽 하얀 카드(폼 전체)
   pageContainer: {
     width: '100%',
-    maxWidth: '560px',          // ★ 폭 키운 부분 (기존 480이면 560으로)
+    // maxWidth: '560px',      // 🔥 이 제한 제거 → paMain 폭 = 컬렉션이랑 동일
     minHeight: '100vh',
     backgroundColor: Colors.bg,
     fontFamily: Fonts.sans,
     color: Colors.textMain,
     paddingBottom: '80px',
-    boxShadow: '0 0 20px rgba(0,0,0,0.05)',
+    // boxShadow: '0 0 20px rgba(0,0,0,0.05)', // (원하면 유지, 컬렉션이랑 맞추려면 제거)
     position: 'relative',
   },
   header: {
