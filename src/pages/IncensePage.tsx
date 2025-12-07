@@ -59,16 +59,19 @@ const Fonts = {
 
 // TS 귀찮으니까 any로 통일
 const Styles: { [k: string]: any } = {
+  // 🔹 바깥 회색 영역
   containerWrapper: {
     display: 'flex',
-    justifyContent: 'center',      // 카드 가운데 정렬
+    justifyContent: 'center',   // 가운데 두되
     backgroundColor: '#F0F0F0',
     minHeight: '100vh',
-    padding: '0 24px',             // 양옆 여백 (컬렉션이랑 비슷하게)
+    padding: '0 24px',          // 양옆 여백 (컬렉션이랑 맞추기)
   },
+
+  // 🔹 안쪽 하얀 카드(폼 전체)
   pageContainer: {
     width: '100%',
-    maxWidth: '520px',             // 🔸 기존 480이었다면 520 정도로 살짝 넓혀주기
+    maxWidth: '560px',          // ★ 폭 키운 부분 (기존 480이면 560으로)
     minHeight: '100vh',
     backgroundColor: Colors.bg,
     fontFamily: Fonts.sans,
