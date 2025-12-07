@@ -68,7 +68,7 @@ const Styles = {
     minHeight: '100vh',
     // padding: '0 24px',
     width: '100%',            // 부모(paMain) 폭 그대로 따라가기
-  };
+  },
 
   // 🔹 안쪽 하얀 카드(폼 전체)
   pageContainer: {
