@@ -44,6 +44,9 @@ import {
   getDoc,
   getDocs,
   collection,
+  query,
+  where,
+  limit,
 } from 'firebase/firestore';
 
 // ===========================================
@@ -508,6 +511,7 @@ type JournalEntryData = {
   freeContent: string;
   timeline: TimelineItem[];
   updatedAt: number;
+  _id?: string; // Firestore 문서 id (기존 데이터 호환용)
 };
 
 type MonthlyMemoItem = {
@@ -603,8 +607,13 @@ async function loadAllEntries(
     const snap = await getDocs(colRef);
     const result: Record<string, JournalEntryData> = {};
     snap.forEach((docSnap) => {
-      const data = docSnap.data() as JournalEntryData;
-      const key = data.dateKey || docSnap.id;
+      const raw = docSnap.data() as JournalEntryData;
+      const key = raw.dateKey || docSnap.id;
+      const data: JournalEntryData = {
+        ...raw,
+        dateKey: raw.dateKey || key,
+        _id: docSnap.id,
+      };
       result[key] = data;
     });
     return result;
@@ -619,7 +628,8 @@ async function loadJournalEntry(
   dateKey: string
 ): Promise<JournalEntryData | null> {
   try {
-    const ref = doc(
+    // 1) doc id = dateKey 인 문서 먼저 시도
+    const refById = doc(
       db,
       'apps',
       appId,
@@ -628,9 +638,38 @@ async function loadJournalEntry(
       JOURNAL_COLLECTION_NAME,
       dateKey
     );
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return null;
-    return snap.data() as JournalEntryData;
+    const snapById = await getDoc(refById);
+    if (snapById.exists()) {
+      const raw = snapById.data() as JournalEntryData;
+      return {
+        ...raw,
+        dateKey: raw.dateKey || dateKey,
+        _id: snapById.id,
+      };
+    }
+
+    // 2) 없으면 dateKey 필드로 검색 (예전 랜덤 ID 문서용)
+    const colRef = collection(
+      db,
+      'apps',
+      appId,
+      'users',
+      userId,
+      JOURNAL_COLLECTION_NAME
+    );
+    const q = query(colRef, where('dateKey', '==', dateKey), limit(1));
+    const qsnap = await getDocs(q);
+    if (!qsnap.empty) {
+      const docSnap = qsnap.docs[0];
+      const raw = docSnap.data() as JournalEntryData;
+      return {
+        ...raw,
+        dateKey: raw.dateKey || dateKey,
+        _id: docSnap.id,
+      };
+    }
+
+    return null;
   } catch (e) {
     console.error('loadJournalEntry error', e);
     return null;
@@ -640,9 +679,11 @@ async function loadJournalEntry(
 async function saveJournalEntry(
   userId: string,
   dateKey: string,
-  data: JournalEntryData
-) {
+  data: JournalEntryData,
+  existingId?: string | null
+): Promise<void> {
   try {
+    const docId = existingId || dateKey;
     const ref = doc(
       db,
       'apps',
@@ -650,7 +691,7 @@ async function saveJournalEntry(
       'users',
       userId,
       JOURNAL_COLLECTION_NAME,
-      dateKey
+      docId
     );
     await setDoc(ref, data, { merge: true });
   } catch (e) {
@@ -1089,7 +1130,7 @@ const styles: any = {
 
   presetGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
+    gridTemplateColumns: 'repeat(4, 1fr)`,
     gap: '8px 6px',
     marginBottom: '16px',
   },
@@ -1223,7 +1264,11 @@ export default function App() {
           {view === 'calendar' ? (
             <CalendarView onDateSelect={handleDateClick} user={user} />
           ) : (
-            <JournalView targetDate={targetDate} onBack={handleBack} user={user} />
+            <JournalView
+              targetDate={targetDate}
+              onBack={handleBack}
+              user={user}
+            />
           )}
         </div>
       </div>
@@ -1602,12 +1647,15 @@ function JournalView({
     null
   );
 
+  const [docIdForDay, setDocIdForDay] = useState<string | null>(null); // 🔹 이 날짜 문서 id 기억
+
   useEffect(() => {
     let cancelled = false;
 
     loadJournalEntry(user.uid, dateKey).then((data) => {
       if (cancelled) return;
       if (data) {
+        setDocIdForDay(data._id ?? dateKey);
         setSelectedWeatherId(data.weatherId || null);
         setDayMoodId(data.dayMoodId || null);
         setSelectedPromptIds(data.promptIds);
@@ -1615,6 +1663,7 @@ function JournalView({
         setFreeContent(data.freeContent || '');
         setTimeline(data.timeline || []);
       } else {
+        setDocIdForDay(null);
         setSelectedPromptIds(pickRandomPromptIds(PROMPTS_PER_DAY));
         setAnswers({});
         setSelectedWeatherId(null);
@@ -1733,7 +1782,10 @@ function JournalView({
       timeline,
       updatedAt: Date.now(),
     };
-    await saveJournalEntry(user.uid, dateKey, data);
+    await saveJournalEntry(user.uid, dateKey, data, docIdForDay);
+    if (!docIdForDay) {
+      setDocIdForDay(dateKey);
+    }
     alert('저장되었습니다.');
   };
 
@@ -1973,7 +2025,9 @@ function JournalView({
               <button
                 style={styles.moodTrigger}
                 onClick={() =>
-                  setActiveMoodSelector(activeMoodSelector === pid ? null : pid)
+                  setActiveMoodSelector(
+                    activeMoodSelector === pid ? null : pid
+                  )
                 }
               >
                 {ans.moodId ? (
