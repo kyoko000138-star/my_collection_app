@@ -1130,7 +1130,7 @@ const styles: any = {
 
   presetGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)`,
+    gridTemplateColumns: 'repeat(4, 1fr)',
     gap: '8px 6px',
     marginBottom: '16px',
   },
