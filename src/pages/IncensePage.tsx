@@ -203,7 +203,9 @@ const Styles: { [k: string]: any } = {
     cursor: 'pointer',
     transition: 'transform 0.2s',
     border: `1px solid ${Colors.border}`,
-  },
+    width: '100%',          // 🔹 이 줄 추가해도 됨
+    },
+
   fab: {
     position: 'absolute',
     right: '20px',
@@ -996,7 +998,7 @@ setCurrentImageIndex(0);
           {/* 상단 여백 (PRIVATE ARCHIVE 헤더와 간격) */}
           <div style={{ padding: '1px 20px 8px' }}></div>
 
-          <div style={{ padding: '0 5px 20px' }}>
+          <div style={{ padding: '0 0 20px' }}>
             {entriesLoading ? (
               <div
                 style={{
