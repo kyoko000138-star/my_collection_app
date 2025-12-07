@@ -20,7 +20,7 @@ import {
   CloudSun,
 } from 'lucide-react';
 
-import { auth, db } from '../firebase';
+import { auth, db, appId } from '../firebase'; // ✅ appId 추가
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   collection,
@@ -31,7 +31,6 @@ import {
   serverTimestamp,
   onSnapshot,
   query,
-  where,
   orderBy,
 } from 'firebase/firestore';
 
@@ -304,7 +303,7 @@ const Styles: { [k: string]: any } = {
  * 2. 상수 / 타입
  * -------------------------------------------------------------------------- */
 const todayString = () => new Date().toISOString().slice(0, 10);
-const TEA_COLLECTION = 'teaSessions';
+const TEA_COLLECTION = 'teaSessions'; // artifacts/{appId}/users/{uid}/teaSessions 아래에 저장
 
 const TEA_MAIN_TYPES = [
   { id: 'green', label: '녹차' },
@@ -1355,7 +1354,9 @@ const TeaForm = ({
                     minWidth: '60px',
                   }}
                   value={brew.water}
-                  onChange={(e) => handleBrewChange(i, 'water', e.target.value)}
+                  onChange={(e) =>
+                    handleBrewChange(i, 'water', e.target.value)
+                  }
                 />
                 <button
                   type="button"
@@ -1673,11 +1674,15 @@ const TeaPage = () => {
     }
     setEntriesLoading(true);
 
-    const q = query(
-      collection(db, TEA_COLLECTION),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+    const colRef = collection(
+      db,
+      'artifacts',
+      appId,
+      'users',
+      user.uid,
+      TEA_COLLECTION
     );
+    const q = query(colRef, orderBy('createdAt', 'desc'));
 
     const unsub = onSnapshot(
       q,
@@ -1698,13 +1703,14 @@ const TeaPage = () => {
             brewing: Array.isArray(data.brewing) ? data.brewing : [],
             aromaTags: Array.isArray(data.aromaTags) ? data.aromaTags : [],
             taste: { ...initialTaste, ...(data.taste || {}) },
-            note: data.note ?? '',
             images: Array.isArray(data.images) ? data.images : [],
+            note: data.note ?? '',
           };
         });
         setEntries(list);
         setEntriesLoading(false);
 
+        // 상세 화면 보고 있을 때도 최신 데이터 반영
         if (selectedEntry) {
           const updated = list.find((e) => e.id === selectedEntry.id);
           if (updated) setSelectedEntry(updated);
@@ -1759,7 +1765,7 @@ const TeaPage = () => {
     }
     if (!formData.teaName.trim()) return;
 
-    const imageUrls = formData.images.map((img: any) => img.url);
+    const imageUrls = formData.images.map((img: any) => img.url); // base64 Data URL
 
     const payload = {
       date: formData.date,
@@ -1776,17 +1782,33 @@ const TeaPage = () => {
       taste: formData.taste,
       note: formData.note.trim(),
       images: imageUrls,
-      userId: user.uid,
       updatedAt: serverTimestamp(),
     };
 
     setSaving(true);
     try {
+      const colRef = collection(
+        db,
+        'artifacts',
+        appId,
+        'users',
+        user.uid,
+        TEA_COLLECTION
+      );
+
       if (formData.id) {
-        const docRef = doc(db, TEA_COLLECTION, formData.id);
+        const docRef = doc(
+          db,
+          'artifacts',
+          appId,
+          'users',
+          user.uid,
+          TEA_COLLECTION,
+          formData.id
+        );
         await updateDoc(docRef, payload);
       } else {
-        await addDoc(collection(db, TEA_COLLECTION), {
+        await addDoc(colRef, {
           ...payload,
           createdAt: serverTimestamp(),
         });
@@ -1801,9 +1823,20 @@ const TeaPage = () => {
   };
 
   const handleDelete = async (id: string) => {
+    if (!user) return;
     if (!window.confirm('정말 삭제하시겠습니까?')) return;
     try {
-      await deleteDoc(doc(db, TEA_COLLECTION, id));
+      await deleteDoc(
+        doc(
+          db,
+          'artifacts',
+          appId,
+          'users',
+          user.uid,
+          TEA_COLLECTION,
+          id
+        )
+      );
       setMode('list');
     } catch (err) {
       console.error(err);
@@ -1813,16 +1846,33 @@ const TeaPage = () => {
 
   /* ------------------------ 이미지 업로드 핸들러 ------------------------ */
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newImages = Array.from(e.target.files).map((file) => ({
-        url: URL.createObjectURL(file), // ⚠️ 새로고침 시 사라짐 (나중에 Storage 붙이면 교체)
-        file,
-      }));
-      setFormData((prev: any) => ({
-        ...prev,
-        images: [...prev.images, ...newImages],
-      }));
-    }
+    const { files } = e.target;
+    if (!files || files.length === 0) return;
+
+    // ✅ File → base64 Data URL로 변환해서 저장 (새로고침/다른 기기에서도 유지)
+    const readFileAsDataUrl = (file: File) =>
+      new Promise<{ url: string; file: null }>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          resolve({ url: reader.result as string, file: null });
+        };
+        reader.onerror = (error) => {
+          console.error('이미지 읽기 오류:', error);
+          reject(error);
+        };
+        reader.readAsDataURL(file);
+      });
+
+    Promise.all(Array.from(files).map(readFileAsDataUrl))
+      .then((newImages) => {
+        setFormData((prev: any) => ({
+          ...prev,
+          images: [...prev.images, ...newImages],
+        }));
+      })
+      .catch((error) => {
+        console.error('이미지 처리 중 오류:', error);
+      });
   };
 
   const triggerFileInput = () => {
