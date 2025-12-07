@@ -8,8 +8,7 @@ import { getStorage } from 'firebase/storage';
 const firebaseConfig = {
   apiKey: "AIzaSyB_U8Zh16n250tTc7i8X8kKUpSVP5P337Y",
   authDomain: "my-project-0076-b774a.firebaseapp.com",
-  databaseURL: "https://my-project-0076-b774a-default-rtdb.firebaseio.com",
-  projectId: "my-project-0076-b774a",
+  projectId: "my-project-0076-b774a,
   storageBucket: "my-project-0076-b774a.firebasestorage.app",
   messagingSenderId: "626792123184",
   appId: "1:626792123184:web:404e4b95dbd2f0796d16f5",
