@@ -172,11 +172,14 @@ const Styles: { [k: string]: any } = {
     justifyContent: 'flex-start',
   },
 
- // 👉 줄당 개수 고정용 그리드 베이스
-  chipRowGridBase: {
-    display: 'grid',
+  // ✅ 새로 추가: 한 줄 + 가로 스크롤용
+  chipRowScroll: {
+    display: 'flex',
+    flexWrap: 'nowrap',
     gap: '8px',
-    width: '100%',
+    overflowX: 'auto',
+    paddingBottom: '4px',
+    WebkitOverflowScrolling: 'touch',
   },
 
   chip: (active: boolean) => ({
@@ -194,7 +197,7 @@ const Styles: { [k: string]: any } = {
     justifyContent: 'center',
     gap: '6px',
     whiteSpace: 'nowrap',
-  }),
+    flexShrink: 0,          // ✅ 한 줄 스크롤될 때 폭 줄어들지 않게
   card: {
     backgroundColor: Colors.cardBg,
     borderRadius: '8px',
@@ -1803,8 +1806,8 @@ setCurrentImageIndex(0);
               </div>
 
               <div style={Styles.inputGroup}>
-                <span style={Styles.label}>오늘의 날씨</span>
-                <div style={Styles.chipRowTight}>
+              <span style={Styles.label}>오늘의 날씨</span>
+                 <div style={Styles.chipRowScroll}>   {/* 👈 여기 */}
                   {WEATHER_OPTIONS.map((opt) => (
                     <button
                       key={opt.id}
@@ -1822,7 +1825,7 @@ setCurrentImageIndex(0);
 
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>오늘의 마음</span>
-                <div style={Styles.chipRowTight}>
+                <div style={Styles.chipRowScroll}>   {/* 👈 여기 */}
                   {MOOD_OPTIONS.map((opt) => (
                     <button
                       key={opt.id}
@@ -1847,7 +1850,7 @@ setCurrentImageIndex(0);
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>육국</span>
                 <div>
-                  <div style={Styles.chipRowTight}>
+                  <div style={Styles.chipRowScroll}>   {/* 👈 여기 */}
                     {RIKKOKU_ROW1_IDS.map((id) => {
                       const opt = RIKKOKU_OPTIONS.find((o) => o.id === id)!;
                       return (
@@ -1899,7 +1902,7 @@ setCurrentImageIndex(0);
               {/* 오미 */}
               <div style={Styles.inputGroup}>
                 <span style={Styles.label}>오미</span>
-                <div style={Styles.chipRowTight}>
+                <div style={Styles.chipRowScroll}>   {/* 👈 여기 */}
                   {GOMI_OPTIONS.map((opt) => (
                     <button
                       key={opt.id}
