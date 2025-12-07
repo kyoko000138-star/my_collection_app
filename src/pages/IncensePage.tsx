@@ -1131,7 +1131,7 @@ setCurrentImageIndex(0);
     );
   }
 
-  /* ------------------------------- 상세 뷰 ------------------------------ */
+ /* ------------------------------- 상세 뷰 ------------------------------ */
 
   if (mode === 'detail' && selectedEntry) {
     const weather = WEATHER_OPTIONS.find(
@@ -1141,10 +1141,6 @@ setCurrentImageIndex(0);
     const rikkokuLabel = RIKKOKU_OPTIONS.find(
       (r) => r.id === selectedEntry.rikkoku,
     )?.label;
-    const gomiLabels = selectedEntry.gomi
-      ?.map((g) => GOMI_OPTIONS.find((o) => o.id === g)?.label)
-      .filter(Boolean)
-      .join(', ');
     const currencySymbol =
       CURRENCY_OPTIONS.find(
         (c) => c.id === (selectedEntry.purchaseCurrency || 'KRW'),
@@ -1153,6 +1149,7 @@ setCurrentImageIndex(0);
     return (
       <div style={Styles.containerWrapper}>
         <div style={Styles.pageContainer}>
+          {/* 상단 헤더 */}
           <div style={Styles.header}>
             <button
               onClick={() => {
@@ -1195,6 +1192,7 @@ setCurrentImageIndex(0);
           </div>
 
           <div style={{ padding: '24px 20px' }}>
+            {/* 제목 */}
             <div style={{ marginBottom: '32px', textAlign: 'center' }}>
               <span
                 style={{
@@ -1218,15 +1216,146 @@ setCurrentImageIndex(0);
               </h1>
             </div>
 
+            {/* 이미지 슬라이더 */}
             {selectedEntry.imageUrls?.length > 0 && (
-              <div style={{ marginBottom: '32px' }}>
-                <ImageStrip
-                  images={selectedEntry.imageUrls}
-                  onImageClick={setFullImageUrl}
-                />
+              <div
+                style={{
+                  marginBottom: '32px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '12px',
+                }}
+              >
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    display: 'flex',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <img
+                    src={selectedEntry.imageUrls[currentImageIndex]}
+                    alt={`incense-${currentImageIndex}`}
+                    style={{
+                      width: '100%',
+                      maxWidth: 450,
+                      height: 450,
+                      objectFit: 'cover',
+                      borderRadius: 8,
+                      border: `1px solid ${Colors.border}`,
+                      cursor: 'pointer',
+                    }}
+                    onClick={() =>
+                      setFullImageUrl(
+                        selectedEntry.imageUrls[currentImageIndex],
+                      )
+                    }
+                  />
+
+                  {selectedEntry.imageUrls.length > 1 && (
+                    <>
+                      {/* 왼쪽 화살표 */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentImageIndex((prev) =>
+                            prev === 0
+                              ? selectedEntry.imageUrls.length - 1
+                              : prev - 1,
+                          );
+                        }}
+                        style={{
+                          position: 'absolute',
+                          left: '12px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 32,
+                          height: 32,
+                          borderRadius: '50%',
+                          border: 'none',
+                          backgroundColor: 'rgba(0,0,0,0.4)',
+                          color: '#fff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <ArrowLeft size={18} />
+                      </button>
+
+                      {/* 오른쪽 화살표 */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentImageIndex((prev) =>
+                            prev === selectedEntry.imageUrls.length - 1
+                              ? 0
+                              : prev + 1,
+                          );
+                        }}
+                        style={{
+                          position: 'absolute',
+                          right: '12px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 32,
+                          height: 32,
+                          borderRadius: '50%',
+                          border: 'none',
+                          backgroundColor: 'rgba(0,0,0,0.4)',
+                          color: '#fff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <ArrowRight size={18} />
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* 아래 점(슬라이드 인디케이터) */}
+                {selectedEntry.imageUrls.length > 1 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 6,
+                      justifyContent: 'center',
+                      marginTop: 4,
+                    }}
+                  >
+                    {selectedEntry.imageUrls.map((_, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setCurrentImageIndex(idx)}
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          border: 'none',
+                          padding: 0,
+                          backgroundColor:
+                            idx === currentImageIndex
+                              ? Colors.textMain
+                              : '#E0E0E0',
+                          cursor: 'pointer',
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
+            {/* 기본 정보 (문향 방식 / 날씨·마음 / 구입 정보) */}
             <div
               style={{
                 display: 'grid',
@@ -1238,6 +1367,7 @@ setCurrentImageIndex(0);
                 padding: '24px 0',
               }}
             >
+              {/* 문향 방식 */}
               <div>
                 <span style={Styles.label}>문향 방식</span>
                 <span
@@ -1252,48 +1382,50 @@ setCurrentImageIndex(0);
                     : '전기향로'}
                 </span>
               </div>
-              <div>
-               <div>
-  <span style={Styles.label}>오늘의 날씨 / 마음</span>
-  <div
-    style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 4,
-      marginTop: 4,
-    }}
-  >
-    {weather && (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          fontSize: '13px',
-          color: Colors.textMain,
-        }}
-      >
-        <span>{weather.icon}</span>
-        <span>{weather.label}</span>
-      </div>
-    )}
-    {mood && (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          fontSize: '13px',
-          color: Colors.textMain,
-        }}
-      >
-        <span>{mood.icon}</span>
-        <span>{mood.label}</span>
-      </div>
-    )}
-  </div>
-</div>
 
+              {/* 날씨 / 마음 */}
+              <div>
+                <span style={Styles.label}>오늘의 날씨 / 마음</span>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                    marginTop: 4,
+                  }}
+                >
+                  {weather && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: '13px',
+                        color: Colors.textMain,
+                      }}
+                    >
+                      <span>{weather.icon}</span>
+                      <span>{weather.label}</span>
+                    </div>
+                  )}
+                  {mood && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: '13px',
+                        color: Colors.textMain,
+                      }}
+                    >
+                      <span>{mood.icon}</span>
+                      <span>{mood.label}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 구입 정보 */}
               {(selectedEntry.purchasePlace ||
                 selectedEntry.purchasePrice) && (
                 <div style={{ gridColumn: '1 / -1' }}>
@@ -1316,27 +1448,68 @@ setCurrentImageIndex(0);
               )}
             </div>
 
+            {/* 향의 인상 */}
             <div style={{ marginBottom: '40px' }}>
               <h3 style={Styles.sectionTitle}>향의 인상</h3>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '8px',
-                  marginBottom: '24px',
-                  flexWrap: 'wrap',
-                  justifyContent: 'center',
-                }}
-              >
-                {rikkokuLabel && (
-                  <span style={Styles.chip(true)}>{rikkokuLabel}</span>
-                )}
-                {gomiLabels && (
-                  <span style={Styles.chip(true)}>{gomiLabels}</span>
-                )}
+
+              {/* 육국 */}
+              <div style={{ marginBottom: '16px' }}>
+                <span style={Styles.label}>육국</span>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    marginTop: 8,
+                  }}
+                >
+                  {rikkokuLabel ? (
+                    <span style={Styles.chip(true)}>{rikkokuLabel}</span>
+                  ) : (
+                    <span style={{ fontSize: 12, color: Colors.textSub }}>
+                      선택 없음
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {/* 오미 */}
+              <div style={{ marginBottom: '24px' }}>
+                <span style={Styles.label}>오미</span>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'center',
+                    gap: 8,
+                    marginTop: 8,
+                  }}
+                >
+                  {selectedEntry.gomi && selectedEntry.gomi.length > 0 ? (
+                    selectedEntry.gomi.map((g) => {
+                      const label = GOMI_OPTIONS.find(
+                        (o) => o.id === g,
+                      )?.label;
+                      if (!label) return null;
+                      return (
+                        <span key={g} style={Styles.chip(true)}>
+                          {label}
+                        </span>
+                      );
+                    })
+                  ) : (
+                    <span style={{ fontSize: 12, color: Colors.textSub }}>
+                      선택 없음
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* 레이더 차트 */}
               <div style={{ marginBottom: '32px' }}>
                 <SVGRadarChart values={selectedEntry.aroma} />
               </div>
+
+              {/* 향의 온도 */}
               <div>
                 <span style={Styles.label}>향의 온도</span>
                 <div
@@ -1373,6 +1546,7 @@ setCurrentImageIndex(0);
               </div>
             </div>
 
+            {/* 감상 메모 */}
             {selectedEntry.note && (
               <div>
                 <h3 style={Styles.sectionTitle}>감상 메모</h3>
@@ -1390,6 +1564,8 @@ setCurrentImageIndex(0);
               </div>
             )}
           </div>
+
+          {/* 전체 이미지 확대 */}
           <FullImageOverlay
             url={fullImageUrl}
             onClose={() => setFullImageUrl(null)}
@@ -1398,6 +1574,7 @@ setCurrentImageIndex(0);
       </div>
     );
   }
+
 
   /* ------------------------------- 입력 폼 ------------------------------ */
 
