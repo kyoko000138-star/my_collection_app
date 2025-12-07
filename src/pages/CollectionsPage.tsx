@@ -10,7 +10,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 
-import { auth, db } from '../firebase';
+import { auth, db, storage } from '../firebase'; // ⬅️ storage 추가
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   collection,
@@ -24,6 +24,7 @@ import {
   where,
   orderBy,
 } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // ⬅️ Storage 함수 import
 
 /* --------------------------------------------------------------------------
  * 공통 스타일 (도록 / 박물관 캡션 느낌)
@@ -181,7 +182,7 @@ const Styles: any = {
     border: `1px solid ${Colors.border}`,
     display: 'flex',
     gap: 10,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.03)`,
     cursor: 'pointer',
   },
 };
@@ -434,7 +435,8 @@ const CollectionsPage: React.FC = () => {
             name: data.name ?? '',
             mainCategory: data.mainCategory ?? '향목',
             subCategory:
-              data.subCategory ?? CATEGORY_MAP[data.mainCategory ?? '향목'][0],
+              data.subCategory ??
+              CATEGORY_MAP[data.mainCategory ?? '향목'][0],
             date: data.date ?? todayString(),
             priceAmount:
               typeof data.priceAmount === 'number' ? data.priceAmount : null,
@@ -492,7 +494,7 @@ const CollectionsPage: React.FC = () => {
         weight: item.weight || '',
         condition: item.condition || '양호',
         tags: item.tags || [],
-        images: (item.imageUrls || []).map((url) => ({ url, file: null })),
+        images: (item.imageUrls || []).map((url) => ({ url, file: null })), // ⬅️ 기존 이미지들은 file=null
       });
     } else {
       setFormData({
@@ -534,6 +536,32 @@ const CollectionsPage: React.FC = () => {
         ? Number(formData.priceAmount)
         : null;
 
+      // 1) 기존 URL(이미 Storage에 있는 것) / 새로 추가된 파일 분리
+      const existingUrls = formData.images
+        .filter((img) => !img.file && img.url)
+        .map((img) => img.url);
+
+      const newFiles = formData.images.filter(
+        (img) => img.file,
+      ) as FormImage[];
+
+      // 2) 새 파일 Firebase Storage 업로드
+      const uploadPromises = newFiles.map((img, index) => {
+        const file = img.file!;
+        const safeName = file.name.replace(/\s+/g, '_');
+        const path = `${COLLECTION_NAME}/${user.uid}/${Date.now()}_${index}_${safeName}`;
+        const storageRef = ref(storage, path);
+
+        return uploadBytes(storageRef, file).then(() =>
+          getDownloadURL(storageRef),
+        );
+      });
+
+      const uploadedUrls = await Promise.all(uploadPromises);
+
+      // 3) 최종 imageUrls = 기존 + 새로 업로드한 것
+      const imageUrls = [...existingUrls, ...uploadedUrls];
+
       const payload = {
         name: formData.name.trim(),
         mainCategory: formData.mainCategory,
@@ -550,7 +578,7 @@ const CollectionsPage: React.FC = () => {
         weight: formData.weight.trim(),
         condition: formData.condition,
         tags: formData.tags,
-        imageUrls: formData.images.map((i) => i.url),
+        imageUrls,
         userId: user.uid,
         updatedAt: serverTimestamp(),
       };
@@ -597,7 +625,7 @@ const CollectionsPage: React.FC = () => {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const newImages: FormImage[] = Array.from(e.target.files).map((file) => ({
-      url: URL.createObjectURL(file), // 실제 배포 시에는 Storage URL로 변경 필요
+      url: URL.createObjectURL(file), // 미리보기용 (저장은 Storage downloadURL)
       file,
     }));
     setFormData((prev) => ({
