@@ -564,7 +564,7 @@ const ImageStrip = ({
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              padding: 0,
+              padding: 5,
             }}
           >
             <X size={12} />
