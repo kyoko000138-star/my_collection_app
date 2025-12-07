@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   RotateCcw,
   X,
@@ -47,6 +48,7 @@ import {
   query,
   where,
   limit,
+  deleteDoc,
 } from 'firebase/firestore';
 
 // ===========================================
@@ -699,6 +701,26 @@ async function saveJournalEntry(
   }
 }
 
+async function deleteJournalEntry(
+  userId: string,
+  docId: string
+): Promise<void> {
+  try {
+    const ref = doc(
+      db,
+      'apps',
+      appId,
+      'users',
+      userId,
+      JOURNAL_COLLECTION_NAME,
+      docId
+    );
+    await deleteDoc(ref);
+  } catch (e) {
+    console.error('deleteJournalEntry error', e);
+  }
+}
+
 async function loadMonthlyMemo(
   userId: string,
   year: number,
@@ -977,7 +999,7 @@ const styles: any = {
   moduleBox: {
     position: 'relative' as const,
     padding: '20px',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: 'transparent', // 줄 배경 그대로 보이도록 변경
     borderRadius: '16px',
   },
   moduleTitle: {
@@ -1188,6 +1210,16 @@ const styles: any = {
     cursor: 'pointer',
     fontFamily: "'Noto Sans KR', sans-serif",
   },
+  deleteBtn: {
+    marginTop: '8px',
+    background: 'none',
+    border: 'none',
+    color: '#9CA3AF',
+    fontSize: '12px',
+    textDecoration: 'underline',
+    cursor: 'pointer',
+    fontFamily: "'Noto Sans KR', sans-serif",
+  },
 };
 
 // ===========================================
@@ -1195,6 +1227,7 @@ const styles: any = {
 // ===========================================
 
 export default function App() {
+  const navigate = useNavigate();
   const [view, setView] = useState<'calendar' | 'journal'>('calendar');
   const [targetDate, setTargetDate] = useState(new Date());
   const [user, setUser] = useState<User | null>(null);
@@ -1234,12 +1267,15 @@ export default function App() {
         <div style={styles.wrapper}>
           <div style={styles.paper}>
             <div style={styles.appHeader}>
-              <div>
-                <div style={styles.appTitle}>나만 보는 하루 기록</div>
-                <div style={styles.appSub}>잠시만요, 일기장을 여는 중...</div>
-              </div>
-              <div style={{ fontSize: 11, color: '#bbb' }}>로그인 중...</div>
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                style={styles.backBtn}
+              >
+                <ChevronLeft size={16} /> 뒤로가기
+              </button>
             </div>
+            <div style={{ fontSize: 11, color: '#bbb' }}>로그인 중...</div>
           </div>
         </div>
       </>
@@ -1251,14 +1287,16 @@ export default function App() {
       <style>{fontStyle}</style>
       <div style={styles.wrapper}>
         <div style={styles.paper}>
+          {/* 🔹 상단 헤더 텍스트 제거 + 뒤로가기 버튼으로 변경 */}
           <div style={styles.appHeader}>
-            <div>
-              <div style={styles.appTitle}>나만 보는 하루 기록</div>
-              <div style={styles.appSub}>하루를 가볍게 정리하는 심리 일기장</div>
-            </div>
-            <div style={{ fontSize: 11, color: '#bbb' }}>
-              PRIVATE ARCHIVE
-            </div>
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              style={styles.backBtn}
+            >
+              <ChevronLeft size={16} /> 뒤로가기
+            </button>
+            <div style={{ width: 24 }} />
           </div>
 
           {view === 'calendar' ? (
@@ -1789,6 +1827,35 @@ function JournalView({
     alert('저장되었습니다.');
   };
 
+  const handleDelete = async () => {
+    if (!docIdForDay) {
+      // 저장된 기록이 없으면 그냥 초기화만
+      setSelectedWeatherId(null);
+      setDayMoodId(null);
+      setSelectedPromptIds(pickRandomPromptIds(PROMPTS_PER_DAY));
+      setAnswers({});
+      setFreeContent('');
+      setTimeline([]);
+      return;
+    }
+    const ok = window.confirm('이 날짜의 기록을 모두 삭제할까요?');
+    if (!ok) return;
+    try {
+      await deleteJournalEntry(user.uid, docIdForDay);
+      setDocIdForDay(null);
+      setSelectedWeatherId(null);
+      setDayMoodId(null);
+      setSelectedPromptIds(pickRandomPromptIds(PROMPTS_PER_DAY));
+      setAnswers({});
+      setFreeContent('');
+      setTimeline([]);
+      alert('삭제되었습니다.');
+    } catch (e) {
+      console.error(e);
+      alert('삭제 중 오류가 발생했습니다.');
+    }
+  };
+
   return (
     <>
       <div style={styles.headerRow}>
@@ -2088,17 +2155,19 @@ function JournalView({
         );
       })}
 
-      {/* 자유 공간 */}
+      {/* 오늘의 하루 */}
       <div style={styles.sectionHeader}>
-        <span style={styles.sectionTitle}>자유 공간</span>
+        <span style={styles.sectionTitle}>오늘의 하루</span>
       </div>
       <textarea
         className="lined-textarea"
         style={{
           ...styles.textarea,
           minHeight: '200px',
+          maxHeight: '320px',
           paddingRight: 0,
           paddingLeft: '4px',
+          overflowY: 'auto', // 🔹 길어지면 내부 스크롤
         }}
         value={freeContent}
         onChange={(e) => setFreeContent(e.target.value)}
@@ -2108,6 +2177,9 @@ function JournalView({
       <div style={{ textAlign: 'center' }}>
         <button onClick={handleSave} style={styles.saveBtn}>
           작성 완료
+        </button>
+        <button onClick={handleDelete} style={styles.deleteBtn}>
+          이 날짜 기록 삭제
         </button>
       </div>
     </>
