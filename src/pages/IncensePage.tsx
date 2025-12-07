@@ -68,14 +68,14 @@ const Styles: { [k: string]: any } = {
   },
   pageContainer: {
     width: '100%',
-    maxWidth: '480px',
+    maxWidth: '560px',
     width: '100%',
     maxWidth: '560px',              // ← 기존 480px → 조금 더 넓게
     minHeight: '100vh',
     backgroundColor: Colors.bg,
     fontFamily: Fonts.sans,
     color: Colors.textMain,
-    paddingBottom: '80px',
+    paddingBottom: '50px',
     boxShadow: '0 0 20px rgba(0,0,0,0.05)',
     position: 'relative',
   },
