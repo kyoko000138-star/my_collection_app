@@ -67,7 +67,7 @@ const Styles: { [k: string]: any } = {
   },
   pageContainer: {
     width: '100%',
-    maxWidth: '480px',
+    maxWidth: '560px',
     minHeight: '100vh',
     backgroundColor: Colors.bg,
     fontFamily: Fonts.sans,
@@ -151,6 +151,10 @@ const Styles: { [k: string]: any } = {
     color: Colors.textMain,
     outline: 'none',
     minHeight: '120px',
+     // 추가
+    maxHeight: '200px',
+    overflowY: 'auto',
+  // -----
     resize: 'none',
     lineHeight: 1.6,
     fontFamily: Fonts.serif,
