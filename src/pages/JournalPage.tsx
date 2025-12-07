@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   RotateCcw,
   X,
@@ -703,9 +702,12 @@ async function saveJournalEntry(
 
 async function deleteJournalEntry(
   userId: string,
-  docId: string
+  dateKey: string,
+  existingId?: string | null
 ): Promise<void> {
   try {
+    // 1차: id 기준 삭제
+    const docId = existingId || dateKey;
     const ref = doc(
       db,
       'apps',
@@ -716,6 +718,22 @@ async function deleteJournalEntry(
       docId
     );
     await deleteDoc(ref);
+
+    // 2차: 혹시 같은 dateKey 필드 가진 다른 문서가 남아 있으면 한 번 더 정리
+    const colRef = collection(
+      db,
+      'apps',
+      appId,
+      'users',
+      userId,
+      JOURNAL_COLLECTION_NAME
+    );
+    const q = query(colRef, where('dateKey', '==', dateKey));
+    const qsnap = await getDocs(q);
+    const batchDelete = qsnap.docs.filter((d) => d.id !== docId);
+    for (const d of batchDelete) {
+      await deleteDoc(d.ref);
+    }
   } catch (e) {
     console.error('deleteJournalEntry error', e);
   }
@@ -829,9 +847,10 @@ const styles: any = {
   paper: {
     width: '100%',
     maxWidth: '460px',
-    minHeight: '850px',
+    minHeight: '600px',
+    maxHeight: 'calc(100vh - 80px)', // 🔹 내부 카드만 스크롤
     backgroundColor: '#FFFFFF',
-    padding: '20px 30px 80px',
+    padding: '20px 30px 40px',
     boxShadow: '0 10px 30px rgba(0,0,0,0.06)',
     position: 'relative' as const,
     backgroundImage: `linear-gradient(transparent ${
@@ -842,24 +861,12 @@ const styles: any = {
     backgroundPosition: '0 10px',
     borderRadius: '4px',
     margin: '0 auto',
+    overflowY: 'auto',
   },
 
+  // 위쪽 앱 헤더는 이제 사용하지 않음 (중복 제거용)
   appHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: '12px',
-  },
-  appTitle: {
-    fontSize: '13px',
-    fontWeight: 600,
-    color: '#555',
-    fontFamily: "'Noto Sans KR', sans-serif",
-  },
-  appSub: {
-    fontSize: '11px',
-    color: '#999',
-    fontFamily: "'Noto Sans KR', sans-serif",
+    display: 'none',
   },
 
   headerRow: {
@@ -968,6 +975,7 @@ const styles: any = {
     fontSize: '20px',
     fontWeight: '700',
     color: '#111',
+    marginTop: '4px',
   },
   calendarBody: { backgroundColor: 'transparent', padding: '0' },
   calendarGrid: {
@@ -998,9 +1006,9 @@ const styles: any = {
   },
   moduleBox: {
     position: 'relative' as const,
-    padding: '20px',
-    backgroundColor: 'transparent', // 줄 배경 그대로 보이도록 변경
-    borderRadius: '16px',
+    padding: '20px 0',
+    backgroundColor: 'transparent',
+    borderRadius: '0px',
   },
   moduleTitle: {
     fontFamily: "'Noto Sans KR', sans-serif",
@@ -1198,11 +1206,11 @@ const styles: any = {
   },
 
   saveBtn: {
-    marginTop: '48px',
+    marginTop: '32px',
     backgroundColor: '#222',
     border: 'none',
     borderRadius: '8px',
-    padding: '16px 0',
+    padding: '14px 0',
     width: '100%',
     fontSize: '16px',
     fontWeight: '700',
@@ -1210,15 +1218,20 @@ const styles: any = {
     cursor: 'pointer',
     fontFamily: "'Noto Sans KR', sans-serif",
   },
+
   deleteBtn: {
-    marginTop: '8px',
-    background: 'none',
+    marginTop: '12px',
+    backgroundColor: 'transparent',
     border: 'none',
-    color: '#9CA3AF',
-    fontSize: '12px',
-    textDecoration: 'underline',
+    padding: '8px 0',
+    width: '100%',
+    fontSize: '13px',
+    fontWeight: '400',
+    color: '#999',
     cursor: 'pointer',
     fontFamily: "'Noto Sans KR', sans-serif",
+    textDecoration: 'underline',
+    textUnderlineOffset: '3px',
   },
 };
 
@@ -1227,7 +1240,6 @@ const styles: any = {
 // ===========================================
 
 export default function App() {
-  const navigate = useNavigate();
   const [view, setView] = useState<'calendar' | 'journal'>('calendar');
   const [targetDate, setTargetDate] = useState(new Date());
   const [user, setUser] = useState<User | null>(null);
@@ -1266,16 +1278,7 @@ export default function App() {
         <style>{fontStyle}</style>
         <div style={styles.wrapper}>
           <div style={styles.paper}>
-            <div style={styles.appHeader}>
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                style={styles.backBtn}
-              >
-                <ChevronLeft size={16} /> 뒤로가기
-              </button>
-            </div>
-            <div style={{ fontSize: 11, color: '#bbb' }}>로그인 중...</div>
+            <div style={{ fontSize: 12, color: '#999' }}>로그인 중...</div>
           </div>
         </div>
       </>
@@ -1287,18 +1290,6 @@ export default function App() {
       <style>{fontStyle}</style>
       <div style={styles.wrapper}>
         <div style={styles.paper}>
-          {/* 🔹 상단 헤더 텍스트 제거 + 뒤로가기 버튼으로 변경 */}
-          <div style={styles.appHeader}>
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              style={styles.backBtn}
-            >
-              <ChevronLeft size={16} /> 뒤로가기
-            </button>
-            <div style={{ width: 24 }} />
-          </div>
-
           {view === 'calendar' ? (
             <CalendarView onDateSelect={handleDateClick} user={user} />
           ) : (
@@ -1395,7 +1386,7 @@ function CalendarView({
     setMoodStats(
       Object.entries(moodCounts)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
+        .slice(0, 3) // 🔹 최대 상위 3개만 표시 → 14개 다 선택해도 여기서는 3개만 나옴
         .map(([id, count]) => {
           const info = ALL_MOOD_STAMPS.find((s) => s.id === id);
           return info ? { icon: info.icon, label: info.label, count } : null;
@@ -1583,6 +1574,7 @@ function CalendarView({
           <div
             style={{
               display: 'flex',
+              flexWrap: 'wrap',
               gap: '30px',
               marginTop: '10px',
               paddingLeft: '4px',
@@ -1829,7 +1821,7 @@ function JournalView({
 
   const handleDelete = async () => {
     if (!docIdForDay) {
-      // 저장된 기록이 없으면 그냥 초기화만
+      // 기록이 없으면 그냥 새 상태로 리셋만
       setSelectedWeatherId(null);
       setDayMoodId(null);
       setSelectedPromptIds(pickRandomPromptIds(PROMPTS_PER_DAY));
@@ -1838,29 +1830,27 @@ function JournalView({
       setTimeline([]);
       return;
     }
-    const ok = window.confirm('이 날짜의 기록을 모두 삭제할까요?');
+
+    const ok = window.confirm('이 날짜의 모든 기록을 삭제할까요?');
     if (!ok) return;
-    try {
-      await deleteJournalEntry(user.uid, docIdForDay);
-      setDocIdForDay(null);
-      setSelectedWeatherId(null);
-      setDayMoodId(null);
-      setSelectedPromptIds(pickRandomPromptIds(PROMPTS_PER_DAY));
-      setAnswers({});
-      setFreeContent('');
-      setTimeline([]);
-      alert('삭제되었습니다.');
-    } catch (e) {
-      console.error(e);
-      alert('삭제 중 오류가 발생했습니다.');
-    }
+
+    await deleteJournalEntry(user.uid, dateKey, docIdForDay);
+    setDocIdForDay(null);
+    setSelectedWeatherId(null);
+    setDayMoodId(null);
+    setSelectedPromptIds(pickRandomPromptIds(PROMPTS_PER_DAY));
+    setAnswers({});
+    setFreeContent('');
+    setTimeline([]);
+    alert('이 날짜의 기록이 삭제되었습니다.');
   };
 
   return (
     <>
+      {/* 상단: 뒤로가기 + 날짜 (목록/뒤로가기 중복 → "뒤로가기"로 통일) */}
       <div style={styles.headerRow}>
         <button onClick={onBack} style={styles.backBtn}>
-          <ChevronLeft size={14} /> 목록
+          <ChevronLeft size={14} /> 뒤로가기
         </button>
 
         <div style={styles.dateBlock}>
@@ -2155,19 +2145,17 @@ function JournalView({
         );
       })}
 
-      {/* 오늘의 하루 */}
+      {/* 자유 공간 */}
       <div style={styles.sectionHeader}>
-        <span style={styles.sectionTitle}>오늘의 하루</span>
+        <span style={styles.sectionTitle}>자유 공간</span>
       </div>
       <textarea
         className="lined-textarea"
         style={{
           ...styles.textarea,
           minHeight: '200px',
-          maxHeight: '320px',
           paddingRight: 0,
           paddingLeft: '4px',
-          overflowY: 'auto', // 🔹 길어지면 내부 스크롤
         }}
         value={freeContent}
         onChange={(e) => setFreeContent(e.target.value)}
@@ -2179,7 +2167,7 @@ function JournalView({
           작성 완료
         </button>
         <button onClick={handleDelete} style={styles.deleteBtn}>
-          이 날짜 기록 삭제
+          이 날짜의 기록 삭제
         </button>
       </div>
     </>
