@@ -671,62 +671,64 @@ const IncensePage = () => {
 
   /* --------------------------- Firestore 구독 --------------------------- */
 
-  useEffect(() => {
-    if (!user) {
-      setEntries([]);
-      return;
-    }
+useEffect(() => {
+  if (!user) {
+    setEntries([]);
+    return;
+  }
 
-    setEntriesLoading(true);
+  setEntriesLoading(true);
 
-    const colRef = collection(db, 'incenseEntries');
-    const qRef = query(
-      colRef,
-      where('userId', '==', user.uid),
-      orderBy('date', 'desc'),
-      orderBy('createdAt', 'desc'),
-    );
+  const colRef = collection(db, 'incenseEntries');
+  // 🔹 인덱스 필요 없는 가장 단순한 쿼리: userId 조건만
+  const qRef = query(colRef, where('userId', '==', user.uid));
 
-    const unsubSnap = onSnapshot(
-      qRef,
-      (snapshot) => {
-        const list: IncenseEntry[] = snapshot.docs.map((d) => {
-          const data: any = d.data();
-          return {
-            id: d.id,
-            date: data.date || todayString(),
-            incenseName: data.incenseName || '',
-            purchasePlace: data.purchasePlace || '',
-            purchasePrice:
-              typeof data.purchasePrice === 'number'
-                ? data.purchasePrice
-                : data.purchasePrice
-                ? Number(data.purchasePrice)
-                : null,
-            purchaseCurrency: data.purchaseCurrency || 'KRW',
-            heatingMethod: (data.heatingMethod as any) || 'charcoal',
-            weather: data.weather || 'sunny',
-            mood: data.mood || undefined,
-            rikkoku: data.rikkoku || undefined,
-            gomi: Array.isArray(data.gomi) ? data.gomi : [],
-            aroma: { ...initialAroma, ...(data.aroma || {}) },
-            warmCool: typeof data.warmCool === 'number' ? data.warmCool : 3,
-            note: data.note || '',
-            imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [],
-            userId: data.userId,
-          };
-        });
-        setEntries(list);
-        setEntriesLoading(false);
-      },
-      (err) => {
-        console.error('incenseEntries onSnapshot error', err);
-        setEntriesLoading(false);
-      },
-    );
+  const unsubSnap = onSnapshot(
+    qRef,
+    (snapshot) => {
+      const list: IncenseEntry[] = snapshot.docs.map((d) => {
+        const data: any = d.data();
+        return {
+          id: d.id,
+          date: data.date || todayString(),
+          incenseName: data.incenseName || '',
+          purchasePlace: data.purchasePlace || '',
+          purchasePrice:
+            typeof data.purchasePrice === 'number'
+              ? data.purchasePrice
+              : data.purchasePrice
+              ? Number(data.purchasePrice)
+              : null,
+          purchaseCurrency: data.purchaseCurrency || 'KRW',
+          heatingMethod: (data.heatingMethod as any) || 'charcoal',
+          weather: data.weather || 'sunny',
+          mood: data.mood || undefined,
+          rikkoku: data.rikkoku || undefined,
+          gomi: Array.isArray(data.gomi) ? data.gomi : [],
+          aroma: { ...initialAroma, ...(data.aroma || {}) },
+          warmCool:
+            typeof data.warmCool === 'number' ? data.warmCool : 3,
+          note: data.note || '',
+          imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [],
+          userId: data.userId,
+        };
+      });
 
-    return () => unsubSnap();
-  }, [user]);
+      // 🔹 날짜 기준으로 최신순 정렬 (문자열이라도 YYYY-MM-DD라 그대로 정렬 가능)
+      list.sort((a, b) => b.date.localeCompare(a.date));
+
+      setEntries(list);
+      setEntriesLoading(false);
+    },
+    (err) => {
+      console.error('incenseEntries onSnapshot error', err);
+      setEntriesLoading(false);
+    },
+  );
+
+  return () => unsubSnap();
+}, [user]);
+
 
   /* --------------------------- 폼 열기/리셋 --------------------------- */
 
