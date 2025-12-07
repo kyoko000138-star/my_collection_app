@@ -33,7 +33,7 @@ import {
   Globe,
 } from 'lucide-react';
 
-import { auth, db, appId } from '../firebase';
+import { auth, db, appId, storage } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   collection,
@@ -44,6 +44,7 @@ import {
   onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // --- 스타일 (폰트 + 공통 클래스) ---
 const fontStyle = `
@@ -185,36 +186,6 @@ const PAYMENT_METHODS = [
   { id: 'cash', label: '현금', icon: Banknote },
 ];
 
-const resizeImage = (file: File): Promise<string> => {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800;
-        let width = img.width;
-        let height = img.height;
-        if (width > MAX_WIDTH) {
-          height *= MAX_WIDTH / width;
-          width = MAX_WIDTH;
-        }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(event.target?.result as string);
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.6));
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-};
-
 const normalizeName = (name?: string) =>
   name ? name.replace(/\s+/g, '').toLowerCase() : '';
 
@@ -246,7 +217,7 @@ type Stop = {
   costCategory: string;
   paymentMethod: string;
   menu?: string;
-  photos: string[];
+  photos: string[]; // ✅ Firestore에는 Storage URL만 저장
   satisfaction: number;
   visitTime?: string;
   stopDate?: string;
@@ -260,6 +231,12 @@ type Trip = {
   endDate: string;
   stops: Stop[];
   createdAt?: { seconds: number };
+};
+
+// ✅ 사진 폼 전용 타입 (기존/신규 구분용)
+type StopPhotoForm = {
+  url: string; // 미리보기 or 기존 URL
+  file: File | null; // 새로 추가된 파일이면 File, 기존 사진이면 null
 };
 
 // ✅ newStop 초기화용 팩토리 함수
@@ -430,6 +407,7 @@ const App: React.FC = () => {
   });
 
   const [newStop, setNewStop] = useState<Stop>(createInitialStop());
+  const [stopPhotos, setStopPhotos] = useState<StopPhotoForm[]>([]); // ✅ 폼용 사진 상태
 
   const [editingStopId, setEditingStopId] = useState<number | null>(null);
   const [deleteModalState, setDeleteModalState] = useState<{
@@ -441,7 +419,6 @@ const App: React.FC = () => {
 
   const [isTripSaving, setIsTripSaving] = useState(false);
   const [isStopSaving, setIsStopSaving] = useState(false);
-  const [isImageUploading, setIsImageUploading] = useState(false);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
   // 메인 스크롤 영역 ref (뷰 전환 시 맨 위로 올리기용)
@@ -556,33 +533,26 @@ const App: React.FC = () => {
     return Array.from(regions);
   }, [globalPlaceStats]);
 
-  // ---- 이미지 추가/삭제 ----
+  // ---- 이미지 추가/삭제 (폼 전용 상태: stopPhotos) ----
   const handleAddImage = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files && e.target.files.length > 0) {
-        const files = Array.from(e.target.files);
-        setIsImageUploading(true);
-        try {
-          const newImages = await Promise.all(files.map((f) => resizeImage(f)));
-          setNewStop((prev) => ({
-            ...prev,
-            photos: [...(prev.photos || []), ...newImages],
-          }));
-        } catch (e) {
-          console.error('Image resize failed:', e);
-        } finally {
-          setIsImageUploading(false);
-        }
-      }
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!e.target.files || e.target.files.length === 0) return;
+
+      const files = Array.from(e.target.files);
+      const newPhotoObjs: StopPhotoForm[] = files.map((file) => ({
+        url: URL.createObjectURL(file), // 미리보기용
+        file,
+      }));
+
+      setStopPhotos((prev) => [...prev, ...newPhotoObjs]);
+      // 같은 파일 다시 선택할 수 있게
+      e.target.value = '';
     },
     []
   );
 
   const handleRemoveImage = (idx: number) => {
-    setNewStop((prev) => ({
-      ...prev,
-      photos: prev.photos.filter((_, i) => i !== idx),
-    }));
+    setStopPhotos((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const getDayInfo = (trip: Trip | null, dateStr?: string) => {
@@ -606,10 +576,8 @@ const App: React.FC = () => {
 
   // ---- CRUD (여정 / 스탑) ----
   const handleSaveTrip = async () => {
-    // 1) 입력 값 검증
     if (!newTrip.title.trim()) return;
 
-    // 2) 유저 체크
     if (!user) {
       alert('홈 화면에서 먼저 로그인해 주세요.');
       return;
@@ -617,7 +585,6 @@ const App: React.FC = () => {
 
     setIsTripSaving(true);
 
-    // 날짜 보정
     const start = newTrip.date;
     const end =
       newTrip.endDate && newTrip.endDate >= newTrip.date
@@ -641,7 +608,6 @@ const App: React.FC = () => {
       updatedAt: serverTimestamp(),
     };
 
-    // UI 먼저 전환
     setNewTrip({
       title: '',
       date: getTodayDate(),
@@ -655,7 +621,6 @@ const App: React.FC = () => {
         ...data,
         createdAt: serverTimestamp(),
       });
-      // onSnapshot 이 알아서 갱신
     } catch (e) {
       console.error('Trip save failed:', e);
       alert('여정 저장 중 오류가 발생했어요. (콘솔을 확인해 주세요)');
@@ -664,6 +629,7 @@ const App: React.FC = () => {
     }
   };
 
+  // ✅ 스탑 저장 시: 새로 추가된 파일은 Storage에 업로드하고 URL만 Firestore에 저장
   const handleSaveStop = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStop.name.trim() || !selectedTrip || !user) return;
@@ -673,12 +639,33 @@ const App: React.FC = () => {
     try {
       const stopDate = newStop.stopDate || getTodayDate();
 
+      // 1) 기존 URL + 새 파일 구분
+      const existingUrls = stopPhotos
+        .filter((p) => !p.file)
+        .map((p) => p.url);
+      const newFilePhotos = stopPhotos.filter((p) => p.file);
+
+      // 2) 새 파일 Firebase Storage에 업로드
+      const uploadedUrls: string[] = [];
+      for (const photo of newFilePhotos) {
+        if (!photo.file) continue;
+        const file = photo.file;
+        const storageRefPath = `tripPhotos/${user.uid}/${selectedTrip.id}/${Date.now()}_${file.name}`;
+        const storageRefObj = ref(storage, storageRefPath);
+        const snapshot = await uploadBytes(storageRefObj, file);
+        const url = await getDownloadURL(snapshot.ref);
+        uploadedUrls.push(url);
+      }
+
+      const finalPhotoUrls = [...existingUrls, ...uploadedUrls];
+
       let updatedStops = selectedTrip.stops || [];
 
       const newStopData: Stop = {
         ...newStop,
         cost: Number(newStop.cost) || 0,
         stopDate,
+        photos: finalPhotoUrls,
       };
 
       if (editingStopId !== null) {
@@ -708,7 +695,7 @@ const App: React.FC = () => {
         return aTime - bTime;
       });
 
-      // 폼 리셋용 값
+      // 폼 리셋용 값 (지역/통화는 유지)
       const resetStop: Stop = {
         ...createInitialStop(),
         majorRegion: newStop.majorRegion,
@@ -727,6 +714,7 @@ const App: React.FC = () => {
         )
       );
       setNewStop(resetStop);
+      setStopPhotos([]); // ✅ 폼 사진 비우기
       setEditingStopId(null);
 
       // Firestore 동기화
@@ -754,7 +742,6 @@ const App: React.FC = () => {
     const { colName, id, parentId } = deleteModalState;
     if (!colName || !id || !user) return;
 
-    // 1) 화면 상태 먼저 업데이트
     if (colName === 'trips') {
       setTrips((prev) => prev.filter((t) => t.id !== id));
       if (selectedTripId === id) {
@@ -771,7 +758,6 @@ const App: React.FC = () => {
       );
     }
 
-    // 2) 모달 닫기
     setDeleteModalState({
       isOpen: false,
       colName: null,
@@ -779,7 +765,6 @@ const App: React.FC = () => {
       parentId: null,
     });
 
-    // 3) Firestore 동기화
     try {
       if (colName === 'trips') {
         await deleteDoc(
@@ -1208,6 +1193,14 @@ const App: React.FC = () => {
                                 onClick={() => {
                                   setNewStop(stop);
                                   setEditingStopId(stop.id);
+                                  // ✅ 기존 사진들을 폼 사진 상태로 옮기기
+                                  const existingPhotos: StopPhotoForm[] = (
+                                    stop.photos || []
+                                  ).map((url) => ({
+                                    url,
+                                    file: null,
+                                  }));
+                                  setStopPhotos(existingPhotos);
                                 }}
                                 className="p-1.5 text-stone-400 hover:text-amber-600 hover:bg-amber-50 rounded"
                                 title="수정"
@@ -1543,9 +1536,10 @@ const App: React.FC = () => {
                   />
                 </div>
 
+                {/* ✅ 사진: 폼 전용 stopPhotos 사용 */}
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-stone-400 ml-1">
-                    사진 ({newStop.photos.length}장)
+                    사진 ({stopPhotos.length}장)
                   </label>
                   <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                     <button
@@ -1555,10 +1549,10 @@ const App: React.FC = () => {
                     >
                       <Camera size={20} />
                     </button>
-                    {(newStop.photos || []).map((photo, idx) => (
+                    {stopPhotos.map((photo, idx) => (
                       <div key={idx} className="relative group shrink-0">
                         <img
-                          src={photo}
+                          src={photo.url}
                           alt="review"
                           className="h-16 w-16 object-cover rounded-xl border border-stone-100 shadow-sm"
                         />
@@ -1603,6 +1597,7 @@ const App: React.FC = () => {
                         onClick={() => {
                           setEditingStopId(null);
                           setNewStop(createInitialStop());
+                          setStopPhotos([]);
                         }}
                         className="px-5 bg-stone-200 text-stone-600 font-bold rounded-xl hover:bg-stone-300"
                       >
@@ -1748,7 +1743,6 @@ const App: React.FC = () => {
   }
 
   if (!user) {
-    // 홈에서 로그인 안 했는데 직접 URL로 들어온 경우
     return (
       <div className="w-full min-h-screen bg-[#F7F6F2] text-[#2C2C2C] font-sans flex flex-col">
         <style>{fontStyle}</style>
@@ -1775,8 +1769,6 @@ const App: React.FC = () => {
         onConfirm={executeDelete}
       />
 
-      {/* 상단 헤더는 호스트 앱(예: PRIVATE ARCHIVE)을 사용하고,
-          이 컴포넌트는 내용만 렌더링 */}
       <main ref={mainRef} className="flex-1 overflow-y-auto pb-10 bg-[#fcfaf7]">
         {view === 'travel_list' && renderTravelList()}
         {view === 'travel_create_form' && renderTravelCreateForm()}
