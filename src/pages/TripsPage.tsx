@@ -217,7 +217,7 @@ type Stop = {
   costCategory: string;
   paymentMethod: string;
   menu?: string;
-  photos: string[]; // ✅ Firestore에는 Storage URL만 저장
+  photos: string[];
   satisfaction: number;
   visitTime?: string;
   stopDate?: string;
@@ -235,8 +235,8 @@ type Trip = {
 
 // ✅ 사진 폼 전용 타입 (기존/신규 구분용)
 type StopPhotoForm = {
-  url: string; // 미리보기 or 기존 URL
-  file: File | null; // 새로 추가된 파일이면 File, 기존 사진이면 null
+  url: string;
+  file: File | null;
 };
 
 // ✅ newStop 초기화용 팩토리 함수
@@ -383,6 +383,146 @@ const StarRating: React.FC<{
   );
 };
 
+// ✅ 장소 보관함 카드 클릭 시 뜨는 방문 이력 모달
+const PlaceHistoryModal: React.FC<{
+  place: any | null;
+  onClose: () => void;
+}> = ({ place, onClose }) => {
+  if (!place) return null;
+
+  const history: Stop[] = Array.isArray(place.history) ? place.history : [];
+
+  const sortedHistory = [...history].sort((a, b) => {
+    const aKey = (a.stopDate || a.createdAt || '') as string;
+    const bKey = (b.stopDate || b.createdAt || '') as string;
+    return aKey > bKey ? -1 : 1; // 최신 순
+  });
+
+  const getCurrencySymbol = (curr?: string) =>
+    CURRENCIES.find((c) => c.id === (curr || ''))?.symbol || '';
+
+  const typeInfo =
+    PLACE_TYPES.find((t) => t.id === place.type) || PLACE_TYPES[7];
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-[95] flex items-center justify-center p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden shadow-2xl flex flex-col">
+        <div className="px-5 py-4 border-b border-stone-100 flex items-center justify-between">
+          <div>
+            <h3 className="font-serif font-bold text-lg text-stone-900">
+              {place.name}
+            </h3>
+            <div className="flex gap-2 mt-1">
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded ${typeInfo.bg} ${typeInfo.color} font-bold`}
+              >
+                {typeInfo.label}
+              </span>
+              {place.majorRegion && (
+                <span className="text-[10px] px-2 py-0.5 rounded bg-stone-100 text-stone-500 font-bold">
+                  {place.majorRegion}
+                </span>
+              )}
+              {place.minorRegion && (
+                <span className="text-[10px] px-2 py-0.5 rounded bg-stone-50 text-stone-400 font-bold border border-stone-100">
+                  {place.minorRegion}
+                </span>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-full"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="px-5 pt-3 pb-4 border-b border-stone-100 text-xs text-stone-500 flex items-center justify-between">
+          <span>
+            총{' '}
+            <span className="font-bold text-stone-800">{place.visits}</span>회
+            방문
+          </span>
+          <div className="flex flex-wrap gap-2 font-mono">
+            {Object.entries(place.totalCost || {}).map(([curr, val]) =>
+              (val as number) > 0 ? (
+                <span key={curr}>
+                  {getCurrencySymbol(curr)}
+                  {formatPrice(val as number)}
+                </span>
+              ) : null
+            )}
+          </div>
+        </div>
+
+        <div className="px-5 py-3 text-xs font-bold text-stone-400 uppercase">
+          방문 기록
+        </div>
+
+        <div className="px-5 pb-5 space-y-3 overflow-y-auto scrollbar-hide">
+          {sortedHistory.length === 0 ? (
+            <div className="text-sm text-stone-400 py-10 text-center">
+              기록된 방문 내역이 없습니다.
+            </div>
+          ) : (
+            sortedHistory.map((stop, idx) => {
+              const dateLabel =
+                stop.stopDate ||
+                (typeof stop.createdAt === 'string'
+                  ? stop.createdAt.slice(0, 10)
+                  : '');
+              const costNum = Number(stop.cost) || 0;
+              const symbol = getCurrencySymbol(stop.currency);
+
+              return (
+                <div
+                  key={idx}
+                  className="bg-stone-50 rounded-xl p-3 text-sm space-y-1"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1 text-xs text-stone-500">
+                      {dateLabel && (
+                        <>
+                          <Calendar size={10} /> <span>{dateLabel}</span>
+                        </>
+                      )}
+                      {stop.visitTime && (
+                        <>
+                          <span className="mx-1">·</span>
+                          <Clock size={10} /> <span>{stop.visitTime}</span>
+                        </>
+                      )}
+                    </div>
+                    {costNum > 0 && (
+                      <div className="text-xs font-mono text-stone-800">
+                        {symbol}
+                        {formatPrice(costNum)}
+                      </div>
+                    )}
+                  </div>
+
+                  {stop.menu && (
+                    <div className="text-stone-800 text-sm font-medium">
+                      {stop.menu}
+                    </div>
+                  )}
+
+                  {stop.description && (
+                    <div className="text-xs text-stone-500 whitespace-pre-wrap">
+                      {stop.description}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ----------------- 메인 컴포넌트 -----------------
 const App: React.FC = () => {
   const [user, setUser] = useState<any>(null);
@@ -399,6 +539,9 @@ const App: React.FC = () => {
     'timeline'
   );
 
+  const [selectedPlaceTypeFilter, setSelectedPlaceTypeFilter] =
+    useState<string>('전체');
+
   const [newTrip, setNewTrip] = useState({
     title: '',
     date: getTodayDate(),
@@ -407,7 +550,7 @@ const App: React.FC = () => {
   });
 
   const [newStop, setNewStop] = useState<Stop>(createInitialStop());
-  const [stopPhotos, setStopPhotos] = useState<StopPhotoForm[]>([]); // ✅ 폼용 사진 상태
+  const [stopPhotos, setStopPhotos] = useState<StopPhotoForm[]>([]);
 
   const [editingStopId, setEditingStopId] = useState<number | null>(null);
   const [deleteModalState, setDeleteModalState] = useState<{
@@ -419,9 +562,14 @@ const App: React.FC = () => {
 
   const [isTripSaving, setIsTripSaving] = useState(false);
   const [isStopSaving, setIsStopSaving] = useState(false);
+  const [selectedPlaceDetail, setSelectedPlaceDetail] = useState<any | null>(
+    null
+  );
+  const [isStopFormOpen, setIsStopFormOpen] = useState(false);
+
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
-  // 메인 스크롤 영역 ref (뷰 전환 시 맨 위로 올리기용)
+  // 메인 스크롤 영역 ref
   const mainRef = useRef<HTMLDivElement | null>(null);
 
   // ---- Auth & Firestore 구독 ----
@@ -467,7 +615,7 @@ const App: React.FC = () => {
     [trips, selectedTripId]
   );
 
-  // 뷰 전환 시 항상 스크롤 맨 위로
+  // 뷰 전환 시 스크롤 맨 위로
   useEffect(() => {
     if (mainRef.current) {
       mainRef.current.scrollTo({ top: 0, behavior: 'smooth' });
@@ -475,6 +623,12 @@ const App: React.FC = () => {
       window.scrollTo(0, 0);
     }
   }, [view]);
+
+  // 메인 탭 바뀔 때 필터 초기화
+  useEffect(() => {
+    setSelectedRegion('전체');
+    setSelectedPlaceTypeFilter('전체');
+  }, [mainListTab]);
 
   // ---- 통계 ----
   const globalPlaceStats = useMemo(() => {
@@ -540,12 +694,11 @@ const App: React.FC = () => {
 
       const files = Array.from(e.target.files);
       const newPhotoObjs: StopPhotoForm[] = files.map((file) => ({
-        url: URL.createObjectURL(file), // 미리보기용
+        url: URL.createObjectURL(file),
         file,
       }));
 
       setStopPhotos((prev) => [...prev, ...newPhotoObjs]);
-      // 같은 파일 다시 선택할 수 있게
       e.target.value = '';
     },
     []
@@ -629,7 +782,7 @@ const App: React.FC = () => {
     }
   };
 
-  // ✅ 스탑 저장 시: 새로 추가된 파일은 Storage에 업로드하고 URL만 Firestore에 저장
+  // ✅ 스탑 저장 (모달에서 사용)
   const handleSaveStop = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStop.name.trim() || !selectedTrip || !user) return;
@@ -639,13 +792,11 @@ const App: React.FC = () => {
     try {
       const stopDate = newStop.stopDate || getTodayDate();
 
-      // 1) 기존 URL + 새 파일 구분
       const existingUrls = stopPhotos
         .filter((p) => !p.file)
         .map((p) => p.url);
       const newFilePhotos = stopPhotos.filter((p) => p.file);
 
-      // 2) 새 파일 Firebase Storage에 업로드
       const uploadedUrls: string[] = [];
       for (const photo of newFilePhotos) {
         if (!photo.file) continue;
@@ -669,7 +820,6 @@ const App: React.FC = () => {
       };
 
       if (editingStopId !== null) {
-        // 수정 모드
         updatedStops = updatedStops.map((stop) =>
           stop.id === editingStopId
             ? {
@@ -680,7 +830,6 @@ const App: React.FC = () => {
             : stop
         );
       } else {
-        // 신규 추가
         updatedStops.push({
           ...newStopData,
           id: Date.now(),
@@ -688,14 +837,12 @@ const App: React.FC = () => {
         });
       }
 
-      // createdAt 기준 정렬
       updatedStops.sort((a, b) => {
         const aTime = a.createdAt ? new Date(a.createdAt as any).getTime() : 0;
         const bTime = b.createdAt ? new Date(b.createdAt as any).getTime() : 0;
         return aTime - bTime;
       });
 
-      // 폼 리셋용 값 (지역/통화는 유지)
       const resetStop: Stop = {
         ...createInitialStop(),
         majorRegion: newStop.majorRegion,
@@ -707,17 +854,15 @@ const App: React.FC = () => {
         satisfaction: newStop.satisfaction,
       };
 
-      // UI 먼저 업데이트
       setTrips((prev) =>
         prev.map((t) =>
           t.id === selectedTrip.id ? { ...t, stops: updatedStops } : t
         )
       );
       setNewStop(resetStop);
-      setStopPhotos([]); // ✅ 폼 사진 비우기
+      setStopPhotos([]);
       setEditingStopId(null);
 
-      // Firestore 동기화
       await updateDoc(
         doc(
           db,
@@ -730,6 +875,9 @@ const App: React.FC = () => {
         ),
         { stops: updatedStops, updatedAt: serverTimestamp() }
       );
+
+      // 저장 성공 시 모달 닫기
+      setIsStopFormOpen(false);
     } catch (e) {
       console.error('Stop save failed:', e);
       alert('방문 기록 저장 중 오류가 발생했어요. (콘솔을 확인해 주세요)');
@@ -797,18 +945,54 @@ const App: React.FC = () => {
   };
 
   // ---- 공통 Archive 렌더러 ----
-  const ArchiveList: React.FC<{ stats: any[]; filterRegion?: boolean }> = ({
-    stats,
-    filterRegion = false,
-  }) => {
-    const filteredStats =
-      filterRegion && selectedRegion !== '전체'
-        ? stats.filter((p) => p.majorRegion === selectedRegion)
-        : stats;
-
+  const ArchiveList: React.FC<{
+    stats: any[];
+    filterRegion?: boolean;
+    onPlaceClick?: (place: any) => void;
+  }> = ({ stats, filterRegion = false, onPlaceClick }) => {
     if (filterRegion) {
+      let filteredStats: any[] = stats;
+
+      if (selectedPlaceTypeFilter !== '전체') {
+        filteredStats = filteredStats.filter(
+          (p) => p.type === selectedPlaceTypeFilter
+        );
+      }
+
+      if (selectedRegion !== '전체') {
+        filteredStats = filteredStats.filter(
+          (p) => p.majorRegion === selectedRegion
+        );
+      }
+
+      const typeOptions = ['전체', ...PLACE_TYPES.map((t) => t.id)];
+
       return (
         <div className="space-y-4">
+          {/* 대분류: 유형 필터 */}
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            {typeOptions.map((typeId) => {
+              const typeInfo = PLACE_TYPES.find((t) => t.id === typeId);
+              const label =
+                typeId === '전체' ? '전체' : typeInfo?.label || typeId;
+              const isActive = selectedPlaceTypeFilter === typeId;
+              return (
+                <button
+                  key={typeId}
+                  onClick={() => setSelectedPlaceTypeFilter(typeId)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border transition-all ${
+                    isActive
+                      ? 'bg-stone-800 text-white border-stone-800'
+                      : 'bg-white text-stone-500 border-stone-200 hover:bg-stone-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 소분류: 지역 필터 */}
           <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
             {availableRegions.map((region) => (
               <button
@@ -838,7 +1022,8 @@ const App: React.FC = () => {
               return (
                 <div
                   key={idx}
-                  className="bg-white p-5 rounded-2xl shadow-sm border border-stone-100"
+                  onClick={() => onPlaceClick && onPlaceClick(place)}
+                  className="bg-white p-5 rounded-2xl shadow-sm border border-stone-100 cursor-pointer hover:shadow-md transition-all"
                 >
                   <div className="flex justify-between items-start mb-2">
                     <div>
@@ -854,6 +1039,11 @@ const App: React.FC = () => {
                         {place.majorRegion && (
                           <span className="text-[10px] px-2 py-0.5 rounded bg-stone-100 text-stone-500 font-bold">
                             {place.majorRegion}
+                          </span>
+                        )}
+                        {place.minorRegion && (
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-stone-50 text-stone-400 font-bold border border-stone-100">
+                            {place.minorRegion}
                           </span>
                         )}
                       </div>
@@ -874,8 +1064,9 @@ const App: React.FC = () => {
                         (val as number) > 0 ? (
                           <span key={curr}>
                             {
-                              CURRENCIES.find((c) => c.id === (curr as string))
-                                ?.symbol
+                              CURRENCIES.find(
+                                (c) => c.id === (curr as string)
+                              )?.symbol
                             }
                             {formatPrice(val as number)}
                           </span>
@@ -908,18 +1099,31 @@ const App: React.FC = () => {
             return (
               <div
                 key={idx}
-                className="bg-white p-5 rounded-2xl shadow-sm border border-stone-100"
+                onClick={() => onPlaceClick && onPlaceClick(place)}
+                className="bg-white p-5 rounded-2xl shadow-sm border border-stone-100 cursor-pointer hover:shadow-md transition-all"
               >
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <h4 className="font-serif font-bold text-lg text-stone-800">
                       {place.name}
                     </h4>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded ${typeInfo.bg} ${typeInfo.color} font-bold`}
-                    >
-                      {typeInfo.label}
-                    </span>
+                    <div className="flex gap-2 mt-1">
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded ${typeInfo.bg} ${typeInfo.color} font-bold`}
+                      >
+                        {typeInfo.label}
+                      </span>
+                      {place.majorRegion && (
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-stone-100 text-stone-500 font-bold">
+                          {place.majorRegion}
+                        </span>
+                      )}
+                      {place.minorRegion && (
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-stone-50 text-stone-400 font-bold border border-stone-100">
+                          {place.minorRegion}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="text-right">
                     <span className="block text-xl font-serif font-bold text-stone-800">
@@ -984,7 +1188,7 @@ const App: React.FC = () => {
       {mainListTab === 'trips' ? (
         <>
           <div className="flex justify-between items-center px-1 mb-2">
-            <h3 className="text-lg font-serif font-bold text-stone-800">
+            <h3 className="text-lg مزید font-serif font-bold text-stone-800">
               최근 기록
             </h3>
             <button
@@ -1008,6 +1212,7 @@ const App: React.FC = () => {
                     key={trip.id}
                     onClick={() => {
                       setSelectedTripId(trip.id);
+                      setActiveTripTab('timeline');
                       setView('travel_detail');
                     }}
                     className="bg-white p-5 rounded-2xl shadow-sm border border-stone-100 relative cursor-pointer hover:shadow-md transition-all active:scale-[0.99] flex justify-between items-center group"
@@ -1071,7 +1276,11 @@ const App: React.FC = () => {
               모든 장소
             </h3>
           </div>
-          <ArchiveList stats={globalPlaceStats as any[]} filterRegion={true} />
+          <ArchiveList
+            stats={globalPlaceStats as any[]}
+            filterRegion={true}
+            onPlaceClick={(place) => setSelectedPlaceDetail(place)}
+          />
         </div>
       )}
     </div>
@@ -1141,7 +1350,7 @@ const App: React.FC = () => {
                 <div className="py-12 text-center text-stone-400 bg-white/50 rounded-2xl border border-stone-100 border-dashed">
                   아직 기록된 장소가 없습니다.
                   <br />
-                  아래 폼에서 첫 기록을 남겨보세요.
+                  하단의 버튼을 눌러 첫 기록을 남겨보세요.
                 </div>
               ) : (
                 <div className="relative pl-4">
@@ -1193,7 +1402,6 @@ const App: React.FC = () => {
                                 onClick={() => {
                                   setNewStop(stop);
                                   setEditingStopId(stop.id);
-                                  // ✅ 기존 사진들을 폼 사진 상태로 옮기기
                                   const existingPhotos: StopPhotoForm[] = (
                                     stop.photos || []
                                   ).map((url) => ({
@@ -1201,6 +1409,7 @@ const App: React.FC = () => {
                                     file: null,
                                   }));
                                   setStopPhotos(existingPhotos);
+                                  setIsStopFormOpen(true);
                                 }}
                                 className="p-1.5 text-stone-400 hover:text-amber-600 hover:bg-amber-50 rounded"
                                 title="수정"
@@ -1303,331 +1512,29 @@ const App: React.FC = () => {
               )}
             </div>
 
-            {/* 추가/수정 폼 */}
-            <div className="p-5 bg-white rounded-2xl shadow-lg border border-stone-200 relative">
-              <h3 className="font-serif font-bold text-stone-800 mb-4 flex items-center gap-2 border-b border-stone-100 pb-3">
-                {editingStopId ? (
-                  <>
-                    <Edit2 size={18} className="text-amber-600" /> 기록 수정
-                  </>
-                ) : (
-                  <>
-                    <Plus size={18} /> 새 방문 기록
-                  </>
-                )}
-              </h3>
-              <form onSubmit={handleSaveStop} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-stone-400 ml-1">
-                    장소명
-                  </label>
-                  <input
-                    type="text"
-                    className="input-base h-11"
-                    placeholder="예: 료안사"
-                    value={newStop.name}
-                    onChange={(e) =>
-                      setNewStop({ ...newStop, name: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-stone-400 ml-1">
-                      지역(대)
-                    </label>
-                    <input
-                      type="text"
-                      className="input-base h-11"
-                      placeholder="예: 교토"
-                      value={newStop.majorRegion}
-                      onChange={(e) =>
-                        setNewStop({ ...newStop, majorRegion: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-stone-400 ml-1">
-                      지역(소)
-                    </label>
-                    <input
-                      type="text"
-                      className="input-base h-11"
-                      placeholder="예: 우쿄구"
-                      value={newStop.minorRegion}
-                      onChange={(e) =>
-                        setNewStop({ ...newStop, minorRegion: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-stone-400 ml-1">
-                      방문 시간
-                    </label>
-                    <input
-                      type="time"
-                      className="input-base h-11"
-                      value={newStop.visitTime}
-                      onChange={(e) =>
-                        setNewStop({ ...newStop, visitTime: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-stone-400 ml-1">
-                      만족도
-                    </label>
-                    <div className="input-base flex items-center h-11 px-3 justify-center bg-stone-50">
-                      <StarRating
-                        value={newStop.satisfaction}
-                        onChange={(val) =>
-                          setNewStop({ ...newStop, satisfaction: val })
-                        }
-                        size={20}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-stone-400 ml-1">
-                    유형
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {PLACE_TYPES.map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => setNewStop({ ...newStop, type: t.id })}
-                        className={`text-xs py-2 px-3 rounded-full border transition-all flex items-center gap-1 ${
-                          newStop.type === t.id
-                            ? 'bg-stone-800 text-white border-stone-800'
-                            : 'bg-white text-stone-500 border-stone-200 hover:bg-stone-50'
-                        }`}
-                      >
-                        <t.icon size={12} /> {t.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-3 border-t border-stone-100">
-                  <div className="grid grid-cols-3 gap-2 items-end">
-                    <div className="space-y-1 col-span-2">
-                      <label className="text-xs font-bold text-stone-400 ml-1">
-                        비용
-                      </label>
-                      <div className="flex items-center input-base h-11 p-0 overflow-hidden">
-                        <span className="bg-stone-100 h-full flex items-center justify-center w-10 text-stone-500 font-bold text-sm">
-                          {
-                            CURRENCIES.find((c) => c.id === newStop.currency)
-                              ?.symbol
-                          }
-                        </span>
-                        <input
-                          type="number"
-                          className="flex-1 p-2 bg-transparent border-none outline-none text-sm"
-                          placeholder="0"
-                          value={newStop.cost as any}
-                          onChange={(e) =>
-                            setNewStop({
-                              ...newStop,
-                              cost: e.target.value as any,
-                            })
-                          }
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-1 col-span-1">
-                      <label className="text-xs font-bold text-stone-400 ml-1">
-                        통화
-                      </label>
-                      <select
-                        className="input-base select-base h-11 py-0"
-                        value={newStop.currency}
-                        onChange={(e) =>
-                          setNewStop({ ...newStop, currency: e.target.value })
-                        }
-                      >
-                        {CURRENCIES.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-stone-400 ml-1">
-                        지출 구분
-                      </label>
-                      <select
-                        className="input-base select-base h-11 py-0 text-sm"
-                        value={newStop.costCategory}
-                        onChange={(e) =>
-                          setNewStop({
-                            ...newStop,
-                            costCategory: e.target.value,
-                          })
-                        }
-                      >
-                        {COST_CATEGORIES.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-stone-400 ml-1">
-                        결제 수단
-                      </label>
-                      <div className="flex bg-stone-100 p-1 rounded-lg h-11">
-                        {PAYMENT_METHODS.map((m) => (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() =>
-                              setNewStop({ ...newStop, paymentMethod: m.id })
-                            }
-                            className={`flex-1 flex items-center justify-center gap-1 text-xs rounded-md transition-all ${
-                              newStop.paymentMethod === m.id
-                                ? 'bg-white text-stone-800 shadow-sm font-bold'
-                                : 'text-stone-400'
-                            }`}
-                          >
-                            <m.icon size={12} /> {m.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-stone-400 ml-1">
-                      상세 내역 (메뉴 등)
-                    </label>
-                    <input
-                      type="text"
-                      className="input-base h-11"
-                      placeholder="예: 입장권 1매 + 기념품"
-                      value={newStop.menu}
-                      onChange={(e) =>
-                        setNewStop({ ...newStop, menu: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-stone-400 ml-1">
-                    메모
-                  </label>
-                  <textarea
-                    className="input-base resize-none"
-                    rows={3}
-                    placeholder="어떤 점이 좋았나요?"
-                    value={newStop.description}
-                    onChange={(e) =>
-                      setNewStop({ ...newStop, description: e.target.value })
-                    }
-                  />
-                </div>
-
-                {/* ✅ 사진: 폼 전용 stopPhotos 사용 */}
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-stone-400 ml-1">
-                    사진 ({stopPhotos.length}장)
-                  </label>
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                    <button
-                      type="button"
-                      onClick={() => galleryInputRef.current?.click()}
-                      className="w-16 h-16 rounded-xl border-2 border-dashed border-stone-200 flex items-center justify-center text-stone-400 hover:text-stone-600 hover:border-stone-400 transition-all bg-stone-50 shrink-0"
-                    >
-                      <Camera size={20} />
-                    </button>
-                    {stopPhotos.map((photo, idx) => (
-                      <div key={idx} className="relative group shrink-0">
-                        <img
-                          src={photo.url}
-                          alt="review"
-                          className="h-16 w-16 object-cover rounded-xl border border-stone-100 shadow-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(idx)}
-                          className="absolute -top-1 -right-1 bg-stone-800 text-white rounded-full p-0.5 shadow-sm hover:bg-red-500"
-                        >
-                          <X size={10} />
-                        </button>
-                      </div>
-                    ))}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      ref={galleryInputRef}
-                      onChange={handleAddImage}
-                      className="hidden"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  {editingStopId ? (
-                    <>
-                      <button
-                        type="submit"
-                        disabled={isStopSaving}
-                        className="flex-1 py-3 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition-colors flex items-center justify-center gap-2"
-                      >
-                        {isStopSaving ? (
-                          '수정 중...'
-                        ) : (
-                          <>
-                            <Save size={18} /> 수정 완료
-                          </>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingStopId(null);
-                          setNewStop(createInitialStop());
-                          setStopPhotos([]);
-                        }}
-                        className="px-5 bg-stone-200 text-stone-600 font-bold rounded-xl hover:bg-stone-300"
-                      >
-                        취소
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="submit"
-                      disabled={isStopSaving}
-                      className="w-full py-3 bg-stone-800 text-white font-bold rounded-xl shadow-lg hover:bg-stone-700 active:scale-95 transition-all flex items-center justify-center gap-2"
-                    >
-                      {isStopSaving ? (
-                        '저장 중...'
-                      ) : (
-                        <>
-                          <Plus size={18} /> 기록 추가
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              </form>
+            {/* 새 방문 기록 버튼 (폼은 모달로 분리) */}
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingStopId(null);
+                  setIsStopFormOpen(true);
+                }}
+                className="mt-2 px-4 py-2 bg-white rounded-full border border-dashed border-stone-300 text-sm text-stone-600 flex items-center gap-2 shadow-sm hover:bg-stone-50 active:scale-[0.99] transition-all"
+              >
+                <Plus size={16} /> 새 방문 기록
+              </button>
             </div>
           </div>
         )}
 
         {activeTripTab === 'archive' && (
           <div className="p-4 bg-white rounded-2xl border border-stone-100 shadow-lg animate-fade-in">
-            <ArchiveList stats={tripPlaceStats as any[]} filterRegion={false} />
+            <ArchiveList
+              stats={tripPlaceStats as any[]}
+              filterRegion={false}
+              onPlaceClick={(place) => setSelectedPlaceDetail(place)}
+            />
           </div>
         )}
       </div>
@@ -1761,6 +1668,7 @@ const App: React.FC = () => {
   return (
     <div className="w-full min-h-screen bg-[#F7F6F2] text-[#2C2C2C] font-sans flex flex-col">
       <style>{fontStyle}</style>
+
       <DeleteModal
         isOpen={deleteModalState.isOpen}
         onClose={() =>
@@ -1768,6 +1676,364 @@ const App: React.FC = () => {
         }
         onConfirm={executeDelete}
       />
+
+      <PlaceHistoryModal
+        place={selectedPlaceDetail}
+        onClose={() => setSelectedPlaceDetail(null)}
+      />
+
+      {/* 새 방문 기록 모달 */}
+      {view === 'travel_detail' && isStopFormOpen && (
+        <div className="fixed inset-0 bg-black/40 z-[90] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl relative">
+            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-stone-100">
+              <h3 className="font-serif font-bold text-stone-800 flex items-center gap-2">
+                {editingStopId ? (
+                  <>
+                    <Edit2 size={18} className="text-amber-600" /> 기록 수정
+                  </>
+                ) : (
+                  <>
+                    <Plus size={18} /> 새 방문 기록
+                  </>
+                )}
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsStopFormOpen(false);
+                  setEditingStopId(null);
+                  setNewStop(createInitialStop());
+                  setStopPhotos([]);
+                }}
+                className="p-1 rounded-full hover:bg-stone-100 text-stone-400 hover:text-stone-700"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4">
+              <form onSubmit={handleSaveStop} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-stone-400 ml-1">
+                    장소명
+                  </label>
+                  <input
+                    type="text"
+                    className="input-base h-11"
+                    placeholder="예: 료안사"
+                    value={newStop.name}
+                    onChange={(e) =>
+                      setNewStop({ ...newStop, name: e.target.value })
+                    }
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-400 ml-1">
+                      지역(대)
+                    </label>
+                    <input
+                      type="text"
+                      className="input-base h-11"
+                      placeholder="예: 교토"
+                      value={newStop.majorRegion}
+                      onChange={(e) =>
+                        setNewStop({
+                          ...newStop,
+                          majorRegion: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-400 ml-1">
+                      지역(소)
+                    </label>
+                    <input
+                      type="text"
+                      className="input-base h-11"
+                      placeholder="예: 우쿄구"
+                      value={newStop.minorRegion}
+                      onChange={(e) =>
+                        setNewStop({
+                          ...newStop,
+                          minorRegion: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-400 ml-1">
+                      방문 시간
+                    </label>
+                    <input
+                      type="time"
+                      className="input-base h-11"
+                      value={newStop.visitTime}
+                      onChange={(e) =>
+                        setNewStop({ ...newStop, visitTime: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-400 ml-1">
+                      만족도
+                    </label>
+                    <div className="input-base flex items-center h-11 px-3 justify-center bg-stone-50">
+                      <StarRating
+                        value={newStop.satisfaction}
+                        onChange={(val) =>
+                          setNewStop({ ...newStop, satisfaction: val })
+                        }
+                        size={20}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-stone-400 ml-1">
+                    유형
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {PLACE_TYPES.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setNewStop({ ...newStop, type: t.id })}
+                        className={`text-xs py-2 px-3 rounded-full border transition-all flex items-center gap-1 ${
+                          newStop.type === t.id
+                            ? 'bg-stone-800 text-white border-stone-800'
+                            : 'bg-white text-stone-500 border-stone-200 hover:bg-stone-50'
+                        }`}
+                      >
+                        <t.icon size={12} /> {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-3 border-t border-stone-100">
+                  <div className="grid grid-cols-3 gap-2 items-end">
+                    <div className="space-y-1 col-span-2">
+                      <label className="text-xs font-bold text-stone-400 ml-1">
+                        비용
+                      </label>
+                      <div className="flex items-center input-base h-11 p-0 overflow-hidden">
+                        <span className="bg-stone-100 h-full flex items-center justify-center w-10 text-stone-500 font-bold text-sm">
+                          {
+                            CURRENCIES.find((c) => c.id === newStop.currency)
+                              ?.symbol
+                          }
+                        </span>
+                        <input
+                          type="number"
+                          className="flex-1 p-2 bg-transparent border-none outline-none text-sm"
+                          placeholder="0"
+                          value={newStop.cost as any}
+                          onChange={(e) =>
+                            setNewStop({
+                              ...newStop,
+                              cost: e.target.value as any,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1 col-span-1">
+                      <label className="text-xs font-bold text-stone-400 ml-1">
+                        통화
+                      </label>
+                      <select
+                        className="input-base select-base h-11 py-0"
+                        value={newStop.currency}
+                        onChange={(e) =>
+                          setNewStop({ ...newStop, currency: e.target.value })
+                        }
+                      >
+                        {CURRENCIES.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-stone-400 ml-1">
+                        지출 구분
+                      </label>
+                      <select
+                        className="input-base select-base h-11 py-0 text-sm"
+                        value={newStop.costCategory}
+                        onChange={(e) =>
+                          setNewStop({
+                            ...newStop,
+                            costCategory: e.target.value,
+                          })
+                        }
+                      >
+                        {COST_CATEGORIES.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-stone-400 ml-1">
+                        결제 수단
+                      </label>
+                      <div className="flex bg-stone-100 p-1 rounded-lg h-11">
+                        {PAYMENT_METHODS.map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() =>
+                              setNewStop({ ...newStop, paymentMethod: m.id })
+                            }
+                            className={`flex-1 flex items-center justify-center gap-1 text-xs rounded-md transition-all ${
+                              newStop.paymentMethod === m.id
+                                ? 'bg-white text-stone-800 shadow-sm font-bold'
+                                : 'text-stone-400'
+                            }`}
+                          >
+                            <m.icon size={12} /> {m.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-400 ml-1">
+                      상세 내역 (메뉴 등)
+                    </label>
+                    <input
+                      type="text"
+                      className="input-base h-11"
+                      placeholder="예: 입장권 1매 + 기념품"
+                      value={newStop.menu}
+                      onChange={(e) =>
+                        setNewStop({ ...newStop, menu: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-stone-400 ml-1">
+                    메모
+                  </label>
+                  <textarea
+                    className="input-base resize-none"
+                    rows={3}
+                    placeholder="어떤 점이 좋았나요?"
+                    value={newStop.description}
+                    onChange={(e) =>
+                      setNewStop({ ...newStop, description: e.target.value })
+                    }
+                  />
+                </div>
+
+                {/* 사진 */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-stone-400 ml-1">
+                    사진 ({stopPhotos.length}장)
+                  </label>
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                    <button
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      className="w-16 h-16 rounded-xl border-2 border-dashed border-stone-200 flex items-center justify-center text-stone-400 hover:text-stone-600 hover:border-stone-400 transition-all bg-stone-50 shrink-0"
+                    >
+                      <Camera size={20} />
+                    </button>
+                    {stopPhotos.map((photo, idx) => (
+                      <div key={idx} className="relative group shrink-0">
+                        <img
+                          src={photo.url}
+                          alt="review"
+                          className="h-16 w-16 object-cover rounded-xl border border-stone-100 shadow-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage(idx)}
+                          className="absolute -top-1 -right-1 bg-stone-800 text-white rounded-full p-0.5 shadow-sm hover:bg-red-500"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    ))}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      ref={galleryInputRef}
+                      onChange={handleAddImage}
+                      className="hidden"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  {editingStopId ? (
+                    <>
+                      <button
+                        type="submit"
+                        disabled={isStopSaving}
+                        className="flex-1 py-3 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition-colors flex items-center justify-center gap-2"
+                      >
+                        {isStopSaving ? (
+                          '수정 중...'
+                        ) : (
+                          <>
+                            <Save size={18} /> 수정 완료
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingStopId(null);
+                          setNewStop(createInitialStop());
+                          setStopPhotos([]);
+                          setIsStopFormOpen(false);
+                        }}
+                        className="px-5 bg-stone-200 text-stone-600 font-bold rounded-xl hover:bg-stone-300"
+                      >
+                        취소
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isStopSaving}
+                      className="w-full py-3 bg-stone-800 text-white font-bold rounded-xl shadow-lg hover:bg-stone-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                      {isStopSaving ? (
+                        '저장 중...'
+                      ) : (
+                        <>
+                          <Plus size={18} /> 기록 추가
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main ref={mainRef} className="flex-1 overflow-y-auto pb-10 bg-[#fcfaf7]">
         {view === 'travel_list' && renderTravelList()}
