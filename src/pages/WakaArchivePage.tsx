@@ -105,6 +105,9 @@ const SUMMER_IMAGES = [
   'summer (15).jpg',
   'summer (16).jpg',
   'summer (17).jpg',
+  'summer (18).jpg',
+  'summer (19).jpg',
+  'summer (20).jpg',
   // 만약 폴더에 `summer (1).jpg` 도 있으면 여기 맨 위에 추가해줘!
 ];
 
@@ -137,6 +140,9 @@ const WINTER_IMAGES = [
   'winnter (8).jpg',
   'winnter (9).jpg',
   'winnter (10).jpg',
+  'winnter (11).jpg',
+  'winnter (12).jpg',
+  'winnter (13).jpg',
 ];
 
 // 계절 → 이미지 목록 매핑 (시간대 없음)
