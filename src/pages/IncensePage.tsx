@@ -167,10 +167,14 @@ const Styles: { [k: string]: any } = {
   },
   chipRowTight: {
     display: 'flex',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',        // 🔹 이제 절대 줄바꿈 안 함
     gap: '6px',
     justifyContent: 'flex-start',
-  },
+    overflowX: 'auto',         // 🔹 좁으면 가로 스크롤
+    paddingBottom: '4px',
+    WebkitOverflowScrolling: 'touch', // 🔹 아이폰 부드러운 스크롤
+    },
+
   
  // 🔹 새로 추가: 버튼을 3개씩 넓게 깔아주는 그리드
   chipRowGrid: {
