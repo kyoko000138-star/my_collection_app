@@ -6,7 +6,6 @@ import { getStorage } from 'firebase/storage';
 
 // 🔧 Firebase 콘솔에서 가져온 설정값
 const firebaseConfig = {
-  const firebaseConfig = {
   apiKey: "AIzaSyB_U8Zh16n250tTc7i8X8kKUpSVP5P337Y",
   authDomain: "my-project-0076-b774a.firebaseapp.com",
   databaseURL: "https://my-project-0076-b774a-default-rtdb.firebaseio.com",
