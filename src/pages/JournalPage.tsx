@@ -1216,7 +1216,7 @@ export default function App() {
               <div style={styles.appSub}>하루를 가볍게 정리하는 심리 일기장</div>
             </div>
             <div style={{ fontSize: 11, color: '#bbb' }}>
-              로그인: {user.isAnonymous ? '익명 계정' : user.email || '계정'}
+              PRIVATE ARCHIVE
             </div>
           </div>
 
