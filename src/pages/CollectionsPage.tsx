@@ -182,7 +182,7 @@ const Styles: any = {
     border: `1px solid ${Colors.border}`,
     display: 'flex',
     gap: 10,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.03)`,
+    boxShadow: `0 2px 8px rgba(0,0,0,0.03)`,
     cursor: 'pointer',
   },
 };
