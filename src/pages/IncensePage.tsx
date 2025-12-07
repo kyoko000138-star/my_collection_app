@@ -58,7 +58,7 @@ const Fonts = {
 };
 
 // TS 귀찮으니까 any로 통일
-const Styles: { [k: string]: any } = {
+const Styles = {
   // 🔹 바깥 회색 영역
   containerWrapper: {
     // 🔥 flex 정렬 + 추가 패딩 제거
@@ -68,7 +68,7 @@ const Styles: { [k: string]: any } = {
     minHeight: '100vh',
     // padding: '0 24px',
     width: '100%',            // 부모(paMain) 폭 그대로 따라가기
-  },
+  };
 
   // 🔹 안쪽 하얀 카드(폼 전체)
   pageContainer: {
