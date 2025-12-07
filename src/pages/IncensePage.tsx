@@ -2006,13 +2006,19 @@ setCurrentImageIndex(0);
                     style={{ display: 'none' }}
                   />
                   {formData.images.length > 0 && (
-                    <div style={{ flex: 1, overflowX: 'auto' }}>
-                      <ImageStrip
-                        images={formData.images.map((i) => i.url)}
-                        onImageClick={() => {}}
+                  <div style={{ flex: 1, overflowX: 'auto' }}>
+                    <ImageStrip
+                      images={formData.images.map((i) => i.url)}
+                      onImageClick={() => {}}
+                      onRemove={(idx) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          images: prev.images.filter((_, i) => i !== idx),
+                        }))
+                      }
                       />
-                    </div>
-                  )}
+                  </div>
+                )}
                 </div>
               </div>
               <div style={Styles.inputGroup}>
