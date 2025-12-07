@@ -996,7 +996,7 @@ setCurrentImageIndex(0);
           {/* 상단 여백 (PRIVATE ARCHIVE 헤더와 간격) */}
           <div style={{ padding: '1px 20px 8px' }}></div>
 
-          <div style={{ padding: '0 20px 20px' }}>
+          <div style={{ padding: '0 5px 20px' }}>
             {entriesLoading ? (
               <div
                 style={{
