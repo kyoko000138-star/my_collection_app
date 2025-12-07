@@ -11,6 +11,7 @@ import {
   Camera,
   X,
   ArrowLeft,
+  ArrowRight,
   Smile,
   Frown,
   Zap,
@@ -640,6 +641,7 @@ const IncensePage = () => {
   const [selectedEntry, setSelectedEntry] = useState<IncenseEntry | null>(null);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0); // 🔹 추가
 
   const [formData, setFormData] = useState<FormData>({
     id: null,
@@ -729,7 +731,14 @@ useEffect(() => {
   return () => unsubSnap();
 }, [user]);
 
+useEffect(() => {
+setCurrentImageIndex(0);
+  }, [selectedEntry?.id]);
 
+
+
+
+  
   /* --------------------------- 폼 열기/리셋 --------------------------- */
 
   const resetForm = () => {
@@ -1244,16 +1253,47 @@ useEffect(() => {
                 </span>
               </div>
               <div>
-                <span style={Styles.label}>오늘의 날씨 / 마음</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: '15px', color: Colors.textMain }}>
-                    {weather?.icon}
-                  </span>
-                  <span style={{ fontSize: '15px', color: Colors.textMain }}>
-                    {mood?.icon}
-                  </span>
-                </div>
-              </div>
+               <div>
+  <span style={Styles.label}>오늘의 날씨 / 마음</span>
+  <div
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 4,
+      marginTop: 4,
+    }}
+  >
+    {weather && (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          fontSize: '13px',
+          color: Colors.textMain,
+        }}
+      >
+        <span>{weather.icon}</span>
+        <span>{weather.label}</span>
+      </div>
+    )}
+    {mood && (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          fontSize: '13px',
+          color: Colors.textMain,
+        }}
+      >
+        <span>{mood.icon}</span>
+        <span>{mood.label}</span>
+      </div>
+    )}
+  </div>
+</div>
+
               {(selectedEntry.purchasePlace ||
                 selectedEntry.purchasePrice) && (
                 <div style={{ gridColumn: '1 / -1' }}>
