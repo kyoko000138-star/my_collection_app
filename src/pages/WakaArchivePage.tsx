@@ -63,15 +63,10 @@ const StyleHeader = () => (
   `}</style>
 );
 
-// ─── 사운드 시스템 ───
-const getAmbientSound = (month: number) => {
-  // 나중에 계절/시간대별로 바꾸고 싶으면 여기서 분기
-  return 'https://cdn.pixabay.com/download/audio/2022/04/27/audio_6858489857.mp3?filename=forest-wind-and-birds-6881.mp3';
-};
-
-// ─── 계절 배경 이미지 시스템 (시간대 없음 버전) ───
+// ─── 계절 타입 ───
 type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 
+// ─── 계절 배경 이미지 시스템 (시간대 없음 버전) ───
 // public/waka-images 안의 실제 파일명 그대로
 const SPRING_IMAGES = [
   'spring_1.jpg',
@@ -174,6 +169,90 @@ function getSeasonalImage(month: number, fallback?: string): string {
   // 아무 것도 없으면 기본 이미지
   return fallback || '/waka-images/default.jpg';
 }
+
+// ─── 사운드 시스템 (계절 + 시간대별) ───
+type DayPhase = 'morning' | 'day' | 'night';
+
+// Vite 기준: public/ 밑의 파일은 BASE_URL + 경로
+const AUDIO_BASE = `${import.meta.env.BASE_URL}waka-audio/`;
+
+// 계절별, 시간대별 mp3 목록 (파일 이름만 적기)
+const ambientMap: Record<
+  Season,
+  {
+    day: string[];
+    night: string[];
+    morning?: string[];
+  }
+> = {
+  spring: {
+    day: ['spring_day.mp3'],
+    morning: ['spring_morning_1.mp3', 'spring_morning_2.mp3'],
+    night: ['spring_night_1.mp3', 'spring_night_2.mp3'],
+  },
+  summer: {
+    day: [
+      'summer_day_1.mp3',
+      'summer_day_2.mp3',
+      'summer_day_3.mp3',
+      'summer_day_4.mp3',
+    ],
+    night: ['summer_night_1.mp3', 'summer_night_2.mp3', 'summer_night_3.mp3'],
+  },
+  autumn: {
+    day: ['autumn_day_1.mp3'],
+    night: [
+      'autumn_night_1.mp3',
+      'autumn_night_2.mp3',
+      'autumn_night_3.mp3', // 실제 파일명이 .mp3 맞는지 한번 확인!
+    ],
+  },
+  winter: {
+    day: ['winter_day_1.mp3'],
+    night: ['winter_night_1.mp3'],
+  },
+};
+
+function getDayPhase(): DayPhase {
+  const hour = new Date().getHours(); // 0~23
+  if (hour >= 5 && hour < 11) return 'morning';
+  if (hour >= 11 && hour < 18) return 'day';
+  return 'night';
+}
+
+const getAmbientSound = (month: number): string => {
+  const season = getSeason(month);
+  const phase = getDayPhase();
+  const seasonSounds = ambientMap[season];
+
+  let list: string[] | undefined;
+
+  // 1순위: 현재 시간대
+  if (phase === 'morning' && seasonSounds.morning?.length) {
+    list = seasonSounds.morning;
+  } else if (phase === 'day') {
+    list = seasonSounds.day;
+  } else {
+    list = seasonSounds.night;
+  }
+
+  // 해당 시간대가 비어 있으면 fallback
+  if (!list || list.length === 0) {
+    list = seasonSounds.day.length
+      ? seasonSounds.day
+      : seasonSounds.night.length
+      ? seasonSounds.night
+      : seasonSounds.morning || [];
+  }
+
+  if (list && list.length > 0) {
+    const i = Math.floor(Math.random() * list.length);
+    return AUDIO_BASE + list[i];
+  }
+
+  // 완전 예외 상황용 기본값
+  return AUDIO_BASE + 'spring_day.mp3';
+};
 
 // ─── 타입 ───
 interface WakaEntry {
@@ -283,7 +362,7 @@ const sampleData: Record<string, WakaEntry> = {
       author: '菅原道真',
       source: '拾遺和歌集',
       modern:
-        '東風が吹いたなら、その香りをこちらに届けておくれ、梅の花よ。主人がいないからといって、春を忘れてはならないぞ。',
+        '東風が吹いたなら、その香りをこちらに届けておくれ、梅の花よ。主人가いないからといって、春を忘れてはならないぞ。',
       korean:
         '동풍이 불거든 그 향기를 내게 보내다오, 매화꽃이여.\n주인이 없다 하여 봄을 잊지 말아라.',
       commentary:
@@ -444,8 +523,8 @@ const WakaPostcard: React.FC<{
 
   const headerRow: React.CSSProperties = {
     textAlign: 'center',
-    paddingTop: 1, // 24 → 16 : 위로 살짝
-    paddingBottom: 6, // 12 → 6 : 줄과 좀 더 붙게
+    paddingTop: 1,
+    paddingBottom: 6,
     flex: 'none',
   };
 
@@ -468,7 +547,7 @@ const WakaPostcard: React.FC<{
 
   const wakaCenterRow: React.CSSProperties = {
     position: 'absolute',
-    top: '52%', // 50% → 46% : 중앙보다 위로
+    top: '52%',
     left: '50%',
     transform: 'translate(-50%, -50%)',
     display: 'flex',
@@ -554,7 +633,7 @@ const WakaPostcard: React.FC<{
         <div
           style={{
             ...bgBase,
-           backgroundImage: `url("${bgImageSrc}")`,
+            backgroundImage: `url("${bgImageSrc}")`,
             opacity: revealed ? 0.25 : 1,
             filter: revealed ? 'grayscale(10%) blur(2px)' : 'none',
             transform: revealed ? 'scale(1.05)' : 'scale(1)',
@@ -902,7 +981,8 @@ const AdvancedTest: React.FC<{
               }}
             >
               당신의 마음에 맞는
-              <br />옛 노래를 찾아드립니다.
+              <br />
+              옛 노래를 찾아드립니다.
             </h2>
             <p style={{ color: '#8e8070', fontSize: 14, lineHeight: 1.8 }}>
               세 가지 질문에 답해주시면,
@@ -1031,12 +1111,10 @@ export default function WakaArchivePage() {
     overflowX: 'hidden',
   };
 
-  // 헤더 스타일
   const headerStyle: React.CSSProperties = {
-    paddingTop: 5, // 조금 더 여백
+    paddingTop: 5,
     paddingBottom: 25,
-    textAlign: 'center', // ← 가운데 정렬
-    // paddingLeft 제거
+    textAlign: 'center',
   };
 
   const titleStyle: React.CSSProperties = {
