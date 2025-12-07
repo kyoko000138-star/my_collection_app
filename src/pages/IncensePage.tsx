@@ -733,57 +733,71 @@ const IncensePage = () => {
   return () => unsubSnap();
   }, [user, selectedEntry]);
 
-  /* --------------------------- 폼 열기/리셋 --------------------------- */
+    /* --------------------------- Firestore 구독 --------------------------- */
 
-  const resetForm = () => {
-    setFormData({
-      id: null,
-      date: todayString(),
-      incenseName: '',
-      purchasePlace: '',
-      purchasePrice: '',
-      purchaseCurrency: 'KRW',
-      heatingMethod: 'charcoal',
-      weather: 'sunny',
-      mood: undefined,
-      rikkoku: undefined,
-      gomi: [],
-      aroma: { ...initialAroma },
-      warmCool: 3,
-      note: '',
-      images: [],
-    });
-  };
-
-  const handleOpenForm = (entry: IncenseEntry | null = null) => {
-    if (entry) {
-      setFormData({
-        id: entry.id,
-        date: entry.date,
-        incenseName: entry.incenseName,
-        purchasePlace: entry.purchasePlace,
-        purchasePrice: entry.purchasePrice
-          ? String(entry.purchasePrice)
-          : '',
-        purchaseCurrency: entry.purchaseCurrency || 'KRW',
-        heatingMethod: entry.heatingMethod,
-        weather: entry.weather,
-        mood: entry.mood,
-        rikkoku: entry.rikkoku,
-        gomi: entry.gomi || [],
-        aroma: { ...initialAroma, ...(entry.aroma || {}) },
-        warmCool: entry.warmCool ?? 3,
-        note: entry.note || '',
-        images: (entry.imageUrls || []).map((url) => ({
-          url,
-          file: null,
-        })),
-      });
-    } else {
-      resetForm();
+  useEffect(() => {
+    if (!user) {
+      setEntries([]);
+      return;
     }
-    setMode('form');
-  };
+
+    setEntriesLoading(true);
+
+    const colRef = collection(db, 'incenseEntries');
+    // 🔻 orderBy 전부 제거 – userId로만 필터
+    const qRef = query(colRef, where('userId', '==', user.uid));
+
+    const unsubSnap = onSnapshot(
+      qRef,
+      (snapshot) => {
+        let list: IncenseEntry[] = snapshot.docs.map((d) => {
+          const data: any = d.data();
+          return {
+            id: d.id,
+            date: data.date || todayString(),
+            incenseName: data.incenseName || '',
+            purchasePlace: data.purchasePlace || '',
+            purchasePrice:
+              typeof data.purchasePrice === 'number'
+                ? data.purchasePrice
+                : data.purchasePrice
+                ? Number(data.purchasePrice)
+                : null,
+            purchaseCurrency: data.purchaseCurrency || 'KRW',
+            heatingMethod: (data.heatingMethod as any) || 'charcoal',
+            weather: data.weather || 'sunny',
+            mood: data.mood || undefined,
+            rikkoku: data.rikkoku || undefined,
+            gomi: Array.isArray(data.gomi) ? data.gomi : [],
+            aroma: { ...initialAroma, ...(data.aroma || {}) },
+            warmCool:
+              typeof data.warmCool === 'number' ? data.warmCool : 3,
+            note: data.note || '',
+            imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [],
+            userId: data.userId,
+          };
+        });
+
+        // 🔻 클라이언트에서 날짜 기준 내림차순 정렬
+        list = list.sort((a, b) => b.date.localeCompare(a.date));
+
+        setEntries(list);
+        setEntriesLoading(false);
+
+        // 🔻 선택되어 있던 상세보기도 최신 데이터로 동기화
+        setSelectedEntry((prev) =>
+          prev ? list.find((e) => e.id === prev.id) || prev : prev,
+        );
+      },
+      (err) => {
+        console.error('incenseEntries onSnapshot error', err);
+        setEntriesLoading(false);
+      },
+    );
+
+    return () => unsubSnap();
+  }, [user]);
+
 
   /* --------------------------- 저장 / 삭제 --------------------------- */
 
