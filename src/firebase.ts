@@ -39,7 +39,6 @@ import { getStorage } from 'firebase/storage';
 // ✅ 1) firebaseConfig: 여기는 "기존 파일에 있던 설정" 그대로 복붙하면 됨
 //    (import.meta.env.VITE_... 쓰고 있었다면 그 코드 그대로 사용)
 const firebaseConfig = {
-  const firebaseConfig = {
   apiKey: "AIzaSyB_U8Zh16n250tTc7i8X8kKUpSVP5P337Y",
   authDomain: "my-project-0076-b774a.firebaseapp.com",
   databaseURL: "https://my-project-0076-b774a-default-rtdb.firebaseio.com",
