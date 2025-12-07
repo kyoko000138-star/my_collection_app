@@ -1095,7 +1095,7 @@ setCurrentImageIndex(0);
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                          marginBottom: gomiLabels || notePreview ? 4 : 0,
+                          marginBottom: gomiLabels || notePreview ? 5 : 0,
                         }}
                       >
                         <div
@@ -1141,7 +1141,7 @@ setCurrentImageIndex(0);
                           style={{
                             fontSize: '12px',
                             color: Colors.textSub,
-                            marginBottom: notePreview ? 4 : 0,
+                            marginBottom: notePreview ? 5 : 0,
                           }}
                         >
                           {gomiLabels}
