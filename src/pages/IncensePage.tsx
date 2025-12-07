@@ -1669,7 +1669,7 @@ setCurrentImageIndex(0);
             </button>
           </div>
 
-          <form style={{ padding: '0 20px 24px' }}>
+          <form style={{ padding: '0 0 24px' }}>
             {/* 기본 정보 */}
             <div style={{ ...Styles.section, paddingBottom: 1 }}>
               <div style={Styles.inputGroup}>
