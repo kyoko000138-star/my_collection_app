@@ -88,12 +88,6 @@ const Styles: { [k: string]: any } = {
     justifyContent: 'space-between',
     height: '60px',
   },
-  headerTitle: {
-    fontFamily: Fonts.serif,
-    fontSize: '18px',
-    fontWeight: 700,
-    color: Colors.textMain,
-  },
   section: {
     padding: '24px 20px',
     borderBottom: `1px solid ${Colors.border}`,
@@ -159,11 +153,6 @@ const Styles: { [k: string]: any } = {
     resize: 'none',
     lineHeight: 1.6,
     fontFamily: Fonts.serif,
-  },
-  chipContainer: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '6px',
   },
   chipRowTight: {
     display: 'flex',
@@ -368,8 +357,17 @@ const warmCoolColor = (pos: number) => {
 };
 
 /* -------------------------------------------------------------------------- */
-/* 3. 유틸 컴포넌트 */
+/* 3. 유틸 함수 및 컴포넌트 */
 /* -------------------------------------------------------------------------- */
+
+// 파일을 base64 data URL 로 변환 → Firestore 에 그대로 저장
+const fileToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 
 const SVGRadarChart = ({ values }: { values: any }) => {
   const size = 240;
@@ -581,7 +579,7 @@ const FullImageOverlay = ({
 };
 
 /* -------------------------------------------------------------------------- */
-/* 4. 메인 페이지 (Firestore 연동) */
+/* 4. 타입 정의 */
 /* -------------------------------------------------------------------------- */
 
 type AromaState = typeof initialAroma;
@@ -602,12 +600,11 @@ interface IncenseEntry {
   warmCool: number;
   note: string;
   imageUrls: string[];
-  // userId는 Firestore에 저장되지만 여기서는 안 써도 돼서 옵션
   userId?: string;
 }
 
 interface FormImage {
-  url: string;
+  url: string; // data URL
   file: File | null;
 }
 
@@ -628,6 +625,10 @@ interface FormData {
   note: string;
   images: FormImage[];
 }
+
+/* -------------------------------------------------------------------------- */
+/* 5. 메인 페이지 */
+/* -------------------------------------------------------------------------- */
 
 const IncensePage = () => {
   const [user, setUser] = useState<any>(null);
@@ -709,8 +710,7 @@ const IncensePage = () => {
             rikkoku: data.rikkoku || undefined,
             gomi: Array.isArray(data.gomi) ? data.gomi : [],
             aroma: { ...initialAroma, ...(data.aroma || {}) },
-            warmCool:
-              typeof data.warmCool === 'number' ? data.warmCool : 3,
+            warmCool: typeof data.warmCool === 'number' ? data.warmCool : 3,
             note: data.note || '',
             imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [],
             userId: data.userId,
@@ -718,76 +718,6 @@ const IncensePage = () => {
         });
         setEntries(list);
         setEntriesLoading(false);
-
-        if (selectedEntry) {
-          const updated = list.find((e) => e.id === selectedEntry.id);
-          if (updated) setSelectedEntry(updated);
-        }
-      },
-      (err) => {
-        console.error('incenseEntries onSnapshot error', err);
-        setEntriesLoading(false);
-      },
-    );
-
-  return () => unsubSnap();
-  }, [user, selectedEntry]);
-
-    /* --------------------------- Firestore 구독 --------------------------- */
-
-  useEffect(() => {
-    if (!user) {
-      setEntries([]);
-      return;
-    }
-
-    setEntriesLoading(true);
-
-    const colRef = collection(db, 'incenseEntries');
-    // 🔻 orderBy 전부 제거 – userId로만 필터
-    const qRef = query(colRef, where('userId', '==', user.uid));
-
-    const unsubSnap = onSnapshot(
-      qRef,
-      (snapshot) => {
-        let list: IncenseEntry[] = snapshot.docs.map((d) => {
-          const data: any = d.data();
-          return {
-            id: d.id,
-            date: data.date || todayString(),
-            incenseName: data.incenseName || '',
-            purchasePlace: data.purchasePlace || '',
-            purchasePrice:
-              typeof data.purchasePrice === 'number'
-                ? data.purchasePrice
-                : data.purchasePrice
-                ? Number(data.purchasePrice)
-                : null,
-            purchaseCurrency: data.purchaseCurrency || 'KRW',
-            heatingMethod: (data.heatingMethod as any) || 'charcoal',
-            weather: data.weather || 'sunny',
-            mood: data.mood || undefined,
-            rikkoku: data.rikkoku || undefined,
-            gomi: Array.isArray(data.gomi) ? data.gomi : [],
-            aroma: { ...initialAroma, ...(data.aroma || {}) },
-            warmCool:
-              typeof data.warmCool === 'number' ? data.warmCool : 3,
-            note: data.note || '',
-            imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [],
-            userId: data.userId,
-          };
-        });
-
-        // 🔻 클라이언트에서 날짜 기준 내림차순 정렬
-        list = list.sort((a, b) => b.date.localeCompare(a.date));
-
-        setEntries(list);
-        setEntriesLoading(false);
-
-        // 🔻 선택되어 있던 상세보기도 최신 데이터로 동기화
-        setSelectedEntry((prev) =>
-          prev ? list.find((e) => e.id === prev.id) || prev : prev,
-        );
       },
       (err) => {
         console.error('incenseEntries onSnapshot error', err);
@@ -798,6 +728,55 @@ const IncensePage = () => {
     return () => unsubSnap();
   }, [user]);
 
+  /* --------------------------- 폼 열기/리셋 --------------------------- */
+
+  const resetForm = () => {
+    setFormData({
+      id: null,
+      date: todayString(),
+      incenseName: '',
+      purchasePlace: '',
+      purchasePrice: '',
+      purchaseCurrency: 'KRW',
+      heatingMethod: 'charcoal',
+      weather: 'sunny',
+      mood: undefined,
+      rikkoku: undefined,
+      gomi: [],
+      aroma: { ...initialAroma },
+      warmCool: 3,
+      note: '',
+      images: [],
+    });
+  };
+
+  const handleOpenForm = (entry: IncenseEntry | null = null) => {
+    if (entry) {
+      setFormData({
+        id: entry.id,
+        date: entry.date,
+        incenseName: entry.incenseName,
+        purchasePlace: entry.purchasePlace,
+        purchasePrice: entry.purchasePrice ? String(entry.purchasePrice) : '',
+        purchaseCurrency: entry.purchaseCurrency || 'KRW',
+        heatingMethod: entry.heatingMethod,
+        weather: entry.weather,
+        mood: entry.mood,
+        rikkoku: entry.rikkoku,
+        gomi: entry.gomi || [],
+        aroma: { ...initialAroma, ...(entry.aroma || {}) },
+        warmCool: entry.warmCool ?? 3,
+        note: entry.note || '',
+        images: (entry.imageUrls || []).map((url) => ({
+          url,
+          file: null,
+        })),
+      });
+    } else {
+      resetForm();
+    }
+    setMode('form');
+  };
 
   /* --------------------------- 저장 / 삭제 --------------------------- */
 
@@ -847,6 +826,7 @@ const IncensePage = () => {
       }
       setMode('list');
       resetForm();
+      setSelectedEntry(null);
     } catch (err) {
       console.error('Saving incense entry failed', err);
       alert('저장 중 오류가 발생했어요. 콘솔 로그를 확인해줘!');
@@ -868,19 +848,27 @@ const IncensePage = () => {
 
   /* --------------------------- 이미지 업로드 --------------------------- */
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newImages: FormImage[] = Array.from(e.target.files).map(
-        (file) => ({
-          url: URL.createObjectURL(file),
-          file,
-        }),
-      );
-      setFormData((prev) => ({
-        ...prev,
-        images: [...prev.images, ...newImages],
-      }));
+  const handleImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const fileArray = Array.from(files);
+    const newImages: FormImage[] = [];
+
+    for (const file of fileArray) {
+      const url = await fileToDataUrl(file);
+      newImages.push({ url, file });
     }
+
+    setFormData((prev) => ({
+      ...prev,
+      images: [...prev.images, ...newImages],
+    }));
+
+    // 같은 파일 다시 선택 가능하도록 리셋
+    e.target.value = '';
   };
 
   const triggerFileInput = () => {
@@ -1144,6 +1132,7 @@ const IncensePage = () => {
     )?.label;
     const gomiLabels = selectedEntry.gomi
       ?.map((g) => GOMI_OPTIONS.find((o) => o.id === g)?.label)
+      .filter(Boolean)
       .join(', ');
     const currencySymbol =
       CURRENCY_OPTIONS.find(
@@ -1155,7 +1144,10 @@ const IncensePage = () => {
         <div style={Styles.pageContainer}>
           <div style={Styles.header}>
             <button
-              onClick={() => setMode('list')}
+              onClick={() => {
+                setMode('list');
+                setSelectedEntry(null);
+              }}
               style={{
                 background: 'none',
                 border: 'none',
@@ -1190,6 +1182,7 @@ const IncensePage = () => {
               </button>
             </div>
           </div>
+
           <div style={{ padding: '24px 20px' }}>
             <div style={{ marginBottom: '32px', textAlign: 'center' }}>
               <span
