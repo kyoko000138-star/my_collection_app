@@ -19,11 +19,10 @@ import type { WakaEntry } from '../waka/wakaCalendarData';
 import {
   getTodayWaka,
   getRecommendedWakaForMood,
-  getDynamicLunarLabel,   // 👈 추가
 } from '../waka/wakaCalendarData';
 
 // ─── 폰트 & 기본 스타일 ───
-const StyleHeader = () => (
+const StyleHeader: React.FC = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Yuji+Syuku&family=Zen+Old+Mincho:wght@400;600&display=swap');
 
@@ -61,7 +60,7 @@ const StyleHeader = () => (
 
     .texture-overlay {
       background-image: url("https://www.transparenttextures.com/patterns/cream-paper.png");
-      opacity: 0.2;
+      opacity: 0.22;
       pointer-events: none;
     }
 
@@ -201,11 +200,7 @@ const ambientMap: Record<
   },
   autumn: {
     day: ['autumn_day_1.mp3'],
-    night: [
-      'autumn_night_1.mp3',
-      'autumn_night_2.mp3',
-      'autumn_night_3.mp3',
-    ],
+    night: ['autumn_night_1.mp3', 'autumn_night_2.mp3', 'autumn_night_3.mp3'],
   },
   winter: {
     day: ['winter_day_1.mp3'],
@@ -276,9 +271,9 @@ const WakaPostcard: React.FC<{
     if (isRecommended) {
       const timer = setTimeout(() => setRevealed(true), 600);
       return () => clearTimeout(timer);
-    } else {
-      setRevealed(false);
     }
+    setRevealed(false);
+    return undefined;
   }, [waka.id, isRecommended]);
 
   useEffect(() => {
@@ -306,6 +301,7 @@ const WakaPostcard: React.FC<{
     };
 
     playAudio();
+
     return () => {
       if (audio) {
         audio.pause();
@@ -319,20 +315,16 @@ const WakaPostcard: React.FC<{
     setIsMuted((prev) => !prev);
   };
 
-  // 날짜 라벨: 양력 + 실제(해당 연도 기준) 음력만 표시
-  const dynamicLunarLabel =
-    getDynamicLunarLabel(waka.date.month, waka.date.day) ??
-    waka.date.lunarLabel ??
-    '';
-
+  // 날짜 라벨: 양력 / 음력 / 계절 설명
   let dateLabel = waka.date.solarLabel;
-
-  if (dynamicLunarLabel) {
-    dateLabel += `\n${dynamicLunarLabel}`;
+  if (waka.date.lunarLabel && waka.date.lunarLabel.trim() !== '') {
+    dateLabel += `\n${waka.date.lunarLabel}`;
+  }
+  if (waka.date.seasonalLabel && waka.date.seasonalLabel.trim() !== '') {
+    dateLabel += `\n${waka.date.seasonalLabel}`;
   }
 
-  // seasonalLabel(예: '녹는 눈과 산골 급류')은 내부 분류용으로만 사용, 화면에는 노출 X
-
+  // ─── 스타일 ───
   const outerWrapper: React.CSSProperties = {
     position: 'relative',
     display: 'flex',
@@ -369,7 +361,7 @@ const WakaPostcard: React.FC<{
     inset: 0,
     backgroundColor: 'var(--paper-color)',
     opacity: 0.2,
-    mixBlendMode: 'multiply' as const,
+    mixBlendMode: 'multiply',
     pointerEvents: 'none',
   };
 
@@ -378,7 +370,7 @@ const WakaPostcard: React.FC<{
     inset: 0,
     display: 'flex',
     flexDirection: 'column',
-    padding: '32px',
+    padding: '26px 26px 24px',
     transition: 'opacity 2000ms ease, transform 2000ms ease',
     opacity: revealed ? 1 : 0,
     transform: revealed ? 'translateY(0)' : 'translateY(8px)',
@@ -410,22 +402,21 @@ const WakaPostcard: React.FC<{
 
   const headerRow: React.CSSProperties = {
     textAlign: 'center',
-    paddingTop: 4,   // 1 → 4: 카드 위쪽으로 조금 당김
-    paddingBottom: 6,
+    paddingTop: 2, // 날짜 조금 더 위로
+    paddingBottom: 4,
     flex: 'none',
   };
-
 
   const dateLabelStyle: React.CSSProperties = {
     fontSize: 11,
     letterSpacing: '0.18em',
     textTransform: 'uppercase',
-    color: '#f7f3eb', // 거의 흰색 톤
-    borderBottom: '1px solid rgba(255,255,255,0.7)',
+    color: '#fffdf8',
+    borderBottom: '1px solid rgba(255,255,255,0.75)',
     paddingBottom: 3,
     fontFamily: 'var(--font-kor)',
     whiteSpace: 'pre-line',
-    textShadow: '0 1px 3px rgba(0,0,0,0.45)', // 👉 박스 대신 그림자
+    textShadow: '0 1px 4px rgba(0,0,0,0.6)',
   };
 
   const wakaArea: React.CSSProperties = {
@@ -462,23 +453,17 @@ const WakaPostcard: React.FC<{
     paddingTop: 48,
   };
 
-  // 👉 변경
   const authorBlock: React.CSSProperties = {
     position: 'absolute',
-    bottom: 14,
-    left: 10,
+    bottom: 16,
+    left: 18,
     fontFamily: 'var(--font-jp-std)',
     letterSpacing: '0.1em',
     fontSize: 10,
-    color: '#5e4d3c',
+    color: '#f8f3eb',
     opacity: 0.95,
-    padding: '8px 6px',
-    borderRadius: 6,
-    border: '1px solid rgba(218, 201, 178, 0.9)',
-    textShadow: '0 1px 3px rgba(0,0,0,0.55)', // 👉 박스 대신 그림자
-    };
-    
-}
+    textShadow: '0 1px 3px rgba(0,0,0,0.55)',
+  };
 
   const soundButtonWrapper: React.CSSProperties = {
     position: 'absolute',
@@ -525,7 +510,7 @@ const WakaPostcard: React.FC<{
       />
 
       <div style={cardBox} onClick={() => setRevealed(true)}>
-        {/* 배경 */}
+        {/* 배경 이미지 */}
         <div
           style={{
             ...bgBase,
@@ -537,7 +522,7 @@ const WakaPostcard: React.FC<{
         />
         <div className="texture-overlay" style={overlayPaper} />
 
-        {/* 대기 라벨 */}
+        {/* 대기 상태 오버레이 */}
         <div style={waitingOverlay}>
           <div style={waitingBox}>
             <div
@@ -557,7 +542,7 @@ const WakaPostcard: React.FC<{
                 whiteSpace: 'nowrap',
               }}
             >
-              {isRecommended ? '당신을 위한' : '오늘의 계절'}
+              {isRecommended ? '선택된 노래' : '오늘의 계절'}
             </span>
             <div
               style={{
@@ -569,7 +554,7 @@ const WakaPostcard: React.FC<{
           </div>
         </div>
 
-        {/* 본문 */}
+        {/* 본문 카드 내용 */}
         <div style={contentWrapper}>
           <div style={headerRow}>
             <span style={dateLabelStyle}>{dateLabel}</span>
@@ -592,7 +577,7 @@ const WakaPostcard: React.FC<{
                   display: 'block',
                   marginTop: 4,
                   fontSize: 9,
-                  opacity: 0.7,
+                  opacity: 0.9,
                 }}
               >
                 · {waka.content.info.source}
@@ -616,7 +601,7 @@ const WakaPostcard: React.FC<{
         </div>
       </div>
 
-      {/* 하단 해석 */}
+      {/* 하단 해석 영역 */}
       <div style={bottomSection}>
         <p
           style={{
@@ -738,7 +723,11 @@ const AdvancedTest: React.FC<{
           label: '소리 없이 눈 내리는 밤',
           icon: <Moon size={14} />,
         },
-        { val: 'energy', label: '거칠게 부는 바람', icon: <Wind size={14} /> },
+        {
+          val: 'energy',
+          label: '거칠게 부는 바람',
+          icon: <Wind size={14} />,
+        },
         {
           val: 'wait',
           label: '구름 사이로 비치는 햇살',
@@ -755,7 +744,11 @@ const AdvancedTest: React.FC<{
           label: '알 수 없는 막막함',
           icon: <Cloud size={14} />,
         },
-        { val: 'burnout', label: '지쳐버린 마음', icon: <Coffee size={14} /> },
+        {
+          val: 'burnout',
+          label: '지쳐버린 마음',
+          icon: <Coffee size={14} />,
+        },
         {
           val: 'wait',
           label: '오지 않는 소식에 대한 기다림',
@@ -881,14 +874,14 @@ const AdvancedTest: React.FC<{
             >
               당신의 마음에 맞는
               <br />
-              옛 노래를 찾아드립니다.
+              옛 노래를 골라 드립니다.
             </h2>
             <p style={{ color: '#8e8070', fontSize: 14, lineHeight: 1.8 }}>
-              세 가지 질문에 답해주시면,
+              세 가지 질문에 답해 주시면,
               <br />
-              지금 당신에게 필요한 계절의 노래를
+              지금 당신의 마음결과 가장 잘 맞는
               <br />
-              처방해 드립니다.
+              계절의 노래를 추천해 드립니다.
             </p>
             <div style={{ paddingTop: 32 }}>
               <button
@@ -1076,7 +1069,7 @@ export default function WakaArchivePage() {
       {mode === 'today' && (
         <header className="fade-in" style={headerStyle}>
           <h1 style={titleStyle}>和歌</h1>
-          <p style={subtitleStyle}>Today's Waka</p>
+          <p style={subtitleStyle}>TODAY'S WAKA</p>
         </header>
       )}
 
@@ -1085,9 +1078,13 @@ export default function WakaArchivePage() {
           <div className="fade-in" style={{ width: '100%' }}>
             <WakaPostcard waka={todayWaka} />
             <div style={startButtonWrap}>
-              <button onClick={() => setMode('test')} style={startButton}>
+              <button
+                type="button"
+                onClick={() => setMode('test')}
+                style={startButton}
+              >
                 <Sparkles size={14} />
-                <span style={{ paddingTop: 2 }}>마음 처방받기</span>
+                <span style={{ paddingTop: 2 }}>마음에 맞는 노래 찾기</span>
               </button>
             </div>
           </div>
@@ -1108,8 +1105,8 @@ export default function WakaArchivePage() {
                   lineHeight: 1.6,
                 }}
               >
-                <span>당신을 위한</span>
-                <span> 노래</span>
+                <span>지금의 마음에</span>
+                <span> 닿는 노래</span>
               </h1>
             </header>
 
