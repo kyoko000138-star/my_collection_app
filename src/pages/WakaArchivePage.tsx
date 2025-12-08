@@ -426,6 +426,7 @@ const WakaPostcard: React.FC<{
     fontFamily: 'var(--font-kor)',
     whiteSpace: 'pre-line',
     textShadow: '0 1px 3px rgba(0,0,0,0.45)', // 👉 박스 대신 그림자
+  };
 
   const wakaArea: React.CSSProperties = {
     position: 'relative',
