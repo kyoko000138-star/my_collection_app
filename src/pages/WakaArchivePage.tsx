@@ -475,7 +475,9 @@ const WakaPostcard: React.FC<{
     padding: '8px 6px',
     borderRadius: 6,
     border: '1px solid rgba(218, 201, 178, 0.9)',
-    boxShadow: '0 2px 10px rgba(255,255,255,0.9)',
+    textShadow: '0 1px 3px rgba(0,0,0,0.55)', // 👉 박스 대신 그림자
+    };
+    
 }
 
   const soundButtonWrapper: React.CSSProperties = {
