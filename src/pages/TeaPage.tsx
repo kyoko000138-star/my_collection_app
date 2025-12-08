@@ -392,7 +392,8 @@ const AROMA_MAIN_CATS = [
     color: Colors.aroma.mineral,
     icon: <CloudSun size={18} />,
   },
-};
+];
+
 
 const AROMA_SUB_CATS: { [k: string]: string[] } = {
   floral: [
@@ -896,8 +897,8 @@ const TeaDetail = ({
   setFullImageUrl: (url: string | null) => void;
 }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-
   useEffect(() => {
+    // 다른 기록을 열 때마다 첫 번째 사진부터 보이게
     setCurrentImageIndex(0);
   }, [entry?.id]);
 
@@ -981,133 +982,133 @@ const TeaDetail = ({
 
           {/* ✅ 450px 메인 이미지 슬라이더 */}
           {entry.images?.length > 0 && (
-            <section
-              style={{
-                marginBottom: 32,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <div
-                style={{
-                  position: 'relative',
-                  width: '100%',
-                  display: 'flex',
-                  justifyContent: 'center',
-                }}
-              >
-                <img
-                  src={entry.images[currentImageIndex]}
-                  alt={`tea-${currentImageIndex}`}
-                  style={{
-                    width: '100%',
-                    maxWidth: 450,
-                    height: 450,
-                    objectFit: 'cover',
-                    borderRadius: 8,
-                    border: `1px solid ${Colors.border}`,
-                    cursor: 'pointer',
-                  }}
-                  onClick={() =>
-                    setFullImageUrl(entry.images[currentImageIndex])
-                  }
-                />
+      <section
+        style={{
+          marginBottom: '32px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '12px',
+        }}
+        >
+        {/* 메인 450px 이미지 */}
+        <div
+          style={{
+            position: 'relative',
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+          }}
+          >
+          <img
+            src={entry.images[currentImageIndex]}
+            alt={`tea-${currentImageIndex}`}
+            style={{
+              width: '100%',
+              maxWidth: 450,
+              height: 450,
+              objectFit: 'cover',
+              borderRadius: 8,
+              border: `1px solid ${Colors.border}`,
+              cursor: 'pointer',
+            }}
+            onClick={() => setFullImageUrl(entry.images[currentImageIndex])}
+            />
+          {entry.images.length > 1 && (
+            <>
+              {/* 왼쪽 화살표 */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+              setCurrentImageIndex((prev) =>
+                prev === 0 ? entry.images.length - 1 : prev - 1
+              );
+            }}
+            style={{
+              position: 'absolute',
+              left: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              border: 'none',
+              backgroundColor: 'rgba(0,0,0,0.4)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <ArrowLeft size={18} />
+          </button>
 
-                {entry.images.length > 1 && (
-                  <>
-                    {/* 왼쪽 화살표 */}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setCurrentImageIndex((prev) =>
-                          prev === 0 ? entry.images.length - 1 : prev - 1,
-                        )
-                      }
-                      style={{
-                        position: 'absolute',
-                        left: 12,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        width: 32,
-                        height: 32,
-                        borderRadius: '50%',
-                        border: 'none',
-                        backgroundColor: 'rgba(0,0,0,0.4)',
-                        color: '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <ArrowLeft size={18} />
-                    </button>
+          {/* 오른쪽 화살표 */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrentImageIndex((prev) =>
+                prev === entry.images.length - 1 ? 0 : prev + 1
+              );
+            }}
+            style={{
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              border: 'none',
+              backgroundColor: 'rgba(0,0,0,0.4)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <ArrowRight size={18} />
+          </button>
+        </>
+      )}
+    </div>
 
-                    {/* 오른쪽 화살표 */}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setCurrentImageIndex((prev) =>
-                          prev === entry.images.length - 1 ? 0 : prev + 1,
-                        )
-                      }
-                      style={{
-                        position: 'absolute',
-                        right: 12,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        width: 32,
-                        height: 32,
-                        borderRadius: '50%',
-                        border: 'none',
-                        backgroundColor: 'rgba(0,0,0,0.4)',
-                        color: '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <ArrowRight size={18} />
-                    </button>
-                  </>
-                )}
-              </div>
+    {/* 아래 동그라미 인디케이터 */}
+    {entry.images.length > 1 && (
+      <div
+        style={{
+          display: 'flex',
+          gap: 6,
+          justifyContent: 'center',
+          marginTop: 4,
+        }}
+      >
+        {entry.images.map((_, idx) => (
+          <button
+            key={idx}
+            type="button"
+            onClick={() => setCurrentImageIndex(idx)}
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              border: 'none',
+              padding: 0,
+              backgroundColor:
+                idx === currentImageIndex ? Colors.textMain : '#E0E0E0',
+              cursor: 'pointer',
+            }}
+          />
+        ))}
+      </div>
+    )}
+  </section>
+)}
 
-              {entry.images.length > 1 && (
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 6,
-                    justifyContent: 'center',
-                    marginTop: 4,
-                  }}
-                >
-                  {entry.images.map((_, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setCurrentImageIndex(idx)}
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        border: 'none',
-                        padding: 0,
-                        backgroundColor:
-                          idx === currentImageIndex
-                            ? Colors.textMain
-                            : '#E0E0E0',
-                        cursor: 'pointer',
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
 
           {/* 기본 정보 */}
           <div
@@ -1840,62 +1841,65 @@ const TeaPage = () => {
 
   /* --------------------------- Firestore 구독 --------------------------- */
   useEffect(() => {
-    if (!user) {
-      setEntries([]);
-      return;
+  if (!user) {
+    setEntries([]);
+    return;
+  }
+
+  setEntriesLoading(true);
+
+  const colRef = collection(
+    db,
+    'artifacts',
+    appId,
+    'users',
+    user.uid,
+    TEA_COLLECTION
+  );
+  const q = query(colRef, orderBy('createdAt', 'desc'));
+
+  const unsub = onSnapshot(
+    q,
+    (snapshot) => {
+      const list = snapshot.docs.map((d) => {
+        const data = d.data() as any;
+        return {
+          id: d.id,
+          date: data.date ?? todayString(),
+          teaName: data.teaName ?? '',
+          origin: data.origin ?? '',
+          variety: data.variety ?? '',
+          shop: data.shop ?? '',
+          price: data.price ?? '',
+          teaType: data.teaType ?? 'green',
+          subType: data.subType ?? '',
+          snack: data.snack ?? '',
+          brewing: Array.isArray(data.brewing) ? data.brewing : [],
+          aromaTags: Array.isArray(data.aromaTags) ? data.aromaTags : [],
+          taste: { ...initialTaste, ...(data.taste || {}) },
+          images: Array.isArray(data.images) ? data.images : [],
+          note: data.note ?? '',
+        };
+      });
+
+      setEntries(list);
+      setEntriesLoading(false);
+
+      // 상세 페이지 보고 있을 때도 최신 데이터로 동기화
+      setSelectedEntry((prev) => {
+        if (!prev) return prev;
+        const updated = list.find((e) => e.id === prev.id);
+        return updated ?? prev;
+      });
+    },
+    (err) => {
+      console.error(err);
+      setEntriesLoading(false);
     }
-    setEntriesLoading(true);
+  );
 
-    const colRef = collection(
-      db,
-      'artifacts',
-      appId,
-      'users',
-      user.uid,
-      TEA_COLLECTION,
-    );
-    const q = query(colRef, orderBy('createdAt', 'desc'));
-
-    const unsub = onSnapshot(
-      q,
-      (snapshot) => {
-        const list = snapshot.docs.map((d) => {
-          const data = d.data() as any;
-          return {
-            id: d.id,
-            date: data.date ?? todayString(),
-            teaName: data.teaName ?? '',
-            origin: data.origin ?? '',
-            variety: data.variety ?? '',
-            shop: data.shop ?? '',
-            price: data.price ?? '',
-            teaType: data.teaType ?? 'green',
-            subType: data.subType ?? '',
-            snack: data.snack ?? '',
-            brewing: Array.isArray(data.brewing) ? data.brewing : [],
-            aromaTags: Array.isArray(data.aromaTags) ? data.aromaTags : [],
-            taste: { ...initialTaste, ...(data.taste || {}) },
-            images: Array.isArray(data.images) ? data.images : [],
-            note: data.note ?? '',
-          };
-        });
-        setEntries(list);
-        setEntriesLoading(false);
-
-        // 상세 화면 보고 있을 때도 최신 데이터 반영
-        if (selectedEntry) {
-          const updated = list.find((e) => e.id === selectedEntry.id);
-          if (updated) setSelectedEntry(updated);
-        }
-      },
-      (err) => {
-        console.error(err);
-        setEntriesLoading(false);
-      },
-    );
-
-    return () => unsub();
-  }, [user, selectedEntry]);
+  return () => unsub();
+}, [user]); // ✅ selectedEntry 의존성 제거
 
   /* --------------------------- 폼 열기 로직 ----------------------------- */
   const handleOpenForm = (entry: any = null) => {
@@ -1995,26 +1999,27 @@ const TeaPage = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!user) return;
-    if (!window.confirm('정말 삭제하시겠습니까?')) return;
-    try {
-      await deleteDoc(
-        doc(
-          db,
-          'artifacts',
-          appId,
-          'users',
-          user.uid,
-          TEA_COLLECTION,
-          id,
-        ),
-      );
-      setMode('list');
-    } catch (err) {
-      console.error(err);
-      alert('삭제 중 오류가 발생했습니다.');
-    }
-  };
+  if (!user) return;
+  if (!window.confirm('정말 삭제하시겠습니까?')) return;
+  try {
+    await deleteDoc(
+      doc(
+        db,
+        'artifacts',
+        appId,
+        'users',
+        user.uid,
+        TEA_COLLECTION,
+        id
+      )
+    );
+    setSelectedEntry((prev) => (prev && prev.id === id ? null : prev)); // ✅
+    setMode('list');
+  } catch (err) {
+    console.error(err);
+    alert('삭제 중 오류가 발생했습니다.');
+  }
+};
 
   /* ------------------------ 이미지 업로드 핸들러 ------------------------ */
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2138,22 +2143,25 @@ const TeaPage = () => {
   }
 
   if (mode === 'detail' && selectedEntry) {
-    return (
-      <>
-        <TeaDetail
-          entry={selectedEntry}
-          startEdit={(e) => handleOpenForm(e)}
-          handleDelete={handleDelete}
-          closeDetail={() => setMode('list')}
-          setFullImageUrl={setFullImageUrl}
-        />
-        <FullImageOverlay
-          url={fullImageUrl}
-          onClose={() => setFullImageUrl(null)}
-        />
-      </>
-    );
-  }
+  return (
+    <>
+      <TeaDetail
+        entry={selectedEntry}
+        startEdit={(e) => handleOpenForm(e)}
+        handleDelete={handleDelete}
+        closeDetail={() => {
+          setMode('list');
+          setSelectedEntry(null);     // ✅ 상세 나갈 때 선택 항목 비우기
+        }}
+        setFullImageUrl={setFullImageUrl}
+      />
+      <FullImageOverlay
+        url={fullImageUrl}
+        onClose={() => setFullImageUrl(null)}
+      />
+    </>
+  );
+}
 
   if (mode === 'form') {
     return <TeaForm formState={formState} handlers={formHandlers} />;
