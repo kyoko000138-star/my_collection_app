@@ -34,6 +34,59 @@ import {
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 
+// 🔧 원본 이미지를 리사이즈 + JPEG 압축해서 Data URL로 바꾸는 유틸
+const compressImageFile = (
+  file: File,
+  maxWidth = 900,
+  quality = 0.7
+): Promise<{ url: string }> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(maxWidth / img.width, 1); // 원본보다 키우지는 않기
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('캔버스 컨텍스트 생성 실패'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // iPhone의 HEIC도 여기서 JPEG로 변환됨
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+
+        // 너무 크면 한 번 더 압축 (선택사항)
+        if (dataUrl.length > 900 * 1024) {
+          dataUrl = canvas.toDataURL('image/jpeg', 0.55);
+        }
+
+        resolve({ url: dataUrl });
+      };
+      img.onerror = (err) => {
+        console.error('이미지 로드 오류', err);
+        reject(err);
+      };
+
+      img.src = e.target?.result as string;
+    };
+
+    reader.onerror = (err) => {
+      console.error('파일 읽기 오류', err);
+      reject(err);
+    };
+
+    reader.readAsDataURL(file);
+  });
+};
+
+
 /* -------------------------------------------------------------------------- */
 /* 1. 디자인 시스템 & 스타일 */
 /* -------------------------------------------------------------------------- */
@@ -931,22 +984,40 @@ setCurrentImageIndex(0);
 
   /* --------------------------- 이미지 업로드 --------------------------- */
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+ const handleImageUpload = async (
+  e: React.ChangeEvent<HTMLInputElement>
+) => {
   const { files } = e.target;
   if (!files || files.length === 0) return;
 
-  const readFileAsDataUrl = (file: File) =>
-    new Promise<{ url: string; file: null }>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        resolve({ url: reader.result as string, file: null });
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  try {
+    const compressedImages: { url: string; file: null }[] = [];
 
-  Promise.all(Array.from(files).map(readFileAsDataUrl)).then(...);
+    // 한 번에 너무 많이 올리면 문서가 비대해지니까 5장 제한 (원하면 수정 가능)
+    const maxCount = 5;
+    const targetFiles = Array.from(files).slice(0, maxCount);
+
+    for (const file of targetFiles) {
+      const { url } = await compressImageFile(file, 900, 0.7);
+      compressedImages.push({ url, file: null });
+    }
+
+    // ⬇️ 여기에서 "incense 폼 state" 이름에 맞춰서 수정해 주세요!
+    // 예: formData / setFormData  라면 그대로 두고,
+    //    draft / setDraft 라면 setDraft로 바꿔주면 됩니다.
+    setFormData((prev: any) => ({
+      ...prev,
+      images: [...prev.images, ...compressedImages],
+    }));
+  } catch (error) {
+    console.error('이미지 처리 중 오류:', error);
+    alert('이미지 처리 중 오류가 발생했습니다.');
+  } finally {
+    // 같은 파일을 다시 골라도 onChange가 동작하도록
+    e.target.value = '';
+  }
 };
+
 
 
   /* ------------------------------ 렌더링 (Auth 게이트) ------------------- */
