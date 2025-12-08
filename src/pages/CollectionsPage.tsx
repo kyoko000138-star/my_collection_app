@@ -8,6 +8,7 @@ import {
   Trash2,
   Search,
   ArrowLeft,
++ ArrowRight,
 } from 'lucide-react';
 
 import { auth, db } from '../firebase';
@@ -425,6 +426,7 @@ const CollectionsPage: React.FC = () => {
   const [filterMain, setFilterMain] = useState<string>('전체');
   const [fullImage, setFullImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -469,25 +471,15 @@ const CollectionsPage: React.FC = () => {
   /* ---------------------------- Auth & Firestore ------------------------- */
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (fbUser) => {
-      setUser(fbUser);
-      setAuthLoading(false);
-    });
-    return () => unsub();
-  }, []);
-
-  useEffect(() => {
     if (!user) {
       setItems([]);
       return;
     }
     setItemsLoading(true);
 
-    const qRef = query(
-      collection(db, COLLECTION_NAME),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc'),
-    );
+    const colRef = collection(db, COLLECTION_NAME);
+    // 🔹 인덱스 필요 없는 가장 단순 쿼리: userId 조건만
+    const qRef = query(colRef, where('userId', '==', user.uid));
 
     const unsub = onSnapshot(
       qRef,
@@ -517,6 +509,10 @@ const CollectionsPage: React.FC = () => {
             imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [],
           };
         });
+
+        // 🔹 날짜 기준 최신순 정렬 (YYYY-MM-DD라 문자열 정렬 가능)
+        list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
         setItems(list);
         setItemsLoading(false);
 
@@ -1096,16 +1092,143 @@ const CollectionsPage: React.FC = () => {
               </div>
             </section>
 
-            {/* 이미지 */}
+            {/* 이미지 (인센스 상세뷰 스타일, 450px 박스) */}
             {i.imageUrls?.length > 0 && (
-              <section style={{ marginBottom: 24 }}>
-                <ImageStrip
-                  images={i.imageUrls}
-                  onClick={(url) => setFullImage(url)}
-                />
+              <section
+                style={{
+                  marginBottom: 32,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    display: 'flex',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <img
+                    src={i.imageUrls[currentImageIndex]}
+                    alt={`collection-${currentImageIndex}`}
+                    style={{
+                      width: '100%',
+                      maxWidth: 450,
+                      height: 450,
+                      objectFit: 'cover',
+                      borderRadius: 8,
+                      border: `1px solid ${Colors.border}`,
+                      cursor: 'pointer',
+                    }}
+                    onClick={() =>
+                      setFullImage(i.imageUrls[currentImageIndex])
+                    }
+                  />
+
+                  {i.imageUrls.length > 1 && (
+                    <>
+                      {/* 왼쪽 화살표 */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentImageIndex((prev) =>
+                            prev === 0
+                              ? i.imageUrls.length - 1
+                              : prev - 1,
+                          );
+                        }}
+                        style={{
+                          position: 'absolute',
+                          left: 12,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 32,
+                          height: 32,
+                          borderRadius: '50%',
+                          border: 'none',
+                          backgroundColor: 'rgba(0,0,0,0.4)',
+                          color: '#fff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <ArrowLeft size={18} />
+                      </button>
+
+                      {/* 오른쪽 화살표 */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentImageIndex((prev) =>
+                            prev === i.imageUrls.length - 1
+                              ? 0
+                              : prev + 1,
+                          );
+                        }}
+                        style={{
+                          position: 'absolute',
+                          right: 12,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 32,
+                          height: 32,
+                          borderRadius: '50%',
+                          border: 'none',
+                          backgroundColor: 'rgba(0,0,0,0.4)',
+                          color: '#fff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <ArrowRight size={18} />
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* 아래 점(슬라이드 인디케이터) */}
+                {i.imageUrls.length > 1 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 6,
+                      justifyContent: 'center',
+                      marginTop: 4,
+                    }}
+                  >
+                    {i.imageUrls.map((_, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setCurrentImageIndex(idx)}
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          border: 'none',
+                          padding: 0,
+                          backgroundColor:
+                            idx === currentImageIndex
+                              ? Colors.textMain
+                              : '#E0E0E0',
+                          cursor: 'pointer',
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
               </section>
             )}
-
+            
             {/* 상세 스펙 */}
             <section
               style={{
