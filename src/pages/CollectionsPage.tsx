@@ -481,6 +481,14 @@ const CollectionsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
+    // ⬇⬇⬇ 이 부분 새로 추가
+  const triggerFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+  // ⬆⬆⬆ 여기까지
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // ✅ 여기 추가!
   useEffect(() => {
