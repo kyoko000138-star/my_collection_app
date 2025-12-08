@@ -401,7 +401,7 @@ export const decemberFirstTen: WakaEntry[] = [
     },
   },
 ];
-
+export const wakaCalendarData: WakaEntry[] = [...decemberFirstTen];
 
 // ─────────────────────
 // 오늘의 와카 / 추천 와카
