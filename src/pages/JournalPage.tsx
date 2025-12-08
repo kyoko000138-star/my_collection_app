@@ -1320,7 +1320,7 @@ function CalendarView({
   const [month, setMonth] = useState(new Date().getMonth());
   const [entryMap, setEntryMap] = useState<Record<string, boolean>>({});
   const [monthlyMemoItems, setMonthlyMemoItems] = useState<MonthlyMemoItem[]>(
-    []
+    [],
   );
   const [moodStats, setMoodStats] = useState<
     { icon: any; label: string; count: number }[]
@@ -1337,23 +1337,77 @@ function CalendarView({
       if (cancelled) return;
       setAllData(data);
       const map: Record<string, boolean> = {};
-      Object.keys(data).forEach((key) => (map[key] = true));
+      Object.keys(data).forEach((key) => {
+        map[key] = true;
+      });
       setEntryMap(map);
     });
     return () => {
       cancelled = true;
     };
-  }, [user.uid, year, month]);
+  }, [user.uid]);
 
   // 이달 메모 + 통계 계산
   useEffect(() => {
     let cancelled = false;
 
+    // 이달 메모 로드
     loadMonthlyMemo(user.uid, year, month + 1).then((items) => {
       if (!cancelled) setMonthlyMemoItems(items);
     });
 
-    calculateStats(allData, year, month);
+    // 통계 계산
+    const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+    const monthlyEntries = Object.values(allData).filter((e) =>
+      e.dateKey.startsWith(prefix),
+    );
+
+    // 1) 기분 통계 (오늘의 기분 + 각 질문 스탬프)
+    const moodCounts: Record<string, number> = {};
+    monthlyEntries.forEach((e) => {
+      if (e.dayMoodId) {
+        moodCounts[e.dayMoodId] = (moodCounts[e.dayMoodId] || 0) + 1;
+      }
+      Object.values(e.answers || {}).forEach((ans) => {
+        if (ans.moodId) {
+          const id = ans.moodId;
+          moodCounts[id] = (moodCounts[id] || 0) + 1;
+        }
+      });
+    });
+
+    const moodStatList = Object.entries(moodCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([id, count]) => {
+        const info = ALL_MOOD_STAMPS.find((s) => s.id === id);
+        return info ? { icon: info.icon, label: info.label, count } : null;
+      })
+      .filter(
+        (x): x is { icon: any; label: string; count: number } => x !== null,
+      );
+
+    if (!cancelled) setMoodStats(moodStatList);
+
+    // 2) 방문 장소 통계 (프리셋 라벨도 반영)
+    const placeCounts: Record<string, number> = {};
+    monthlyEntries.forEach((e) => {
+      (e.timeline || []).forEach((t) => {
+        if (t.category !== 'home' && t.category !== 'work') {
+          const preset = PLACE_PRESETS.find((p) => p.id === t.category);
+          const baseName = (t.place || '').trim();
+          const placeName = baseName || preset?.label || '외출';
+          placeCounts[placeName] = (placeCounts[placeName] || 0) + 1;
+        }
+      });
+    });
+
+    const escapeStatList = Object.entries(placeCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([place, count]) => ({ place, count }));
+
+    if (!cancelled) setEscapeStats(escapeStatList);
 
     return () => {
       cancelled = true;
@@ -1365,63 +1419,37 @@ function CalendarView({
     saveMonthlyMemo(user.uid, year, month + 1, monthlyMemoItems);
   }, [user.uid, monthlyMemoItems, year, month]);
 
-  const calculateStats = (
-    data: Record<string, JournalEntryData>,
-    y: number,
-    m: number
-  ) => {
-    const prefix = `${y}-${String(m + 1).padStart(2, '0')}`;
-    const monthlyEntries = Object.values(data).filter((e) =>
-      e.dateKey.startsWith(prefix)
-    );
-
-    const moodCounts: Record<string, number> = {};
-monthlyEntries.forEach((e) => {
-  // ① 오늘의 기분도 1회로 카운트
-  if (e.dayMoodId) {
-    moodCounts[e.dayMoodId] = (moodCounts[e.dayMoodId] || 0) + 1;
-  }
-
-  // ② 각 질문 스탬프
-  Object.values(e.answers || {}).forEach((ans) => {
-    if (ans.moodId) {
-      moodCounts[ans.moodId] = (moodCounts[ans.moodId] || 0) + 1;
-    }
-  });
-});
-
-    const placeCounts: Record<string, number> = {};
-    monthlyEntries.forEach((e) => {
-      (e.timeline || []).forEach((t) => {
-        if (t.category !== 'home' && t.category !== 'work') {
-          const preset = PLACE_PRESETS.find((p) => p.id === t.category);
-          const baseName = (t.place || '').trim();
-      // ① 내가 쓴 장소 이름
-      // ② 없으면 프리셋 라벨(마트, 카페, 약속…)
-      // ③ 그것도 없으면 '외출'
-          const placeName = baseName || preset?.label || '외출';
-
-           placeCounts[placeName] = (placeCounts[placeName] || 0) + 1;
-        }
-      });
-    });
-
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDay = new Date(year, month, 1).getDay();
 
-  const handlePrev = () =>
-    month === 0 ? (setMonth(11), setYear(year - 1)) : setMonth(month - 1);
+  const handlePrev = () => {
+    if (month === 0) {
+      setMonth(11);
+      setYear((y) => y - 1);
+    } else {
+      setMonth((m) => m - 1);
+    }
+  };
 
-  const handleNext = () =>
-    month === 11 ? (setMonth(0), setYear(year + 1)) : setMonth(month + 1);
+  const handleNext = () => {
+    if (month === 11) {
+      setMonth(0);
+      setYear((y) => y + 1);
+    } else {
+      setMonth((m) => m + 1);
+    }
+  };
 
-  const days = [];
-  for (let i = 0; i < firstDay; i++) days.push(<div key={`e-${i}`} />);
+  const days: React.ReactNode[] = [];
+  for (let i = 0; i < firstDay; i++) {
+    days.push(<div key={`e-${i}`} />);
+  }
   for (let d = 1; d <= daysInMonth; d++) {
     const dObj = new Date(year, month, d);
     const dKey = formatDateKey(dObj);
     const isToday = formatDateKey(new Date()) === dKey;
-    const hasEntry = entryMap[dKey];
+    const hasEntry = !!entryMap[dKey];
+
     days.push(
       <div
         key={d}
@@ -1429,28 +1457,35 @@ monthlyEntries.forEach((e) => {
         onClick={() => onDateSelect(dObj)}
       >
         <span style={{ zIndex: 1 }}>{d}</span>
-      </div>
+      </div>,
     );
   }
 
   const handleAddMemoItem = () => {
     setMonthlyMemoItems((prev) => [
       ...prev,
-      { id: Date.now().toString(), text: '', done: false },
+      {
+        id: Date.now().toString(),
+        text: '',
+        done: false,
+      },
     ]);
   };
+
   const handleToggleMemoItem = (id: string) => {
     setMonthlyMemoItems((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, done: !item.done } : item
-      )
+        item.id === id ? { ...item, done: !item.done } : item,
+      ),
     );
   };
+
   const handleChangeMemoText = (id: string, text: string) => {
     setMonthlyMemoItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, text } : item))
+      prev.map((item) => (item.id === id ? { ...item, text } : item)),
     );
   };
+
   const handleRemoveMemoItem = (id: string) => {
     setMonthlyMemoItems((prev) => prev.filter((item) => item.id !== id));
   };
@@ -1478,7 +1513,7 @@ monthlyEntries.forEach((e) => {
                 textAlign: 'center',
                 fontSize: '12px',
                 color: '#888',
-                fontWeight: '500',
+                fontWeight: 500,
               }}
             >
               {d}
@@ -1489,20 +1524,20 @@ monthlyEntries.forEach((e) => {
       </div>
 
       <div style={styles.modulesArea}>
-        {/* 이달의 메모 - 체크리스트 */}
+        {/* 이달의 메모 */}
         <div style={styles.moduleBox}>
           <div style={styles.moduleTitle}>
             <StickyNote size={16} /> 이달의 메모
           </div>
-          <div style={{ marginTop: '4px' }}>
+          <div style={{ marginTop: 4 }}>
             {monthlyMemoItems.map((item) => (
               <div
                 key={item.id}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  marginBottom: '6px',
+                  gap: 8,
+                  marginBottom: 6,
                 }}
               >
                 <input
@@ -1520,7 +1555,7 @@ monthlyEntries.forEach((e) => {
                   className="lined-textarea"
                   style={{
                     ...styles.textarea,
-                    paddingLeft: '4px',
+                    paddingLeft: 4,
                     paddingRight: 0,
                     minHeight: LINE_HEIGHT,
                     fontSize: 14,
@@ -1545,15 +1580,15 @@ monthlyEntries.forEach((e) => {
               type="button"
               onClick={handleAddMemoItem}
               style={{
-                marginTop: '6px',
+                marginTop: 6,
                 border: 'none',
                 background: 'none',
                 color: '#555',
                 cursor: 'pointer',
-                fontSize: '13px',
+                fontSize: 13,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px',
+                gap: 4,
               }}
             >
               <Plus size={14} /> 항목 추가
@@ -1570,21 +1605,21 @@ monthlyEntries.forEach((e) => {
             style={{
               display: 'flex',
               flexWrap: 'wrap',
-              gap: '30px',
-              marginTop: '10px',
-              paddingLeft: '4px',
+              gap: 30,
+              marginTop: 10,
+              paddingLeft: 4,
             }}
           >
             {moodStats.length > 0 ? (
               moodStats.map((s, i) => (
                 <div key={i} style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '20px' }}>{s.icon}</div>
+                  <div style={{ fontSize: 20 }}>{s.icon}</div>
                   <div
                     style={{
-                      fontSize: '13px',
+                      fontSize: 13,
                       color: '#111',
-                      fontWeight: '600',
-                      marginTop: '6px',
+                      fontWeight: 600,
+                      marginTop: 6,
                     }}
                   >
                     {s.count}회
@@ -1592,9 +1627,7 @@ monthlyEntries.forEach((e) => {
                 </div>
               ))
             ) : (
-              <span style={{ fontSize: '14px', color: '#bbb' }}>
-                데이터 없음
-              </span>
+              <span style={{ fontSize: 14, color: '#bbb' }}>데이터 없음</span>
             )}
           </div>
         </div>
@@ -1604,7 +1637,7 @@ monthlyEntries.forEach((e) => {
           <div style={styles.moduleTitle}>
             <Footprints size={16} /> 방문 장소
           </div>
-          <div style={{ marginTop: '10px', paddingLeft: '4px' }}>
+          <div style={{ marginTop: 10, paddingLeft: 4 }}>
             {escapeStats.length > 0 ? (
               escapeStats.map((s, i) => (
                 <span
@@ -1614,24 +1647,20 @@ monthlyEntries.forEach((e) => {
                     backgroundColor: '#fff',
                     border: '1px solid #eee',
                     padding: '6px 12px',
-                    borderRadius: '20px',
-                    fontSize: '13px',
+                    borderRadius: 20,
+                    fontSize: 13,
                     color: '#444',
-                    marginRight: '6px',
-                    marginBottom: '6px',
+                    marginRight: 6,
+                    marginBottom: 6,
                     fontFamily: "'Noto Sans KR', sans-serif",
                   }}
                 >
                   {s.place}{' '}
-                  <span style={{ opacity: 0.5, fontSize: '11px' }}>
-                    ({s.count})
-                  </span>
+                  <span style={{ opacity: 0.5, fontSize: 11 }}>({s.count})</span>
                 </span>
               ))
             ) : (
-              <span style={{ fontSize: '14px', color: '#bbb' }}>
-                집/회사 위주
-              </span>
+              <span style={{ fontSize: 14, color: '#bbb' }}>집/회사 위주</span>
             )}
           </div>
         </div>
@@ -1656,7 +1685,7 @@ function JournalView({
   const dateKey = useMemo(() => formatDateKey(targetDate), [targetDate]);
 
   const [selectedWeatherId, setSelectedWeatherId] = useState<string | null>(
-    null
+    null,
   );
   const [dayMoodId, setDayMoodId] = useState<string | null>(null);
   const [selectedPromptIds, setSelectedPromptIds] = useState<number[]>([]);
@@ -1669,30 +1698,9 @@ function JournalView({
   const [tlCategory, setTlCategory] = useState<string>('');
 
   const [activeMoodSelector, setActiveMoodSelector] = useState<number | null>(
-    null
+    null,
   );
-
-    // 타임라인 시간 수정용
-  const handleTimelineTimeChangeInline = (id: string, raw: string) => {
-    setTimeline((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, time: raw } : t
-      )
-    );
-  };
-
-  const handleTimelineTimeBlurInline = (id: string) => {
-    setTimeline((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? { ...t, time: formatTimeDigits(t.time || '') }
-          : t
-      )
-    );
-  };
-
-
-  const [docIdForDay, setDocIdForDay] = useState<string | null>(null); // 🔹 이 날짜 문서 id 기억
+  const [docIdForDay, setDocIdForDay] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1728,17 +1736,22 @@ function JournalView({
     setAnswers({});
   };
 
-  const handleAnswerChange = (id: number, val: string) =>
+  const handleAnswerChange = (id: number, val: string) => {
     setAnswers((prev) => ({
       ...prev,
       [id]: { ...(prev[id] || { moodId: null }), text: val },
     }));
+  };
 
   const handleMoodSelect = (promptId: number, moodId: string) => {
     const baseStamp = getSmartStamp(moodId, promptId);
     const rotation = Math.random() * 22 - 14;
     const stamp =
-      baseStamp && ({ ...baseStamp, rotation } as AnswerData['stampVariant']);
+      baseStamp &&
+      ({
+        ...baseStamp,
+        rotation,
+      } as AnswerData['stampVariant']);
 
     setAnswers((prev) => ({
       ...prev,
@@ -1751,7 +1764,7 @@ function JournalView({
     setActiveMoodSelector(null);
   };
 
-  // 시간 포맷터: 숫자 -> HH:MM
+  // 숫자 → HH:MM
   const formatTimeDigits = (raw: string): string => {
     const digits = raw.replace(/\D/g, '');
     if (!digits) return '';
@@ -1769,8 +1782,8 @@ function JournalView({
       m = digits.slice(2, 4).padEnd(2, '0').slice(0, 2);
     }
 
-    let hourNum = Math.min(parseInt(h, 10) || 0, 23);
-    let minNum = Math.min(parseInt(m, 10) || 0, 59);
+    const hourNum = Math.min(parseInt(h, 10) || 0, 23);
+    const minNum = Math.min(parseInt(m, 10) || 0, 59);
     return `${hourNum.toString().padStart(2, '0')}:${minNum
       .toString()
       .padStart(2, '0')}`;
@@ -1784,6 +1797,21 @@ function JournalView({
   const handleTimeBlur = () => {
     if (!tlTime) return;
     setTlTime(formatTimeDigits(tlTime));
+  };
+
+  // 리스트 항목의 시간 인라인 수정
+  const handleTimelineTimeChangeInline = (id: string, raw: string) => {
+    setTimeline((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, time: raw } : t)),
+    );
+  };
+
+  const handleTimelineTimeBlurInline = (id: string) => {
+    setTimeline((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, time: formatTimeDigits(t.time || '') } : t,
+      ),
+    );
   };
 
   const handlePresetClick = (id: string) => {
@@ -1809,12 +1837,13 @@ function JournalView({
 
   const handleUpdateTimeline = (id: string, newVal: string) => {
     setTimeline((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, place: newVal } : t))
+      prev.map((t) => (t.id === id ? { ...t, place: newVal } : t)),
     );
   };
 
-  const handleRemoveTimeline = (id: string) =>
+  const handleRemoveTimeline = (id: string) => {
     setTimeline((prev) => prev.filter((t) => t.id !== id));
+  };
 
   const handleSave = async () => {
     const data: JournalEntryData = {
@@ -1836,7 +1865,6 @@ function JournalView({
 
   const handleDelete = async () => {
     if (!docIdForDay) {
-      // 기록이 없으면 그냥 새 상태로 리셋만
       setSelectedWeatherId(null);
       setDayMoodId(null);
       setSelectedPromptIds(pickRandomPromptIds(PROMPTS_PER_DAY));
@@ -1862,7 +1890,7 @@ function JournalView({
 
   return (
     <>
-      {/* 상단: 뒤로가기 + 날짜 (목록/뒤로가기 중복 → "뒤로가기"로 통일) */}
+      {/* 상단: 뒤로가기 + 날짜 */}
       <div style={styles.headerRow}>
         <button onClick={onBack} style={styles.backBtn}>
           <ChevronLeft size={14} /> 뒤로가기
@@ -1874,10 +1902,10 @@ function JournalView({
           </span>
         </div>
 
-        <div style={{ width: '40px' }} />
+        <div style={{ width: 40 }} />
       </div>
 
-      {/* 날짜 바로 아래: 오늘의 날씨 / 오늘의 기분 */}
+      {/* 날짜 아래 상태 영역 */}
       <div style={styles.headerStatusRow}>
         <div style={styles.statusGroup}>
           <span style={styles.statusLabel}>오늘의 날씨</span>
@@ -1917,7 +1945,7 @@ function JournalView({
         <span style={styles.sectionTitle}>오늘의 여정</span>
       </div>
 
-      <div style={{ marginBottom: '32px' }}>
+      <div style={{ marginBottom: 32 }}>
         {/* 프리셋 아이콘 그리드 */}
         <div style={styles.presetGrid}>
           {PLACE_PRESETS.map((p) => (
@@ -1932,7 +1960,7 @@ function JournalView({
           ))}
         </div>
 
-        {/* ➕ 새 타임라인 입력 줄 */}
+        {/* 입력 줄 */}
         <div style={styles.timelineInputRow}>
           {/* 시간 입력 */}
           <input
@@ -1992,7 +2020,7 @@ function JournalView({
         </div>
 
         {/* 타임라인 리스트 */}
-        <div style={{ marginTop: '20px', paddingLeft: '4px' }}>
+        <div style={{ marginTop: 20, paddingLeft: 4 }}>
           {timeline.map((t) => {
             const preset =
               PLACE_PRESETS.find((p) => p.id === t.category) ||
@@ -2004,14 +2032,14 @@ function JournalView({
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  marginBottom: '12px',
+                  gap: 8,
+                  marginBottom: 12,
                   width: '100%',
                   boxSizing: 'border-box',
                   overflow: 'hidden',
                 }}
               >
-                {/* 시간 */}
+                {/* 시간 (인라인 수정 가능) */}
                 <input
                   value={t.time}
                   onChange={(e) =>
@@ -2030,20 +2058,18 @@ function JournalView({
                     textAlign: 'center',
                     flexShrink: 0,
                   }}
-                  />
-
-                
+                />
 
                 {/* 카테고리 뱃지 */}
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px',
+                    gap: 4,
                     backgroundColor: '#f5f5f5',
                     padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontSize: '12px',
+                    borderRadius: 12,
+                    fontSize: 12,
                     color: '#555',
                     flexShrink: 0,
                   }}
@@ -2107,7 +2133,7 @@ function JournalView({
                 style={styles.moodTrigger}
                 onClick={() =>
                   setActiveMoodSelector(
-                    activeMoodSelector === pid ? null : pid
+                    activeMoodSelector === pid ? null : pid,
                   )
                 }
               >
@@ -2177,9 +2203,9 @@ function JournalView({
         className="lined-textarea"
         style={{
           ...styles.textarea,
-          minHeight: '200px',
+          minHeight: 200,
           paddingRight: 0,
-          paddingLeft: '4px',
+          paddingLeft: 4,
         }}
         value={freeContent}
         onChange={(e) => setFreeContent(e.target.value)}
@@ -2197,3 +2223,4 @@ function JournalView({
     </>
   );
 }
+
