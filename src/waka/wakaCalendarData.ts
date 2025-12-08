@@ -401,7 +401,7 @@ export const decemberFirstTen: WakaEntry[] = [
     },
   },
 ];
-export const wakaCalendarData: WakaEntry[] = [...decemberFirstTen];
+
 
 // 12월 11~20일 계절 흐름용 와카 (古今和歌集 冬歌 320, 321, 322, 324, 326, 327, 328, 329, 338, 339)
 
@@ -717,7 +717,12 @@ export const decemberSecondTen: WakaEntry[] = [
     },
   },
 ];
-export const wakaCalendarData: WakaEntry[] = [...decemberSecondTen];
+
+ export const wakaCalendarData: WakaEntry[] = [
+   ...decemberFirstTen,
+   ...decemberSecondTen,
+ ];
+
 
 
 // ─────────────────────
