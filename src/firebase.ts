@@ -16,7 +16,7 @@ const firebaseConfig = {
   // appId: '콘솔에서 복사한 appId를 쓰고 싶으면 여기에 넣기'
 };
 
-/ 🔥 Firebase App (중복 초기화 방지)
+// 🔥 Firebase App (중복 초기화 방지)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 // 🔐 Auth + Google 로그인 프로바이더
