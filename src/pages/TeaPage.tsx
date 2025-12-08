@@ -35,6 +35,63 @@ import {
   orderBy,
 } from 'firebase/firestore';
 
+// 🔧 원본 이미지를 리사이즈 + JPEG 압축해서 Data URL로 바꾸는 유틸
+const compressImageFile = (
+  file: File,
+  maxWidth = 900,
+  quality = 0.7
+): Promise<{ url: string }> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        // 너무 큰 사진은 maxWidth 기준으로 축소 (세로는 비율대로)
+        const scale = Math.min(maxWidth / img.width, 1); // 원본보다 키우지는 않기
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('캔버스 컨텍스트 생성 실패'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // iPhone 사진이 HEIC여도 여기서 JPEG로 변환됨
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+
+        // 🔒 Firestore 1MB 제한에 너무 근접하면 한 번 더 압축 시도할 수도 있음
+        // (선택사항) dataUrl 길이로 대략 용량 체크
+        if (dataUrl.length > 900 * 1024) {
+          const moreCompressed = canvas.toDataURL('image/jpeg', 0.55);
+          resolve({ url: moreCompressed });
+        } else {
+          resolve({ url: dataUrl });
+        }
+      };
+      img.onerror = (err) => {
+        console.error('이미지 로드 오류', err);
+        reject(err);
+      };
+
+      img.src = e.target?.result as string;
+    };
+
+    reader.onerror = (err) => {
+      console.error('파일 읽기 오류', err);
+      reject(err);
+    };
+
+    reader.readAsDataURL(file);
+  });
+};
+
+
+
 /* --------------------------------------------------------------------------
  * 1. 디자인 시스템
  * -------------------------------------------------------------------------- */
