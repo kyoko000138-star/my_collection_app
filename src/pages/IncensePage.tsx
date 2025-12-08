@@ -159,10 +159,8 @@ const Styles: any = {
     color: Colors.textMain,
     outline: 'none',
     minHeight: '120px',
-    // 추가
     maxHeight: '200px',
     overflowY: 'auto',
-    // -----
     resize: 'none',
     lineHeight: 1.6,
     fontFamily: Fonts.serif,
@@ -175,6 +173,7 @@ const Styles: any = {
     justifyContent: 'flex-start',
   },
 
+  // ✅ 한 줄 + 가로 스크롤용
   chipRowScroll: {
     display: 'flex',
     flexWrap: 'nowrap',
@@ -183,7 +182,7 @@ const Styles: any = {
     paddingBottom: '4px',
     WebkitOverflowScrolling: 'touch',
   },
-};
+
   chip: (active: boolean) => ({
     padding: '10px 14px',
     borderRadius: '999px',
@@ -199,7 +198,9 @@ const Styles: any = {
     justifyContent: 'center',
     gap: '6px',
     whiteSpace: 'nowrap',
-    flexShrink: 0,          // ✅ 한 줄 스크롤될 때 폭 줄어들지 않게
+    flexShrink: 0, // 한 줄 스크롤될 때 폭 줄어들지 않게
+  }),
+
   card: {
     backgroundColor: Colors.cardBg,
     borderRadius: '8px',
@@ -209,8 +210,8 @@ const Styles: any = {
     cursor: 'pointer',
     transition: 'transform 0.2s',
     border: `1px solid ${Colors.border}`,
-    width: '100%',          // 🔹 이 줄 추가해도 됨
-    },
+    width: '100%',
+  },
 
   fab: {
     position: 'absolute',
@@ -229,12 +230,14 @@ const Styles: any = {
     zIndex: 50,
     border: 'none',
   },
+
   sliderContainer: {
     position: 'relative',
     height: '24px',
     display: 'flex',
     alignItems: 'center',
   },
+
   sliderInput: {
     position: 'absolute',
     width: '100%',
@@ -244,6 +247,7 @@ const Styles: any = {
     zIndex: 2,
     margin: 0,
   },
+
   sliderTrack: {
     width: '100%',
     height: '2px',
@@ -251,6 +255,7 @@ const Styles: any = {
     borderRadius: '2px',
     position: 'absolute',
   },
+
   sliderFill: (pct: number, color: string) => ({
     position: 'absolute',
     height: '2px',
@@ -258,6 +263,7 @@ const Styles: any = {
     backgroundColor: color,
     borderRadius: '2px',
   }),
+
   sliderThumb: (pct: number, color: string) => ({
     position: 'absolute',
     left: `${pct}%`,
@@ -269,6 +275,7 @@ const Styles: any = {
     transform: 'translateX(-50%)',
     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
   }),
+
   uploadButton: {
     width: '100%',
     height: '48px',
