@@ -342,6 +342,7 @@ export const decemberFirstTen: WakaEntry[] = [
     }
   }
 ];
+const wakaCalendarData: WakaEntry[] = [...decemberFirstTen];
 
 export function getTodayWaka(today: Date = new Date()): WakaEntry {
   const month = today.getMonth() + 1;
