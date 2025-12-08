@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Plus,
   Camera,
@@ -10,7 +10,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 
-import { auth, db, storage } from '../firebase'; // ⬅️ storage 추가
+import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   collection,
@@ -24,7 +24,6 @@ import {
   where,
   orderBy,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // ⬅️ Storage 함수 import
 
 /* --------------------------------------------------------------------------
  * 공통 스타일 (도록 / 박물관 캡션 느낌)
@@ -49,6 +48,7 @@ const Fonts = {
   sans: '"Gowun Batang","Noto Serif KR",serif',
 };
 
+// TS 귀찮으니까 any로 통일
 const Styles: any = {
   wrapper: {
     display: 'flex',
@@ -238,11 +238,6 @@ const todayString = () => new Date().toISOString().slice(0, 10);
 /* 타입 정의                                                                  */
 /* -------------------------------------------------------------------------- */
 
-interface FormImage {
-  url: string;
-  file: File | null;
-}
-
 interface CollectionItem {
   id: string;
   name: string;
@@ -260,7 +255,7 @@ interface CollectionItem {
   weight: string;
   condition: string;
   tags: string[];
-  imageUrls: string[];
+  imageUrls: string[]; // Firestore에는 여전히 배열로 저장 (첫 번째만 사용)
 }
 
 /* -------------------------------------------------------------------------- */
@@ -362,8 +357,7 @@ const CollectionsPage: React.FC = () => {
   const [fullImage, setFullImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const fileRef = useRef<HTMLInputElement | null>(null);
-
+  // ⚠️ 이미지: 파일이 아니라 "URL 한 줄"만 저장
   const [formData, setFormData] = useState<{
     id: string | null;
     name: string;
@@ -381,7 +375,7 @@ const CollectionsPage: React.FC = () => {
     weight: string;
     condition: string;
     tags: string[];
-    images: FormImage[];
+    imageUrl: string;
   }>({
     id: null,
     name: '',
@@ -399,7 +393,7 @@ const CollectionsPage: React.FC = () => {
     weight: '',
     condition: '양호',
     tags: [],
-    images: [],
+    imageUrl: '',
   });
 
   /* ---------------------------- Auth & Firestore ------------------------- */
@@ -456,7 +450,7 @@ const CollectionsPage: React.FC = () => {
         setItems(list);
         setItemsLoading(false);
 
-        // detail 화면을 보고 있었다면 최신 데이터로 selectedItem 갱신
+        // detail 보고 있었다면 최신 데이터로 갱신
         if (selectedItem) {
           const updated = list.find((it) => it.id === selectedItem.id);
           if (updated) setSelectedItem(updated);
@@ -494,7 +488,7 @@ const CollectionsPage: React.FC = () => {
         weight: item.weight || '',
         condition: item.condition || '양호',
         tags: item.tags || [],
-        images: (item.imageUrls || []).map((url) => ({ url, file: null })), // ⬅️ 기존 이미지들은 file=null
+        imageUrl: item.imageUrls?.[0] ?? '', // 기존 이미지 있으면 첫 번째만
       });
     } else {
       setFormData({
@@ -514,7 +508,7 @@ const CollectionsPage: React.FC = () => {
         weight: '',
         condition: '양호',
         tags: [],
-        images: [],
+        imageUrl: '',
       });
     }
     setMode('form');
@@ -536,31 +530,10 @@ const CollectionsPage: React.FC = () => {
         ? Number(formData.priceAmount)
         : null;
 
-      // 1) 기존 URL(이미 Storage에 있는 것) / 새로 추가된 파일 분리
-      const existingUrls = formData.images
-        .filter((img) => !img.file && img.url)
-        .map((img) => img.url);
-
-      const newFiles = formData.images.filter(
-        (img) => img.file,
-      ) as FormImage[];
-
-      // 2) 새 파일 Firebase Storage 업로드
-      const uploadPromises = newFiles.map((img, index) => {
-        const file = img.file!;
-        const safeName = file.name.replace(/\s+/g, '_');
-        const path = `${COLLECTION_NAME}/${user.uid}/${Date.now()}_${index}_${safeName}`;
-        const storageRef = ref(storage, path);
-
-        return uploadBytes(storageRef, file).then(() =>
-          getDownloadURL(storageRef),
-        );
-      });
-
-      const uploadedUrls = await Promise.all(uploadPromises);
-
-      // 3) 최종 imageUrls = 기존 + 새로 업로드한 것
-      const imageUrls = [...existingUrls, ...uploadedUrls];
+      // 🔹 Storage 안 쓰고, imageUrl 문자열만 배열로 감싸서 저장
+      const imageUrls = formData.imageUrl.trim()
+        ? [formData.imageUrl.trim()]
+        : [];
 
       const payload = {
         name: formData.name.trim(),
@@ -616,22 +589,6 @@ const CollectionsPage: React.FC = () => {
       console.error(err);
       alert('삭제 중 오류가 발생했습니다.');
     }
-  };
-
-  /* ---------------------------- 이미지 업로드 ---------------------------- */
-
-  const triggerFile = () => fileRef.current?.click();
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    const newImages: FormImage[] = Array.from(e.target.files).map((file) => ({
-      url: URL.createObjectURL(file), // 미리보기용 (저장은 Storage downloadURL)
-      file,
-    }));
-    setFormData((prev) => ({
-      ...prev,
-      images: [...prev.images, ...newImages],
-    }));
   };
 
   /* ------------------------------ 필터링 로직 ----------------------------- */
@@ -1186,48 +1143,42 @@ const CollectionsPage: React.FC = () => {
           </button>
 
           <form onSubmit={handleSave} style={{ paddingBottom: 40 }}>
-            {/* 사진 */}
+            {/* 사진 (URL 입력 방식) */}
             <section style={{ ...Styles.section, paddingTop: 56 }}>
-              <div style={Styles.label}>이미지</div>
-              <button
-                type="button"
-                onClick={
-                  fileRef.current
-                    ? () => fileRef.current?.click()
-                    : () => triggerFile()
+              <div style={{ marginBottom: 8 }}>
+                <span style={Styles.label}>이미지 URL (선택)</span>
+              </div>
+              <input
+                type="text"
+                style={Styles.input}
+                placeholder="https:// 로 시작하는 이미지 주소를 붙여넣으세요"
+                value={formData.imageUrl}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    imageUrl: e.target.value,
+                  }))
                 }
+              />
+              <p
                 style={{
-                  width: '100%',
-                  height: 48,
-                  borderRadius: 4,
-                  border: `1px dashed ${Colors.border}`,
-                  background: '#FAF7F2',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  fontSize: 13,
+                  marginTop: 8,
+                  fontSize: 11,
                   color: Colors.textSub,
-                  cursor: 'pointer',
-                  marginBottom: 10,
+                  lineHeight: 1.6,
                 }}
               >
-                <Camera size={18} />
-                사진 추가
-              </button>
-              <input
-                ref={fileRef}
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleImageChange}
-                style={{ display: 'none' }}
-              />
-              {formData.images.length > 0 && (
-                <ImageStrip
-                  images={formData.images.map((i) => i.url)}
-                  onClick={() => {}}
-                />
+                파일을 직접 올리는 대신, 외부에 저장된 이미지 주소를 연결합니다.
+                <br />
+                이미지가 없으면 이 칸은 비워두셔도 괜찮아요.
+              </p>
+              {formData.imageUrl && (
+                <div style={{ marginTop: 10 }}>
+                  <ImageStrip
+                    images={[formData.imageUrl]}
+                    onClick={() => {}}
+                  />
+                </div>
               )}
             </section>
 
