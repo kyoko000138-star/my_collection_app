@@ -31,5 +31,10 @@ const storage = getStorage(app);
 //   이미 쓰던 값이 있으면 *반드시* 그 값으로 맞춰줘야 기존 데이터랑 연결됨!
 const appId = 'my-collection-app';
 
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account',
+});
+
 // 최종 export
 export { app, auth, db, storage, googleProvider, appId };
