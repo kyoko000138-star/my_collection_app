@@ -58,7 +58,7 @@ const Fonts = {
 };
 
 // TS 귀찮으니까 any로 통일
-const Styles = {
+const Styles = ({
   // 🔹 바깥 회색 영역
   containerWrapper: {
     // 🔥 flex 정렬 + 추가 패딩 제거
@@ -181,7 +181,7 @@ const Styles = {
     paddingBottom: '4px',
     WebkitOverflowScrolling: 'touch',
   },
-
+};
   chip: (active: boolean) => ({
     padding: '10px 14px',
     borderRadius: '999px',
