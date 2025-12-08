@@ -296,10 +296,10 @@ const WakaPostcard: React.FC<{
   const [isMuted, setIsMuted] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const soundSrc = useMemo(
-    () => getAmbientSound(waka.date.month),
-    [waka.date.month]
-  );
+  const bgImageSrc = useMemo(
+  () => getSeasonalImage(waka.date.month),
+  [waka.date.month]
+);
 
   // 🔹 계절+시간대에 맞는 배경 이미지 선택
   const bgImageSrc = useMemo(
@@ -354,8 +354,14 @@ const WakaPostcard: React.FC<{
     setIsMuted((prev) => !prev);
   };
 
-  const dateLabel = `${waka.date.month}월 ${waka.date.day}일
-  음력 ${waka.date.lunar}${waka.date.term ? ` | ${waka.date.term}` : ''}`;
+  let dateLabel = waka.date.solarLabel;
+  if (waka.date.lunarLabel && waka.date.lunarLabel.trim() !== '') {
+    dateLabel += `\n${waka.date.lunarLabel}`;
+  }
+
+if (waka.date.seasonalLabel && waka.date.seasonalLabel.trim() !== '') {
+  dateLabel += `\n${waka.date.seasonalLabel}`;
+}
 
   const outerWrapper: React.CSSProperties = {
     position: 'relative',
@@ -593,10 +599,10 @@ const WakaPostcard: React.FC<{
           <div style={wakaArea}>
             <div style={wakaCenterRow}>
               <div className="vertical-text" style={wakaLineRight}>
-                {waka.content.right}
+                {waka.content.original.right}
               </div>
               <div className="vertical-text" style={wakaLineLeft}>
-                {waka.content.left}
+                {waka.content.original.left}
               </div>
             </div>
 
@@ -642,7 +648,7 @@ const WakaPostcard: React.FC<{
             whiteSpace: 'pre-line',
           }}
         >
-          {waka.content.hiragana}
+          {waka.content.original.hiragana}
         </p>
 
         <p
@@ -655,7 +661,7 @@ const WakaPostcard: React.FC<{
             whiteSpace: 'pre-line',
           }}
         >
-          {waka.content.modern}
+          {waka.content.translations.modernJapanese}
         </p>
 
         <div
@@ -678,7 +684,7 @@ const WakaPostcard: React.FC<{
             fontWeight: 500,
           }}
         >
-          {waka.content.korean}
+          {waka.content.translations.korean}
         </p>
 
         <div
@@ -1011,9 +1017,10 @@ const AdvancedTest: React.FC<{
 // ─── 메인 페이지 ───
 export default function WakaArchivePage() {
   const [mode, setMode] = useState<'today' | 'test' | 'recommend'>('today');
-  const [recommendedWaka, setRecommendedWaka] = useState<WakaEntry | null>(
-    null
-  );
+  const [recommendedWaka, setRecommendedWaka] = useState<WakaEntry | null>(null);
+
+  // 오늘 날짜 기준 와카 한 번만 계산
+  const todayWaka = useMemo(() => getTodayWaka(), []);
 
   const pageRoot: React.CSSProperties = {
     minHeight: '100vh',
@@ -1092,16 +1099,17 @@ export default function WakaArchivePage() {
 
       <main style={mainWrapper}>
         {mode === 'today' && (
-          <div className="fade-in" style={{ width: '100%' }}>
-            <WakaPostcard waka={sampleData.today} />
-            <div style={startButtonWrap}>
-              <button onClick={() => setMode('test')} style={startButton}>
-                <Sparkles size={14} />
-                <span style={{ paddingTop: 2 }}>마음 처방받기</span>
-              </button>
-            </div>
-          </div>
-        )}
+      <div className="fade-in" style={{ width: '100%' }}>
+        <WakaPostcard waka={todayWaka} />
+        <div style={startButtonWrap}>
+          <button onClick={() => setMode('test')} style={startButton}>
+            <Sparkles size={14} />
+            <span style={{ paddingTop: 2 }}>마음 처방받기</span>
+          </button>
+        </div>
+      </div>
+    )}
+
 
         {mode === 'recommend' && recommendedWaka && (
           <div className="animate-slide-up" style={{ width: '100%' }}>
