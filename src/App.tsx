@@ -2,12 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { auth, googleProvider } from './firebase';
-import {
-  onAuthStateChanged,
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
-} from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup } from 'firebase/auth';
 
 import {
   ChevronLeft,
@@ -47,7 +42,7 @@ const theme = {
 };
 
 // --- 🧱 Layout Component ---
-const Layout = ({ children }: { children: React.ReactNode }) => {
+const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const isHome = location.pathname === '/';
@@ -120,7 +115,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
               style={{
                 fontFamily: theme.fonts.serif,
                 fontSize: '14px',
-                fontWeight: '400',
+                fontWeight: 400,
                 color: theme.colors.ink,
                 letterSpacing: '0.05em',
                 textTransform: 'uppercase',
@@ -148,7 +143,11 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 };
 
 // --- 🏷️ Category Section Component ---
-const CategorySection = ({ title, icon: Icon, children }: any) => (
+const CategorySection: React.FC<{
+  title: string;
+  icon: React.ComponentType<any>;
+  children: React.ReactNode;
+}> = ({ title, icon: Icon, children }) => (
   <div className="fade-in" style={{ marginBottom: '48px' }}>
     <div
       style={{
@@ -165,7 +164,7 @@ const CategorySection = ({ title, icon: Icon, children }: any) => (
         style={{
           fontFamily: theme.fonts.sans,
           fontSize: '11px',
-          fontWeight: '700',
+          fontWeight: 700,
           letterSpacing: '0.2em',
           textTransform: 'uppercase',
           color: theme.colors.ink,
@@ -174,14 +173,20 @@ const CategorySection = ({ title, icon: Icon, children }: any) => (
         {title}
       </span>
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 0 }}>
       {children}
     </div>
   </div>
 );
 
 // --- 🖼️ Minimal Card ---
-const MinimalCard = ({ roomNo, title, desc, icon: Icon, path }: any) => {
+const MinimalCard: React.FC<{
+  roomNo: string;
+  title: string;
+  desc: string;
+  icon: React.ComponentType<any>;
+  path: string;
+}> = ({ roomNo, title, desc, icon: Icon, path }) => {
   const navigate = useNavigate();
   return (
     <div
@@ -218,7 +223,7 @@ const MinimalCard = ({ roomNo, title, desc, icon: Icon, path }: any) => {
           style={{
             fontFamily: theme.fonts.serif,
             fontSize: '17px',
-            fontWeight: '400',
+            fontWeight: 400,
             color: theme.colors.ink,
             margin: '0 0 4px 0',
           }}
@@ -245,7 +250,7 @@ const MinimalCard = ({ roomNo, title, desc, icon: Icon, path }: any) => {
 };
 
 // --- 🏠 Home Page ---
-const HomePage = () => {
+const HomePage: React.FC = () => {
   return (
     <div style={{ padding: '60px 24px 80px' }}>
       <div
@@ -256,7 +261,7 @@ const HomePage = () => {
           style={{
             fontFamily: theme.fonts.sans,
             fontSize: '32px',
-            fontWeight: '900',
+            fontWeight: 900,
             color: theme.colors.ink,
             margin: '0 0 12px 0',
             letterSpacing: '-0.02em',
@@ -362,30 +367,12 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const handleGoogleLogin = async () => {
-    setLoading(true);
     try {
-      try {
-        // 1) 먼저 팝업 시도
-        await signInWithPopup(auth, googleProvider);
-      } catch (err: any) {
-        console.warn('팝업 로그인 실패, redirect로 폴백 시도:', err?.code);
-
-        // 2) 팝업이 막혔거나 환경이 안 맞는 경우 → redirect 사용
-        if (
-          err?.code === 'auth/popup-blocked' ||
-          err?.code === 'auth/popup-closed-by-user' ||
-          err?.code === 'auth/operation-not-supported-in-this-environment'
-        ) {
-          await signInWithRedirect(auth, googleProvider);
-          return;
-        }
-
-        // 그 외 에러는 그대로 위로 던지기
-        throw err;
-      }
+      setLoading(true);
+      await signInWithPopup(auth, googleProvider); // ✅ 모든 브라우저에서 팝업 방식
     } catch (e) {
       console.error('구글 로그인 실패', e);
-      alert('로그인 중 오류가 발생했습니다.\n\n사파리에서 새 탭으로 열어서 다시 시도해 주세요.');
+      alert('로그인 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -442,77 +429,8 @@ const LoginPage: React.FC = () => {
   );
 };
 
-  if (checkingRedirect) {
-    return (
-      <Layout>
-        <div
-          style={{
-            padding: '80px 24px',
-            textAlign: 'center',
-            fontSize: 13,
-            color: '#777',
-          }}
-        >
-          로그인 상태를 확인하고 있습니다...
-        </div>
-      </Layout>
-    );
-  }
-
-  return (
-    <Layout>
-      <div
-        style={{
-          padding: '80px 24px',
-          textAlign: 'center',
-        }}
-      >
-        <h1
-          style={{
-            fontFamily: theme.fonts.serif,
-            fontSize: 22,
-            marginBottom: 8,
-          }}
-        >
-          MY COLLECTION
-        </h1>
-        <p
-          style={{
-            fontSize: 13,
-            color: '#666',
-            marginBottom: 32,
-          }}
-        >
-          개인 아카이브에 들어가기 위해
-          <br />
-          구글 계정으로 로그인해 주세요.
-        </p>
-
-        <button
-          onClick={handleGoogleLogin}
-          disabled={loading}
-          style={{
-            border: '1px solid #ddd',
-            borderRadius: 999,
-            padding: '10px 18px',
-            fontSize: 14,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            cursor: loading ? 'default' : 'pointer',
-            backgroundColor: '#fff',
-            opacity: loading ? 0.7 : 1,
-          }}
-        >
-          {loading ? '로그인 중...' : 'Google 계정으로 로그인'}
-        </button>
-      </div>
-    </Layout>
-  );
-};
-
 // --- 🚀 Main App Component ---
-function App() {
+const App: React.FC = () => {
   const [authReady, setAuthReady] = useState(false);
   const [user, setUser] = useState<null | { uid: string }>(null);
 
@@ -565,6 +483,6 @@ function App() {
       </Routes>
     </Layout>
   );
-}
+};
 
 export default App;
