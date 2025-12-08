@@ -931,32 +931,23 @@ setCurrentImageIndex(0);
 
   /* --------------------------- 이미지 업로드 --------------------------- */
 
-  const handleImageUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const { files } = e.target;
+  if (!files || files.length === 0) return;
 
-    const fileArray = Array.from(files);
-    const newImages: FormImage[] = [];
+  const readFileAsDataUrl = (file: File) =>
+    new Promise<{ url: string; file: null }>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve({ url: reader.result as string, file: null });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
 
-    for (const file of fileArray) {
-      const url = await fileToDataUrl(file);
-      newImages.push({ url, file });
-    }
+  Promise.all(Array.from(files).map(readFileAsDataUrl)).then(...);
+};
 
-    setFormData((prev) => ({
-      ...prev,
-      images: [...prev.images, ...newImages],
-    }));
-
-    // 같은 파일 다시 선택 가능하도록 리셋
-    e.target.value = '';
-  };
-
-  const triggerFileInput = () => {
-    fileInputRef.current?.click();
-  };
 
   /* ------------------------------ 렌더링 (Auth 게이트) ------------------- */
 
