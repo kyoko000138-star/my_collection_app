@@ -410,24 +410,22 @@ const WakaPostcard: React.FC<{
 
   const headerRow: React.CSSProperties = {
     textAlign: 'center',
-    paddingTop: 1,
+    paddingTop: 4,   // 1 → 4: 카드 위쪽으로 조금 당김
     paddingBottom: 6,
     flex: 'none',
   };
 
+
   const dateLabelStyle: React.CSSProperties = {
     fontSize: 11,
-    letterSpacing: '0.16em',
+    letterSpacing: '0.18em',
     textTransform: 'uppercase',
+    color: '#f7f3eb', // 거의 흰색 톤
+    borderBottom: '1px solid rgba(255,255,255,0.7)',
+    paddingBottom: 3,
     fontFamily: 'var(--font-kor)',
     whiteSpace: 'pre-line',
-    display: 'inline-block',
-    padding: '1px 5px',
-    borderRadius: 6,
-    color: '#4f4134',
-    border: '1px solid rgba(211, 196, 175, 0.9)',
- 
-  };
+    textShadow: '0 1px 3px rgba(0,0,0,0.45)', // 👉 박스 대신 그림자
 
   const wakaArea: React.CSSProperties = {
     position: 'relative',
