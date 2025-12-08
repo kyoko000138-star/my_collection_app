@@ -360,37 +360,87 @@ const HomePage = () => {
 // --- 🔐 로그인 페이지 ---
 const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
-  const [checkingRedirect, setCheckingRedirect] = useState(true);
-
-  // 🔁 redirect 로그인 후 돌아왔을 때 한 번만 결과 처리
-  useEffect(() => {
-    getRedirectResult(auth)
-      .catch((e) => {
-        // 실패해도 치명적이지 않으니 콘솔만
-        console.error('getRedirectResult error', e);
-      })
-      .finally(() => setCheckingRedirect(false));
-  }, []);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
-      const ua = navigator.userAgent || '';
-      const isIOS = /iPhone|iPad|iPod/i.test(ua);
-      const isSafari = /^((?!chrome|android).)*safari/i.test(ua.toLowerCase());
-
-      // ✅ Safari 계열 + iOS는 redirect, 그 외는 popup
-      if (isIOS || isSafari) {
-        await signInWithRedirect(auth, googleProvider);
-      } else {
+      try {
+        // 1) 먼저 팝업 시도
         await signInWithPopup(auth, googleProvider);
+      } catch (err: any) {
+        console.warn('팝업 로그인 실패, redirect로 폴백 시도:', err?.code);
+
+        // 2) 팝업이 막혔거나 환경이 안 맞는 경우 → redirect 사용
+        if (
+          err?.code === 'auth/popup-blocked' ||
+          err?.code === 'auth/popup-closed-by-user' ||
+          err?.code === 'auth/operation-not-supported-in-this-environment'
+        ) {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        }
+
+        // 그 외 에러는 그대로 위로 던지기
+        throw err;
       }
     } catch (e) {
       console.error('구글 로그인 실패', e);
-      alert('로그인 중 오류가 발생했습니다.');
+      alert('로그인 중 오류가 발생했습니다.\n\n사파리에서 새 탭으로 열어서 다시 시도해 주세요.');
+    } finally {
       setLoading(false);
     }
   };
+
+  return (
+    <Layout>
+      <div
+        style={{
+          padding: '80px 24px',
+          textAlign: 'center',
+        }}
+      >
+        <h1
+          style={{
+            fontFamily: theme.fonts.serif,
+            fontSize: 22,
+            marginBottom: 8,
+          }}
+        >
+          MY COLLECTION
+        </h1>
+        <p
+          style={{
+            fontSize: 13,
+            color: '#666',
+            marginBottom: 32,
+          }}
+        >
+          개인 아카이브에 들어가기 위해
+          <br />
+          구글 계정으로 로그인해 주세요.
+        </p>
+
+        <button
+          onClick={handleGoogleLogin}
+          disabled={loading}
+          style={{
+            border: '1px solid #ddd',
+            borderRadius: 999,
+            padding: '10px 18px',
+            fontSize: 14,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            cursor: 'pointer',
+            backgroundColor: '#fff',
+          }}
+        >
+          {loading ? '로그인 중...' : 'Google 계정으로 로그인'}
+        </button>
+      </div>
+    </Layout>
+  );
+};
 
   if (checkingRedirect) {
     return (
