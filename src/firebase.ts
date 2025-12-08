@@ -2,7 +2,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+
 
 // 🔧 Firebase 콘솔에서 가져온 설정값
 const firebaseConfig = {
@@ -19,21 +19,20 @@ const firebaseConfig = {
 // 🔥 Firebase App (중복 초기화 방지)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// 🔐 Auth
+// 🔐 Auth + Google 로그인 프로바이더
 const auth = getAuth(app);
-
-// 🗂 Firestore + Storage
-const db = getFirestore(app);
-const storage = getStorage(app);
-
-// Firestore에서 artifacts/{appId}/users/{uid}/... 쓸 때 쓰는 네임스페이스
-const appId = 'my-collection-app';
-
-// ✅ Google 로그인 프로바이더
 const googleProvider = new GoogleAuthProvider();
+
+// 계정 선택 창 항상 띄우기
 googleProvider.setCustomParameters({
   prompt: 'select_account',
 });
 
+// 🗂 Firestore
+const db = getFirestore(app);
+
+// 📁 Firestore 네임스페이스
+const appId = 'my-collection-app';
+
 // 최종 export
-export { app, auth, db, storage, googleProvider, appId };
+export { app, auth, db, googleProvider, appId };
