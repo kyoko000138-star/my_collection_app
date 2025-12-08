@@ -2,7 +2,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-
+import { getStorage } from 'firebase/storage';
 
 // 🔧 Firebase 콘솔에서 가져온 설정값
 const firebaseConfig = {
