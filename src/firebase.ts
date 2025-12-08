@@ -16,25 +16,24 @@ const firebaseConfig = {
   // appId: '콘솔에서 복사한 appId를 쓰고 싶으면 여기에 넣기'
 };
 
-// 🔥 Firebase App (중복 초기화 방지)
+/ 🔥 Firebase App (중복 초기화 방지)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 // 🔐 Auth + Google 로그인 프로바이더
 const auth = getAuth(app);
+
+// ❗❗ 여기만 이렇게 수정!
 const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account',
+});
 
 // 🗂 Firestore + Storage
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-// 📁 Firestore에서 artifacts/{appId}/users/... 이런 식으로 쓸 "앱 아이디 네임스페이스"
-//   이미 쓰던 값이 있으면 *반드시* 그 값으로 맞춰줘야 기존 데이터랑 연결됨!
+// 📁 Firestore 네임스페이스
 const appId = 'my-collection-app';
 
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-  prompt: 'select_account',
-});
-
-// 최종 export
+// ✅ 최종 export (여기서만 한 번에 export)
 export { app, auth, db, storage, googleProvider, appId };
