@@ -1114,8 +1114,6 @@ export const wakaCalendarData: WakaEntry[] = [
       '넓은 바다와 눈 덮인 후지산을 한 화면에 담은, 대표적인 설경의 노래. 사소한 일상에서 한 걸음 물러나 “올해 전체의 풍경”을 멀리서 바라보고 싶을 때 맺음말처럼 쓸 수 있다.',
   },
 },
-
-  },
 ];
 
 export function getTodayWaka(today: Date = new Date()): WakaEntry {
