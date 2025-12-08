@@ -21,6 +21,9 @@ import {
   getRecommendedWakaForMood,
 } from '../waka/wakaCalendarData';
 
+// solarlunar로 양력 → 음력 변환
+import solarlunar from 'solarlunar';
+
 // ─── 폰트 & 기본 스타일 ───
 const StyleHeader: React.FC = () => (
   <style>{`
@@ -247,12 +250,42 @@ function getAmbientSound(month: number): string {
   return AUDIO_BASE + 'spring_day.mp3';
 }
 
+// ─── 오늘 날짜의 음력 라벨 생성 ───
+function getLunarLabelForDate(date: Date): string {
+  try {
+    const y = date.getFullYear();
+    const m = date.getMonth() + 1;
+    const d = date.getDate();
+
+    const info: any = solarlunar.solar2lunar(y, m, d);
+
+    // 라이브러리 버전에 따라 필드명이 다를 수 있어서 여러 개 시도
+    const lunarMonth: number =
+      info.lunarMonth ?? info.lMonth ?? info.month ?? 0;
+    const lunarDay: number = info.lunarDay ?? info.lDay ?? info.day ?? 0;
+    const term: string | undefined = info.term;
+
+    if (!lunarMonth || !lunarDay) return '';
+
+    let label = `음력 ${lunarMonth}월 ${lunarDay}일`;
+    if (term) {
+      label += ` · ${term}`;
+    }
+    return label;
+  } catch (e) {
+    console.error('Failed to calc lunar date', e);
+    return '';
+  }
+}
+
 // ─── 엽서형 와카 카드 ───
 const WakaPostcard: React.FC<{
   waka: WakaEntry;
   isRecommended?: boolean;
   onClose?: () => void;
-}> = ({ waka, isRecommended, onClose }) => {
+  lunarLabelOverride?: string;  // 오늘용: solarlunar 결과
+  hideSeasonalLabel?: boolean;  // 오늘 카드에서는 계절라벨 숨김
+}> = ({ waka, isRecommended, onClose, lunarLabelOverride, hideSeasonalLabel }) => {
   const [revealed, setRevealed] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -315,14 +348,30 @@ const WakaPostcard: React.FC<{
     setIsMuted((prev) => !prev);
   };
 
-  // 날짜 라벨: 양력 / 음력 / 계절 설명
-  let dateLabel = waka.date.solarLabel;
-  if (waka.date.lunarLabel && waka.date.lunarLabel.trim() !== '') {
-    dateLabel += `\n${waka.date.lunarLabel}`;
+  // 날짜 라벨: 양력 / (동적으로 계산한) 음력 / (옵션) 계절 설명
+  const dateLines: string[] = [];
+  if (waka.date.solarLabel) {
+    dateLines.push(waka.date.solarLabel);
   }
-  if (waka.date.seasonalLabel && waka.date.seasonalLabel.trim() !== '') {
-    dateLabel += `\n${waka.date.seasonalLabel}`;
+
+  if (lunarLabelOverride && lunarLabelOverride.trim() !== '') {
+    // 오늘 카드: 실제 음력 날짜
+    dateLines.push(lunarLabelOverride);
+  } else if (waka.date.lunarLabel && waka.date.lunarLabel.trim() !== '') {
+    // 추천 카드 등: 데이터에 들어 있는 설명용 음력 문구
+    dateLines.push(waka.date.lunarLabel);
   }
+
+  if (
+    !hideSeasonalLabel &&
+    waka.date.seasonalLabel &&
+    waka.date.seasonalLabel.trim() !== ''
+  ) {
+    // 오늘 카드에서는 숨기고, 추천 카드에서는 그대로 사용
+    dateLines.push(waka.date.seasonalLabel);
+  }
+
+  const dateLabel = dateLines.join('\n');
 
   // ─── 스타일 ───
   const outerWrapper: React.CSSProperties = {
@@ -402,7 +451,7 @@ const WakaPostcard: React.FC<{
 
   const headerRow: React.CSSProperties = {
     textAlign: 'center',
-    paddingTop: 2, // 날짜 조금 더 위로
+    paddingTop: 2,
     paddingBottom: 4,
     flex: 'none',
   };
@@ -991,12 +1040,19 @@ const AdvancedTest: React.FC<{
 
 // ─── 메인 페이지 ───
 export default function WakaArchivePage() {
+  // 오늘 날짜를 한 번 잡아두고, 그걸 기준으로 양력/음력/와카 모두 계산
+  const [today] = useState(() => new Date());
+
+  const todayWaka = useMemo(() => getTodayWaka(today), [today]);
+  const todayLunarLabel = useMemo(
+    () => getLunarLabelForDate(today),
+    [today]
+  );
+
   const [mode, setMode] = useState<'today' | 'test' | 'recommend'>('today');
   const [recommendedWaka, setRecommendedWaka] = useState<WakaEntry | null>(
     null
   );
-
-  const todayWaka = useMemo(() => getTodayWaka(), []);
 
   const pageRoot: React.CSSProperties = {
     minHeight: '100vh',
@@ -1076,7 +1132,11 @@ export default function WakaArchivePage() {
       <main style={mainWrapper}>
         {mode === 'today' && (
           <div className="fade-in" style={{ width: '100%' }}>
-            <WakaPostcard waka={todayWaka} />
+            <WakaPostcard
+              waka={todayWaka}
+              lunarLabelOverride={todayLunarLabel}
+              hideSeasonalLabel
+            />
             <div style={startButtonWrap}>
               <button
                 type="button"
@@ -1113,6 +1173,7 @@ export default function WakaArchivePage() {
             <WakaPostcard
               waka={recommendedWaka}
               isRecommended
+              // 추천 와카는 데이터에 들어 있는 lunarLabel/seasonalLabel 사용
               onClose={() => {
                 setRecommendedWaka(null);
                 setMode('today');
