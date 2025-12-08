@@ -4,6 +4,7 @@ import {
   getTodayWaka,
   isFavorite,
   toggleFavorite,
+  getDynamicLunarLabel,  
 } from '../waka/wakaCalendarData';
 
 const cardWrapper: React.CSSProperties = {
@@ -34,6 +35,14 @@ const title: React.CSSProperties = {
   marginBottom: '8px',
 };
 
+const TodayWakaCard: React.FC = () => {
+  const todayWaka = getTodayWaka();
+
+  const [favorite, setFavorite] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
+
+  const lunarLabel =
+    getDynamicLunarLabel(todayWaka.date.month, todayWaka.date.day) ?? '';
 
 
 
@@ -101,8 +110,15 @@ const TodayWakaCard: React.FC = () => {
 
         {/* 오른쪽: 날짜 + 하트 버튼 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: '11px', color: '#a08f77' }}>
+           <span
+            style={{
+              fontSize: '11px',
+              color: '#a08f77',
+              whiteSpace: 'pre-line', // 줄바꿈 적용
+            }}
+          >
             {todayWaka.date.solarLabel}
+            {lunarLabel ? `\n${lunarLabel}` : ''}
           </span>
           <button
             type="button"
@@ -115,7 +131,7 @@ const TodayWakaCard: React.FC = () => {
         </div>
       </div>
 
-      <div style={title}>{todayWaka.date.seasonalLabel || '계절의 흐름'}</div>
+      <div style={title}>계절의 흐름</div>
 
       <div style={wakaText}>
         {todayWaka.content.original.right}
