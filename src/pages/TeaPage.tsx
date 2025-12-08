@@ -2079,35 +2079,38 @@ const TeaPage = () => {
 };
 
   /* ------------------------ 이미지 업로드 핸들러 ------------------------ */
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { files } = e.target;
-    if (!files || files.length === 0) return;
+  // ⬇️ 기존 handleImageUpload 대신 이걸로 교체
+const handleImageUpload = async (
+  e: React.ChangeEvent<HTMLInputElement>
+) => {
+  const { files } = e.target;
+  if (!files || files.length === 0) return;
 
-    // ✅ File → base64 Data URL로 변환해서 저장
-    const readFileAsDataUrl = (file: File) =>
-      new Promise<{ url: string; file: null }>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          resolve({ url: reader.result as string, file: null });
-        };
-        reader.onerror = (error) => {
-          console.error('이미지 읽기 오류:', error);
-          reject(error);
-        };
-        reader.readAsDataURL(file);
-      });
+  try {
+    const compressedImages: { url: string; file: null }[] = [];
 
-    Promise.all(Array.from(files).map(readFileAsDataUrl))
-      .then((newImages) => {
-        setFormData((prev: any) => ({
-          ...prev,
-          images: [...prev.images, ...newImages],
-        }));
-      })
-      .catch((error) => {
-        console.error('이미지 처리 중 오류:', error);
-      });
-  };
+    // 한 번에 너무 많이 올라가도 문서 크기 커지니 5장 정도로 제한 (원하면 수정 가능)
+    const maxCount = 5;
+    const targetFiles = Array.from(files).slice(0, maxCount);
+
+    for (const file of targetFiles) {
+      const { url } = await compressImageFile(file, 900, 0.7);
+      compressedImages.push({ url, file: null });
+    }
+
+    setFormData((prev: any) => ({
+      ...prev,
+      images: [...prev.images, ...compressedImages],
+    }));
+  } catch (error) {
+    console.error('이미지 처리 중 오류:', error);
+    alert('이미지 처리 중 오류가 발생했습니다.');
+  } finally {
+    // 같은 파일을 다시 선택해도 onChange가 동작하도록 초기화
+    e.target.value = '';
+  }
+};
+
 
   const triggerFileInput = () => {
     fileInputRef.current?.click();
