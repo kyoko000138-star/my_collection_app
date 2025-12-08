@@ -106,6 +106,15 @@ const DAY_MOODS = [
   },
 ];
 
+// "오늘의 기분"을 3가지 타입으로 묶기
+const DAY_MOOD_TYPE_MAP: Record<string, 'success' | 'calm' | 'cheer'> = {
+  bright: 'success', // 맑음 → 개운/성공
+  calm: 'calm',      // 차분 → 휴식/회복
+  tired: 'calm',     // 피곤 → 휴식/회복 쪽으로
+  blue: 'cheer',     // 우울 → 버팀/토닥
+  anxious: 'cheer',  // 불안 → 버팀/토닥
+};
+
 // 아이콘 8개 (약속, 기타 포함)
 const PLACE_PRESETS = [
   { id: 'home', label: '집', icon: <Home size={16} /> },
@@ -1356,40 +1365,65 @@ function CalendarView({
       if (!cancelled) setMonthlyMemoItems(items);
     });
 
-    // 통계 계산
+    // ===== 1) 기분 통계 =====
     const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
     const monthlyEntries = Object.values(allData).filter((e) =>
       e.dateKey.startsWith(prefix),
     );
 
-    // 1) 기분 통계 (오늘의 기분 + 각 질문 스탬프)
-    const moodCounts: Record<string, number> = {};
+    // success / calm / cheer 타입별 "몇 일이나 그런 날이 있었는지"
+    const dayTypeCounts: Record<'success' | 'calm' | 'cheer', number> = {
+      success: 0,
+      calm: 0,
+      cheer: 0,
+    };
+
     monthlyEntries.forEach((e) => {
+      // 하루에 여러 스티커가 있어도 "하루당 최대 1번"만 카운트
+      const typesForThisDay = new Set<'success' | 'calm' | 'cheer'>();
+
+      // (1) 상단 "오늘의 기분"
       if (e.dayMoodId) {
-        moodCounts[e.dayMoodId] = (moodCounts[e.dayMoodId] || 0) + 1;
+        const t = DAY_MOOD_TYPE_MAP[e.dayMoodId];
+        if (t) typesForThisDay.add(t);
       }
+
+      // (2) 각 질문 답변의 스티커
       Object.values(e.answers || {}).forEach((ans) => {
-        if (ans.moodId) {
-          const id = ans.moodId;
-          moodCounts[id] = (moodCounts[id] || 0) + 1;
-        }
+        if (!ans.moodId) return;
+        const info = ALL_MOOD_STAMPS.find((s) => s.id === ans.moodId);
+        if (!info) return;
+        const t = info.type as 'success' | 'calm' | 'cheer';
+        typesForThisDay.add(t);
+      });
+
+      // 이 날에 등장한 타입들에 대해 1일씩 증가
+      typesForThisDay.forEach((t) => {
+        dayTypeCounts[t] += 1;
       });
     });
 
-    const moodStatList = Object.entries(moodCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([id, count]) => {
-        const info = ALL_MOOD_STAMPS.find((s) => s.id === id);
-        return info ? { icon: info.icon, label: info.label, count } : null;
-      })
-      .filter(
-        (x): x is { icon: any; label: string; count: number } => x !== null,
-      );
+    const moodStatList: { icon: any; label: string; count: number }[] = [
+      {
+        icon: <Sun size={24} color="#FDB813" fill="#FDB813" />,
+        label: '개운·성공 계열',
+        count: dayTypeCounts.success,
+      },
+      {
+        icon: <CoffeeIcon size={24} color="#8D6E63" />,
+        label: '휴식·회복 계열',
+        count: dayTypeCounts.calm,
+      },
+      {
+        icon: <CloudRain size={24} color="#3B82F6" />,
+        label: '버팀·토닥 계열',
+        count: dayTypeCounts.cheer,
+      },
+    ];
 
     if (!cancelled) setMoodStats(moodStatList);
 
-    // 2) 방문 장소 통계 (프리셋 라벨도 반영)
+    // ===== 2) 방문 장소 통계 =====
     const placeCounts: Record<string, number> = {};
     monthlyEntries.forEach((e) => {
       (e.timeline || []).forEach((t) => {
@@ -1612,17 +1646,30 @@ function CalendarView({
           >
             {moodStats.length > 0 ? (
               moodStats.map((s, i) => (
-                <div key={i} style={{ textAlign: 'center' }}>
+                <div
+                  key={i}
+                  style={{ textAlign: 'center', minWidth: '80px' }}
+                >
                   <div style={{ fontSize: 20 }}>{s.icon}</div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: '#555',
+                      marginTop: 4,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {s.label}
+                  </div>
                   <div
                     style={{
                       fontSize: 13,
                       color: '#111',
                       fontWeight: 600,
-                      marginTop: 6,
+                      marginTop: 4,
                     }}
                   >
-                    {s.count}회
+                    {s.count}일
                   </div>
                 </div>
               ))
@@ -1668,6 +1715,7 @@ function CalendarView({
     </>
   );
 }
+
 
 // ===========================================
 // 6. Journal View (일별 작성)
