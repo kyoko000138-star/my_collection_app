@@ -451,7 +451,7 @@ const WakaPostcard: React.FC<{
 
   const headerRow: React.CSSProperties = {
     textAlign: 'center',
-    paddingTop: 2,
+    paddingTop: 0,
     paddingBottom: 4,
     flex: 'none',
   };
@@ -465,7 +465,7 @@ const WakaPostcard: React.FC<{
     paddingBottom: 1,
     fontFamily: 'var(--font-kor)',
     whiteSpace: 'pre-line',
-    textShadow: '0 1px 4px rgba(0,0,0,0.6)',
+  
   };
 
   const wakaArea: React.CSSProperties = {
@@ -511,7 +511,7 @@ const WakaPostcard: React.FC<{
     fontSize: 10,
     color: '#d0bda4',
     opacity: 0.95,
-    textShadow: '0 1px 3px rgba(0,0,0,0.55)',
+   
   };
 
   const soundButtonWrapper: React.CSSProperties = {
