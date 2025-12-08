@@ -440,7 +440,7 @@ const WakaPostcard: React.FC<{
     inset: 0,
     display: 'flex',
     flexDirection: 'column',
-    padding: '10px 26px 24px', // ⬆ 날짜 조금 더 위로
+    padding: '15px 26px 24px', // ⬆ 날짜 조금 더 위로
     transition: 'opacity 2000ms ease, transform 2000ms ease',
     opacity: revealed ? 1 : 0,
     transform: revealed ? 'translateY(0)' : 'translateY(8px)',
@@ -1144,7 +1144,7 @@ export default function WakaArchivePage() {
 
       {mode === 'today' && (
         <header className="fade-in" style={headerStyle}>
-          <h1 style={titleStyle}>和歌</h1>
+          <h1 style={titleStyle}>오늘의 와카</h1>
           <p style={subtitleStyle}>TODAY'S WAKA</p>
         </header>
       )}
