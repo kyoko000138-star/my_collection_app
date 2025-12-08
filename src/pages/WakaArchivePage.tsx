@@ -463,18 +463,19 @@ const WakaPostcard: React.FC<{
     paddingBottom: 4,
     flex: 'none',
   };
+  
+  const DATE_ACCENT_COLOR = '#c3a27a'; // 더 진하게 하고 싶은 톤으로 조절 가능
 
   const dateLabelStyle: React.CSSProperties = {
     fontSize: 11,
     letterSpacing: '0.18em',
     textTransform: 'uppercase',
-    color: '#d0bda4',
-    borderBottom: '1px solid rgba(255,255,255,0.75)',
+    color: DATE_ACCENT_COLOR,               // 날짜 글자 색
+    borderBottom: `1px solid ${DATE_ACCENT_COLOR}`, // 아래 선도 같은 색
     paddingBottom: 1,
     fontFamily: 'var(--font-kor)',
     whiteSpace: 'pre-line',
-  
-  };
+    textShadow: '0 1px 2px rgba(0,0,0,0.45)', // 배경 위에서 또렷하게
 
   const wakaArea: React.CSSProperties = {
     position: 'relative',
@@ -517,9 +518,9 @@ const WakaPostcard: React.FC<{
     fontFamily: 'var(--font-jp-std)',
     letterSpacing: '0.1em',
     fontSize: 10,
-    color: '#d0bda4',
-    opacity: 0.95,
-   
+    color: DATE_ACCENT_COLOR,
+    opacity: 0.98,
+    textShadow: '0 1px 2px rgba(0,0,0,0.55)',
   };
 
   const soundButtonWrapper: React.CSSProperties = {
