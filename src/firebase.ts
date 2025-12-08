@@ -19,19 +19,21 @@ const firebaseConfig = {
 // 🔥 Firebase App (중복 초기화 방지)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// 🔐 Auth + Google 로그인 프로바이더
+// 🔐 Auth
 const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-  prompt: 'select_account',
-});
 
 // 🗂 Firestore + Storage
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-// 📁 Firestore 네임스페이스
+// Firestore에서 artifacts/{appId}/users/{uid}/... 쓸 때 쓰는 네임스페이스
 const appId = 'my-collection-app';
 
-// ✅ 최종 export
+// ✅ Google 로그인 프로바이더
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account',
+});
+
+// 최종 export
 export { app, auth, db, storage, googleProvider, appId };
