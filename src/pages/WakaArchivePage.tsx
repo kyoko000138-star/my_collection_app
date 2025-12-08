@@ -19,6 +19,7 @@ import type { WakaEntry } from '../waka/wakaCalendarData';
 import {
   getTodayWaka,
   getRecommendedWakaForMood,
+  getDynamicLunarLabel,   // 👈 추가
 } from '../waka/wakaCalendarData';
 
 // ─── 폰트 & 기본 스타일 ───
@@ -318,16 +319,19 @@ const WakaPostcard: React.FC<{
     setIsMuted((prev) => !prev);
   };
 
-  // 날짜 라벨: 양력 / 음력 / 계절 설명
+  // 날짜 라벨: 양력 + 실제(해당 연도 기준) 음력만 표시
+  const dynamicLunarLabel =
+    getDynamicLunarLabel(waka.date.month, waka.date.day) ??
+    waka.date.lunarLabel ??
+    '';
+
   let dateLabel = waka.date.solarLabel;
 
-  if (waka.date.lunarLabel && waka.date.lunarLabel.trim() !== '') {
-    dateLabel += `\n${waka.date.lunarLabel}`;
+  if (dynamicLunarLabel) {
+    dateLabel += `\n${dynamicLunarLabel}`;
   }
 
-  if (waka.date.seasonalLabel && waka.date.seasonalLabel.trim() !== '') {
-    dateLabel += `\n${waka.date.seasonalLabel}`;
-  }
+  // seasonalLabel(예: '녹는 눈과 산골 급류')은 내부 분류용으로만 사용, 화면에는 노출 X
 
   const outerWrapper: React.CSSProperties = {
     position: 'relative',
