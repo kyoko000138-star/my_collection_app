@@ -349,29 +349,37 @@ const WakaPostcard: React.FC<{
   };
 
   // 날짜 라벨: 양력 / (동적으로 계산한) 음력 / (옵션) 계절 설명
-  const dateLines: string[] = [];
-  if (waka.date.solarLabel) {
-    dateLines.push(waka.date.solarLabel);
-  }
+  // 날짜 라벨: 1줄 = "양력 … · 음력 …" / 2줄째 = 계절 설명(있을 때만)
+  const solar = waka.date.solarLabel?.trim();
 
-  if (lunarLabelOverride && lunarLabelOverride.trim() !== '') {
-    // 오늘 카드: 실제 음력 날짜
-    dateLines.push(lunarLabelOverride);
-  } else if (waka.date.lunarLabel && waka.date.lunarLabel.trim() !== '') {
-    // 추천 카드 등: 데이터에 들어 있는 설명용 음력 문구
-    dateLines.push(waka.date.lunarLabel);
-  }
+  // 오늘 카드면 solarlunar 결과, 아니면 데이터의 lunarLabel
+  const lunar =
+    (lunarLabelOverride && lunarLabelOverride.trim()) ||
+    (waka.date.lunarLabel && waka.date.lunarLabel.trim()) ||
+    '';
 
-  if (
+  const seasonal =
     !hideSeasonalLabel &&
     waka.date.seasonalLabel &&
-    waka.date.seasonalLabel.trim() !== ''
-  ) {
-    // 오늘 카드에서는 숨기고, 추천 카드에서는 그대로 사용
-    dateLines.push(waka.date.seasonalLabel);
+    waka.date.seasonalLabel.trim()
+      ? waka.date.seasonalLabel.trim()
+      : '';
+
+  const firstLineParts: string[] = [];
+  if (solar) firstLineParts.push(solar);
+  if (lunar) firstLineParts.push(lunar);
+
+  const lines: string[] = [];
+  if (firstLineParts.length > 0) {
+    // 👉 양력 · 음력 한 줄로
+    lines.push(firstLineParts.join(' · '));
+  }
+  if (seasonal) {
+    // 👉 두 번째 줄: 절기/계절 설명만
+    lines.push(seasonal);
   }
 
-  const dateLabel = dateLines.join('\n');
+  const dateLabel = lines.join('\n');
 
   // ─── 스타일 ───
   const outerWrapper: React.CSSProperties = {
