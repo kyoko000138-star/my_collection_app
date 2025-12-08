@@ -16,11 +16,29 @@ const cardWrapper: React.CSSProperties = {
 };
 
 const headerRow: React.CSSProperties = {
-  textAlign: 'center',
-  paddingTop: 10,   // 24 → 16 (조금 위로)
-  paddingBottom: 6, // 12 → 6 (조금 붙게)
-  flex: 'none',
-};
+    textAlign: 'center',
+    paddingTop: 4,
+    paddingBottom: 6,
+    flex: 'none',
+  };
+
+  const dateLabelStyle: React.CSSProperties = {
+    fontSize: 11,
+    letterSpacing: '0.18em',
+    textTransform: 'uppercase',
+    color: '#f7f3eb', // 밝은 톤
+    borderBottom: '1px solid rgba(255,255,255,0.7)',
+    paddingBottom: 3,
+    fontFamily: 'var(--font-kor)',
+    whiteSpace: 'pre-line',
+    textShadow: '0 1px 3px rgba(0,0,0,0.45)', // 👉 박스 대신 그림자
+  }; // 👈 이 줄이 빠져 있어서 에러 난 거야!
+
+  const wakaArea: React.CSSProperties = {
+    position: 'relative',
+    width: '100%',
+    flex: 1,
+  };
 
 const badge: React.CSSProperties = {
   fontSize: '11px',
