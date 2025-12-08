@@ -6,7 +6,7 @@ import {
   onAuthStateChanged,
   signInWithPopup,
   signInWithRedirect,
-  signOut,
+  getRedirectResult,
 } from 'firebase/auth';
 
 import {
@@ -360,26 +360,54 @@ const HomePage = () => {
 // --- 🔐 로그인 페이지 ---
 const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
+  const [checkingRedirect, setCheckingRedirect] = useState(true);
+
+  // 🔁 redirect 로그인 후 돌아왔을 때 한 번만 결과 처리
+  useEffect(() => {
+    getRedirectResult(auth)
+      .catch((e) => {
+        // 실패해도 치명적이지 않으니 콘솔만
+        console.error('getRedirectResult error', e);
+      })
+      .finally(() => setCheckingRedirect(false));
+  }, []);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
       const ua = navigator.userAgent || '';
       const isIOS = /iPhone|iPad|iPod/i.test(ua);
+      const isSafari = /^((?!chrome|android).)*safari/i.test(ua.toLowerCase());
 
-      // ✅ iOS Safari는 popup 안되니까 redirect 사용
-      if (isIOS) {
+      // ✅ Safari 계열 + iOS는 redirect, 그 외는 popup
+      if (isIOS || isSafari) {
         await signInWithRedirect(auth, googleProvider);
       } else {
         await signInWithPopup(auth, googleProvider);
       }
     } catch (e) {
       console.error('구글 로그인 실패', e);
-      alert('로그인 중 오류가 발생했습니다. (콘솔 확인)');
-    } finally {
+      alert('로그인 중 오류가 발생했습니다.');
       setLoading(false);
     }
   };
+
+  if (checkingRedirect) {
+    return (
+      <Layout>
+        <div
+          style={{
+            padding: '80px 24px',
+            textAlign: 'center',
+            fontSize: 13,
+            color: '#777',
+          }}
+        >
+          로그인 상태를 확인하고 있습니다...
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -421,8 +449,9 @@ const LoginPage: React.FC = () => {
             display: 'inline-flex',
             alignItems: 'center',
             gap: 8,
-            cursor: 'pointer',
+            cursor: loading ? 'default' : 'pointer',
             backgroundColor: '#fff',
+            opacity: loading ? 0.7 : 1,
           }}
         >
           {loading ? '로그인 중...' : 'Google 계정으로 로그인'}
