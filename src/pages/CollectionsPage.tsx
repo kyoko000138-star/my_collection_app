@@ -439,6 +439,11 @@ const CollectionsPage: React.FC = () => {
     return () => unsub();
   }, []);
 
+   // ✅ 상세보기 대상이 바뀔 때마다 첫 번째 이미지부터 보이도록
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [selectedItem]);
+
   const [formData, setFormData] = useState<{
     id: string | null;
     name: string;
