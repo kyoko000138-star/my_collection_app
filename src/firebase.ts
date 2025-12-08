@@ -22,17 +22,16 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 // 🔐 Auth + Google 로그인 프로바이더
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
-
-// 계정 선택 창 항상 띄우기
 googleProvider.setCustomParameters({
   prompt: 'select_account',
 });
 
-// 🗂 Firestore
+// 🗂 Firestore + Storage
 const db = getFirestore(app);
+const storage = getStorage(app);
 
-// 📁 Firestore 네임스페이스
+// 📁 Firestore에서 artifacts/{appId}/users/... 이런 식으로 쓸 네임스페이스
 const appId = 'my-collection-app';
 
 // 최종 export
-export { app, auth, db, googleProvider, appId };
+export { app, auth, db, storage, googleProvider, appId };
