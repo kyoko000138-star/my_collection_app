@@ -392,7 +392,7 @@ const WakaPostcard: React.FC<{
       : primaryLine;
 
   // 날짜 / 저자·출전 공통 포인트 색
-  const DATE_ACCENT_COLOR = '#c3a27a';
+  const DATE_ACCENT_COLOR = '#5C3601';
 
   // ─── 스타일 ───
   const outerWrapper: React.CSSProperties = {
@@ -509,7 +509,7 @@ const WakaPostcard: React.FC<{
   const wakaLineRight: React.CSSProperties = {
     fontFamily: 'var(--font-jp-calli)',
     fontSize: 24,
-    color: '#2b221b',
+    color: '#5C3601',
     lineHeight: 1.9,
     minHeight: 200,
     display: 'flex',
