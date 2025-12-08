@@ -1,4 +1,62 @@
 // src/waka/wakaCalendarData.ts
+// @ts-ignore  // 타입 정의가 없는 라이브러리라 TS 경고 무시
+import solarlunar from 'solarlunar';
+
+export interface WakaEntry {
+  id: string;
+  date: {
+    month: number;
+    day: number;
+    solarLabel: string;
+    lunarLabel?: string;      // 이건 '음력 11월 중순 무렵' 같은 메타, UI에는 안 쓸 예정
+    seasonalLabel?: string;   // 이것도 내부 분류용
+  };
+  tags: string[];
+  content: {
+    original: {
+      right: string;
+      left: string;
+      hiragana: string;
+    };
+    info: {
+      author: string;
+      source: string;
+    };
+    translations: {
+      modernJapanese: string;
+      korean: string;
+    };
+    commentary: string;
+  };
+}
+
+// 지정한 월·일(양력)을 기준으로, 해당 연도의 실제 음력 날짜 라벨 생성
+export function getDynamicLunarLabel(
+  month: number,
+  day: number,
+  year: number = new Date().getFullYear()
+): string | null {
+  try {
+    const info: any = (solarlunar as any).solar2lunar(year, month, day);
+    if (!info) return null;
+
+    const lMonth =
+      info.lMonth ?? info.lunarMonth ?? info.month ?? null;
+    const lDay =
+      info.lDay ?? info.lunarDay ?? info.day ?? null;
+    const isLeap =
+      info.isLeap ?? info.isLeapMonth ?? false;
+
+    if (!lMonth || !lDay) return null;
+
+    const monthText = isLeap ? `윤${lMonth}월` : `${lMonth}월`;
+    return `음력 ${monthText} ${lDay}일`;
+  } catch {
+    // 라이브러리 오류나 범위 밖이면 그냥 null 리턴
+    return null;
+  }
+}
+
 
 export interface WakaEntry {
   id: string;
