@@ -296,10 +296,6 @@ const WakaPostcard: React.FC<{
   const [isMuted, setIsMuted] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const bgImageSrc = useMemo(
-  () => getSeasonalImage(waka.date.month),
-  [waka.date.month]
-);
 
   // 🔹 계절+시간대에 맞는 배경 이미지 선택
   const bgImageSrc = useMemo(
