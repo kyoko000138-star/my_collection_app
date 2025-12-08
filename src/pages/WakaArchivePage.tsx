@@ -462,7 +462,7 @@ const WakaPostcard: React.FC<{
     textTransform: 'uppercase',
     color: '#fffdf8',
     borderBottom: '1px solid rgba(255,255,255,0.75)',
-    paddingBottom: 3,
+    paddingBottom: 1,
     fontFamily: 'var(--font-kor)',
     whiteSpace: 'pre-line',
     textShadow: '0 1px 4px rgba(0,0,0,0.6)',
