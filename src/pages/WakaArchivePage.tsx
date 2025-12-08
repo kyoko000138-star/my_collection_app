@@ -1,9 +1,5 @@
+// src/pages/WakaArchivePage.tsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import type { WakaEntry } from '../waka/wakaCalendarData';
-import {
-  getTodayWaka,
-  getRecommendedWakaForMood,
-} from '../waka/wakaCalendarData';
 import {
   Sparkles,
   X,
@@ -18,6 +14,12 @@ import {
   Droplets,
   Coffee,
 } from 'lucide-react';
+
+import type { WakaEntry } from '../waka/wakaCalendarData';
+import {
+  getTodayWaka,
+  getRecommendedWakaForMood,
+} from '../waka/wakaCalendarData';
 
 // ─── 폰트 & 기본 스타일 ───
 const StyleHeader = () => (
@@ -71,8 +73,7 @@ const StyleHeader = () => (
 // ─── 계절 타입 ───
 type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 
-// ─── 계절 배경 이미지 시스템 (시간대 없음 버전) ───
-// public/waka-images 안의 실제 파일명 그대로
+// ─── 계절 배경 이미지 시스템 ───
 const SPRING_IMAGES = [
   'spring_1.jpg',
   'spring_2.jpg',
@@ -108,7 +109,6 @@ const SUMMER_IMAGES = [
   'summer (18).jpg',
   'summer (19).jpg',
   'summer (20).jpg',
-  // 만약 폴더에 `summer (1).jpg` 도 있으면 여기 맨 위에 추가해줘!
 ];
 
 const AUTUMN_IMAGES = [
@@ -145,7 +145,6 @@ const WINTER_IMAGES = [
   'winnter (13).jpg',
 ];
 
-// 계절 → 이미지 목록 매핑 (시간대 없음)
 const wakaImageMap: Record<Season, string[]> = {
   spring: SPRING_IMAGES,
   summer: SUMMER_IMAGES,
@@ -153,7 +152,6 @@ const wakaImageMap: Record<Season, string[]> = {
   winter: WINTER_IMAGES,
 };
 
-// 이미 있는 getSeason 그대로 사용
 function getSeason(month: number): Season {
   if (month >= 3 && month <= 5) return 'spring';
   if (month >= 6 && month <= 8) return 'summer';
@@ -161,7 +159,6 @@ function getSeason(month: number): Season {
   return 'winter';
 }
 
-// 계절만 보고 랜덤으로 1장 선택
 function getSeasonalImage(month: number, fallback?: string): string {
   const season = getSeason(month);
   const list = wakaImageMap[season];
@@ -171,17 +168,14 @@ function getSeasonalImage(month: number, fallback?: string): string {
     return `/waka-images/${list[idx]}`;
   }
 
-  // 아무 것도 없으면 기본 이미지
   return fallback || '/waka-images/default.jpg';
 }
 
 // ─── 사운드 시스템 (계절 + 시간대별) ───
 type DayPhase = 'morning' | 'day' | 'night';
 
-// Vite 기준: public/ 밑의 파일은 BASE_URL + 경로
 const AUDIO_BASE = `${import.meta.env.BASE_URL}waka-audio/`;
 
-// 계절별, 시간대별 mp3 목록 (파일 이름만 적기)
 const ambientMap: Record<
   Season,
   {
@@ -209,7 +203,7 @@ const ambientMap: Record<
     night: [
       'autumn_night_1.mp3',
       'autumn_night_2.mp3',
-      'autumn_night_3.mp3', // 실제 파일명이 .mp3 맞는지 한번 확인!
+      'autumn_night_3.mp3',
     ],
   },
   winter: {
@@ -219,20 +213,19 @@ const ambientMap: Record<
 };
 
 function getDayPhase(): DayPhase {
-  const hour = new Date().getHours(); // 0~23
+  const hour = new Date().getHours();
   if (hour >= 5 && hour < 11) return 'morning';
   if (hour >= 11 && hour < 18) return 'day';
   return 'night';
 }
 
-const getAmbientSound = (month: number): string => {
+function getAmbientSound(month: number): string {
   const season = getSeason(month);
   const phase = getDayPhase();
   const seasonSounds = ambientMap[season];
 
   let list: string[] | undefined;
 
-  // 1순위: 현재 시간대
   if (phase === 'morning' && seasonSounds.morning?.length) {
     list = seasonSounds.morning;
   } else if (phase === 'day') {
@@ -241,13 +234,13 @@ const getAmbientSound = (month: number): string => {
     list = seasonSounds.night;
   }
 
-  // 해당 시간대가 비어 있으면 fallback
   if (!list || list.length === 0) {
-    list = seasonSounds.day.length
-      ? seasonSounds.day
-      : seasonSounds.night.length
-      ? seasonSounds.night
-      : seasonSounds.morning || [];
+    list =
+      seasonSounds.day.length > 0
+        ? seasonSounds.day
+        : seasonSounds.night.length > 0
+        ? seasonSounds.night
+        : seasonSounds.morning || [];
   }
 
   if (list && list.length > 0) {
@@ -255,36 +248,8 @@ const getAmbientSound = (month: number): string => {
     return AUDIO_BASE + list[i];
   }
 
-  // 완전 예외 상황용 기본값
   return AUDIO_BASE + 'spring_day.mp3';
-};
-
-// ─── 타입 ───
-interface WakaEntry {
-  id: string;
-  date: {
-    month: number;
-    day: number;
-    lunar: string;
-    term?: string;
-  };
-  tags: string[];
-  content: {
-    right: string;
-    left: string;
-    hiragana: string;
-    modern: string;
-    author: string;
-    source: string;
-    korean: string;
-    commentary: string;
-  };
-  media: {
-    imageSrc: string;
-  };
 }
-
-
 
 // ─── 엽서형 와카 카드 ───
 const WakaPostcard: React.FC<{
@@ -296,11 +261,14 @@ const WakaPostcard: React.FC<{
   const [isMuted, setIsMuted] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  const soundSrc = useMemo(
+    () => getAmbientSound(waka.date.month),
+    [waka.date.month]
+  );
 
-  // 🔹 계절+시간대에 맞는 배경 이미지 선택
   const bgImageSrc = useMemo(
-    () => getSeasonalImage(waka.date.month, waka.media.imageSrc),
-    [waka.date.month, waka.media.imageSrc]
+    () => getSeasonalImage(waka.date.month),
+    [waka.date.month]
   );
 
   useEffect(() => {
@@ -350,14 +318,16 @@ const WakaPostcard: React.FC<{
     setIsMuted((prev) => !prev);
   };
 
+  // 날짜 라벨: 양력 / 음력 / 계절 설명
   let dateLabel = waka.date.solarLabel;
+
   if (waka.date.lunarLabel && waka.date.lunarLabel.trim() !== '') {
     dateLabel += `\n${waka.date.lunarLabel}`;
   }
 
-if (waka.date.seasonalLabel && waka.date.seasonalLabel.trim() !== '') {
-  dateLabel += `\n${waka.date.seasonalLabel}`;
-}
+  if (waka.date.seasonalLabel && waka.date.seasonalLabel.trim() !== '') {
+    dateLabel += `\n${waka.date.seasonalLabel}`;
+  }
 
   const outerWrapper: React.CSSProperties = {
     position: 'relative',
@@ -603,7 +573,7 @@ if (waka.date.seasonalLabel && waka.date.seasonalLabel.trim() !== '') {
             </div>
 
             <div className="vertical-text" style={authorBlock}>
-              <span>{waka.content.author}</span>
+              <span>{waka.content.info.author}</span>
               <span
                 style={{
                   display: 'block',
@@ -612,7 +582,7 @@ if (waka.date.seasonalLabel && waka.date.seasonalLabel.trim() !== '') {
                   opacity: 0.7,
                 }}
               >
-                · {waka.content.source}
+                · {waka.content.info.source}
               </span>
             </div>
           </div>
@@ -751,13 +721,13 @@ const AdvancedTest: React.FC<{
       title: '지금 당신의 마음속 날씨는\n어떤가요?',
       options: [
         {
-          val: 'snow',
+          val: 'calm',
           label: '소리 없이 눈 내리는 밤',
           icon: <Moon size={14} />,
         },
-        { val: 'wind', label: '거칠게 부는 바람', icon: <Wind size={14} /> },
+        { val: 'energy', label: '거칠게 부는 바람', icon: <Wind size={14} /> },
         {
-          val: 'sun',
+          val: 'wait',
           label: '구름 사이로 비치는 햇살',
           icon: <Sun size={14} />,
         },
@@ -768,7 +738,7 @@ const AdvancedTest: React.FC<{
       title: '지금 당신을 가장\n무겁게 하는 것은 무엇인가요?',
       options: [
         {
-          val: 'anxiety',
+          val: 'calm',
           label: '알 수 없는 막막함',
           icon: <Cloud size={14} />,
         },
@@ -784,9 +754,9 @@ const AdvancedTest: React.FC<{
       id: 'q3',
       title: '이 노래가 끝난 뒤,\n어떤 풍경에 닿고 싶나요?',
       options: [
-        { val: 'silence', label: '완전한 고요와 휴식' },
+        { val: 'calm', label: '완전한 고요와 휴식' },
         { val: 'energy', label: '다시 시작할 힘' },
-        { val: 'accept', label: '있는 그대로를 받아들임' },
+        { val: 'wait', label: '있는 그대로를 받아들임' },
       ],
     },
   ];
@@ -800,11 +770,14 @@ const AdvancedTest: React.FC<{
       setStep(step + 1);
     } else {
       let resultType: 'calm' | 'energy' | 'wait' = 'calm';
-      if (newAnswers.q3 === 'energy') resultType = 'energy';
-      else if (newAnswers.q2 === 'wait' || newAnswers.q3 === 'accept')
+
+      if (newAnswers.q3 === 'energy') {
+        resultType = 'energy';
+      } else if (newAnswers.q3 === 'wait') {
         resultType = 'wait';
-      else if (newAnswers.q1 === 'snow' && newAnswers.q3 === 'silence')
+      } else {
         resultType = 'calm';
+      }
 
       setTimeout(() => onComplete(resultType), 600);
     }
@@ -1013,9 +986,10 @@ const AdvancedTest: React.FC<{
 // ─── 메인 페이지 ───
 export default function WakaArchivePage() {
   const [mode, setMode] = useState<'today' | 'test' | 'recommend'>('today');
-  const [recommendedWaka, setRecommendedWaka] = useState<WakaEntry | null>(null);
+  const [recommendedWaka, setRecommendedWaka] = useState<WakaEntry | null>(
+    null
+  );
 
-  // 오늘 날짜 기준 와카 한 번만 계산
   const todayWaka = useMemo(() => getTodayWaka(), []);
 
   const pageRoot: React.CSSProperties = {
@@ -1095,17 +1069,16 @@ export default function WakaArchivePage() {
 
       <main style={mainWrapper}>
         {mode === 'today' && (
-      <div className="fade-in" style={{ width: '100%' }}>
-        <WakaPostcard waka={todayWaka} />
-        <div style={startButtonWrap}>
-          <button onClick={() => setMode('test')} style={startButton}>
-            <Sparkles size={14} />
-            <span style={{ paddingTop: 2 }}>마음 처방받기</span>
-          </button>
-        </div>
-      </div>
-    )}
-
+          <div className="fade-in" style={{ width: '100%' }}>
+            <WakaPostcard waka={todayWaka} />
+            <div style={startButtonWrap}>
+              <button onClick={() => setMode('test')} style={startButton}>
+                <Sparkles size={14} />
+                <span style={{ paddingTop: 2 }}>마음 처방받기</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {mode === 'recommend' && recommendedWaka && (
           <div className="animate-slide-up" style={{ width: '100%' }}>
@@ -1141,8 +1114,8 @@ export default function WakaArchivePage() {
         {mode === 'test' && (
           <AdvancedTest
             onClose={() => setMode('today')}
-            onComplete={(resultType) => {
-              const result = sampleData[resultType] || sampleData.calm;
+            onComplete={(resultMood) => {
+              const result = getRecommendedWakaForMood(resultMood);
               setRecommendedWaka(result);
               setMode('recommend');
             }}
