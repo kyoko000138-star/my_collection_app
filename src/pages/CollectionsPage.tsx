@@ -8,7 +8,7 @@ import {
   Trash2,
   Search,
   ArrowLeft,
-+ ArrowRight,
+  ArrowRight,
 } from 'lucide-react';
 
 import { auth, db } from '../firebase';
