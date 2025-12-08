@@ -6,6 +6,7 @@ import {
   Camera,
   X,
   ArrowLeft,
+  ArrowRight,
   Leaf,
   Flower,
   Flame,
@@ -391,7 +392,7 @@ const AROMA_MAIN_CATS = [
     color: Colors.aroma.mineral,
     icon: <CloudSun size={18} />,
   },
-];
+};
 
 const AROMA_SUB_CATS: { [k: string]: string[] } = {
   floral: [
@@ -474,7 +475,7 @@ const TeaRadarChart = ({ values }: { values: any }) => {
   };
 
   const points = TASTE_AXES.map((label, i) =>
-    getPoint(i, values[label.key] || 0)
+    getPoint(i, values[label.key] || 0),
   );
   const polygonPoints = points.map((p) => `${p.x},${p.y}`).join(' ');
 
@@ -584,9 +585,11 @@ const TeaSlider = ({
 const ImageStrip = ({
   images,
   onImageClick,
+  onRemove,
 }: {
   images: string[];
-  onImageClick: (url: string) => void;
+  onImageClick?: (url: string, index: number) => void;
+  onRemove?: (index: number) => void;
 }) => (
   <div
     style={{
@@ -597,21 +600,56 @@ const ImageStrip = ({
     }}
   >
     {images.map((url, idx) => (
-      <img
+      <div
         key={idx}
-        src={url}
-        alt={`thumb-${idx}`}
         style={{
+          position: 'relative',
           width: '70px',
           height: '70px',
-          objectFit: 'cover',
-          borderRadius: '4px',
-          border: `1px solid ${Colors.border}`,
-          cursor: 'pointer',
           flexShrink: 0,
         }}
-        onClick={() => onImageClick(url)}
-      />
+      >
+        <img
+          src={url}
+          alt={`thumb-${idx}`}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            borderRadius: '4px',
+            border: `1px solid ${Colors.border}`,
+            cursor: onImageClick ? 'pointer' : 'default',
+          }}
+          onClick={() => onImageClick && onImageClick(url, idx)}
+        />
+        {onRemove && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(idx);
+            }}
+            style={{
+              position: 'absolute',
+              top: -6,
+              right: -6,
+              width: 18,
+              height: 18,
+              borderRadius: '50%',
+              border: 'none',
+              backgroundColor: 'rgba(0,0,0,0.65)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              padding: 5,
+            }}
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
     ))}
   </div>
 );
@@ -857,6 +895,12 @@ const TeaDetail = ({
   closeDetail: () => void;
   setFullImageUrl: (url: string | null) => void;
 }) => {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [entry?.id]);
+
   const mainTypeLabel =
     TEA_MAIN_TYPES.find((t) => t.id === entry.teaType)?.label || '';
 
@@ -935,13 +979,134 @@ const TeaDetail = ({
             </span>
           </div>
 
+          {/* ✅ 450px 메인 이미지 슬라이더 */}
           {entry.images?.length > 0 && (
-            <div style={{ marginBottom: '32px' }}>
-              <ImageStrip
-                images={entry.images}
-                onImageClick={setFullImageUrl}
-              />
-            </div>
+            <section
+              style={{
+                marginBottom: 32,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  display: 'flex',
+                  justifyContent: 'center',
+                }}
+              >
+                <img
+                  src={entry.images[currentImageIndex]}
+                  alt={`tea-${currentImageIndex}`}
+                  style={{
+                    width: '100%',
+                    maxWidth: 450,
+                    height: 450,
+                    objectFit: 'cover',
+                    borderRadius: 8,
+                    border: `1px solid ${Colors.border}`,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() =>
+                    setFullImageUrl(entry.images[currentImageIndex])
+                  }
+                />
+
+                {entry.images.length > 1 && (
+                  <>
+                    {/* 왼쪽 화살표 */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCurrentImageIndex((prev) =>
+                          prev === 0 ? entry.images.length - 1 : prev - 1,
+                        )
+                      }
+                      style={{
+                        position: 'absolute',
+                        left: 12,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        border: 'none',
+                        backgroundColor: 'rgba(0,0,0,0.4)',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <ArrowLeft size={18} />
+                    </button>
+
+                    {/* 오른쪽 화살표 */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCurrentImageIndex((prev) =>
+                          prev === entry.images.length - 1 ? 0 : prev + 1,
+                        )
+                      }
+                      style={{
+                        position: 'absolute',
+                        right: 12,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        border: 'none',
+                        backgroundColor: 'rgba(0,0,0,0.4)',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <ArrowRight size={18} />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {entry.images.length > 1 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 6,
+                    justifyContent: 'center',
+                    marginTop: 4,
+                  }}
+                >
+                  {entry.images.map((_, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setCurrentImageIndex(idx)}
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        border: 'none',
+                        padding: 0,
+                        backgroundColor:
+                          idx === currentImageIndex
+                            ? Colors.textMain
+                            : '#E0E0E0',
+                        cursor: 'pointer',
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
           )}
 
           {/* 기본 정보 */}
@@ -1034,7 +1199,7 @@ const TeaDetail = ({
             >
               {entry.aromaTags.map((tag: string) => {
                 const catId = Object.keys(AROMA_SUB_CATS).find((key) =>
-                  AROMA_SUB_CATS[key].includes(tag)
+                  AROMA_SUB_CATS[key].includes(tag),
                 );
                 const color = catId
                   ? (Colors.aroma as any)[catId]
@@ -1109,7 +1274,7 @@ const TeaForm = ({
 
   const handleRemoveBrew = (index: number) => {
     const newBrewing = formData.brewing.filter(
-      (_: any, i: number) => i !== index
+      (_: any, i: number) => i !== index,
     );
     setFormData({ ...formData, brewing: newBrewing });
   };
@@ -1457,7 +1622,7 @@ const TeaForm = ({
                       style={Styles.aromaChip(
                         formData.aromaTags.includes(sub),
                         AROMA_MAIN_CATS.find((c) => c.id === activeAromaCat)!
-                          .color as string
+                          .color as string,
                       )}
                       onClick={() => toggleAromaTag(sub)}
                     >
@@ -1481,7 +1646,7 @@ const TeaForm = ({
               >
                 {formData.aromaTags.map((t: string) => {
                   const catId = Object.keys(AROMA_SUB_CATS).find((key) =>
-                    AROMA_SUB_CATS[key].includes(t)
+                    AROMA_SUB_CATS[key].includes(t),
                   );
                   const color = catId
                     ? (Colors.aroma as any)[catId]
@@ -1577,7 +1742,14 @@ const TeaForm = ({
                   <div style={{ flex: 1, overflowX: 'auto' }}>
                     <ImageStrip
                       images={formData.images.map((i: any) => i.url)}
-                      onImageClick={() => {}}
+                      onRemove={(idx) =>
+                        setFormData((prev: any) => ({
+                          ...prev,
+                          images: prev.images.filter(
+                            (_: any, i: number) => i !== idx,
+                          ),
+                        }))
+                      }
                     />
                   </div>
                 )}
@@ -1680,7 +1852,7 @@ const TeaPage = () => {
       appId,
       'users',
       user.uid,
-      TEA_COLLECTION
+      TEA_COLLECTION,
     );
     const q = query(colRef, orderBy('createdAt', 'desc'));
 
@@ -1719,7 +1891,7 @@ const TeaPage = () => {
       (err) => {
         console.error(err);
         setEntriesLoading(false);
-      }
+      },
     );
 
     return () => unsub();
@@ -1793,7 +1965,7 @@ const TeaPage = () => {
         appId,
         'users',
         user.uid,
-        TEA_COLLECTION
+        TEA_COLLECTION,
       );
 
       if (formData.id) {
@@ -1804,7 +1976,7 @@ const TeaPage = () => {
           'users',
           user.uid,
           TEA_COLLECTION,
-          formData.id
+          formData.id,
         );
         await updateDoc(docRef, payload);
       } else {
@@ -1834,8 +2006,8 @@ const TeaPage = () => {
           'users',
           user.uid,
           TEA_COLLECTION,
-          id
-        )
+          id,
+        ),
       );
       setMode('list');
     } catch (err) {
@@ -1849,7 +2021,7 @@ const TeaPage = () => {
     const { files } = e.target;
     if (!files || files.length === 0) return;
 
-    // ✅ File → base64 Data URL로 변환해서 저장 (새로고침/다른 기기에서도 유지)
+    // ✅ File → base64 Data URL로 변환해서 저장
     const readFileAsDataUrl = (file: File) =>
       new Promise<{ url: string; file: null }>((resolve, reject) => {
         const reader = new FileReader();
