@@ -1,4 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import type { WakaEntry } from '../waka/wakaCalendarData';
+import {
+  getTodayWaka,
+  getRecommendedWakaForMood,
+} from '../waka/wakaCalendarData';
 import {
   Sparkles,
   X,
@@ -279,101 +284,7 @@ interface WakaEntry {
   };
 }
 
-// ─── 샘플 데이터 ───
-const sampleData: Record<string, WakaEntry> = {
-  today: {
-    id: '0101',
-    date: { month: 1, day: 25, lunar: '12월 15일', term: '대한 후' },
-    tags: ['#1월', '#설경', '#소나무'],
-    content: {
-      right: 'み山には 松の雪だに 消えなくに',
-      left: '錦をるてふ 花見がてら',
-      hiragana:
-        'みやまには まつのゆきだに きえなくに\nにしきをるてふ はなみがてら',
-      author: '紀貫之',
-      source: '古今和歌集',
-      modern:
-        '奥深い山では、松に積もった雪さえまだ消えていないというのに、錦を織るというあの花見に出かけようとしているのですか。',
-      korean:
-        '깊은 산 소나무엔 눈도 채 녹지 않았는데\n비단 짜듯 곱다는 꽃구경을 가려 하는가',
-      commentary:
-        '아직 때가 무르익지 않았음을 경계하며, 들뜬 마음 대신 눈 덮인 산의 고요한 현실을 직시하게 하는 노래입니다.',
-    },
-    media: {
-      imageSrc:
-        'https://images.unsplash.com/photo-1483921020237-2ff51e8e4b22?q=80&w=1000&auto=format&fit=crop',
-    },
-  },
-  calm: {
-    id: 'rec-calm',
-    date: { month: 1, day: 26, lunar: '12월 16일', term: '입춘 전야' },
-    tags: ['#고요', '#달', '#성찰'],
-    content: {
-      right: '大空の 月の光し きよければ',
-      left: '影見し水ぞ まづこほりける',
-      hiragana:
-        'おおぞらの つきのひかりし きよければ\nかげみしみずぞ まずこおりける',
-      author: '読み人知らず',
-      source: '古今和歌集',
-      modern:
-        '大空の月の光があまりにも澄みきっているので、その姿を映していた水こそが真っ先に凍ってしまった。',
-      korean:
-        '드넓은 하늘의 달빛이 너무나 맑기에\n그 그림자를 비추던 물이 가장 먼저 얼어붙었구나',
-      commentary:
-        '차갑고 맑은 달빛의 아름다움과 혹독한 추위를 동시에 포착했습니다. 고요히 자신을 비추어보고 싶을 때 어울리는 노래입니다.',
-    },
-    media: {
-      imageSrc:
-        'https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?q=80&w=1000&auto=format&fit=crop',
-    },
-  },
-  energy: {
-    id: 'rec-energy',
-    date: { month: 2, day: 4, lunar: '1월 1일', term: '입춘' },
-    tags: ['#시작', '#물소리', '#생명력'],
-    content: {
-      right: '谷風に とくる氷の ひまごとに',
-      left: '打ち出づる波や 春の初花',
-      hiragana:
-        'たにかぜに とくるこおりの ひまごとに\nうちいづるなみや はるのはつはな',
-      author: '源当純',
-      source: '古今和歌集',
-      modern:
-        '谷風に解けていく氷の隙間ごとにほとばしり出る波こそが、春の初めの花なのだろう。',
-      korean:
-        '골짜기 바람에 녹는 얼음 틈 사이마다\n솟구치는 물결이 마치 봄의 첫 꽃 같구나',
-      commentary:
-        '얼음이 풀리며 흐르는 물을 꽃에 비유했습니다. 정체된 상황이 풀리고 새로운 활력이 시작됨을 알리는 희망찬 노래입니다.',
-    },
-    media: {
-      imageSrc:
-        'https://images.unsplash.com/photo-1518090676098-2253eb945492?q=80&w=1000&auto=format&fit=crop',
-    },
-  },
-  wait: {
-    id: 'rec-wait',
-    date: { month: 2, day: 10, lunar: '1월 7일', term: '우수 전' },
-    tags: ['#기다림', '#매화', '#인내'],
-    content: {
-      right: '東風吹かば 匂ひおこせよ 梅の花',
-      left: '主なしとて 春を忘るな',
-      hiragana:
-        'こちふかば においおこせよ うめのはな\nあるじなしとて はるをわするな',
-      author: '菅原道真',
-      source: '拾遺和歌集',
-      modern:
-        '東風が吹いたなら、その香りをこちらに届けておくれ、梅の花よ。主人가いないからといって、春を忘れてはならないぞ。',
-      korean:
-        '동풍이 불거든 그 향기를 내게 보내다오, 매화꽃이여.\n주인이 없다 하여 봄을 잊지 말아라.',
-      commentary:
-        '어떤 상황에서도 제 계절을 잊지 않고 꽃을 피우는 매화처럼, 묵묵히 때를 기다리는 마음을 노래했습니다.',
-    },
-    media: {
-      imageSrc:
-        'https://images.unsplash.com/photo-1516834474-48c0abc2a902?q=80&w=1000&auto=format&fit=crop',
-    },
-  },
-};
+
 
 // ─── 엽서형 와카 카드 ───
 const WakaPostcard: React.FC<{
