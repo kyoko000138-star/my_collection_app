@@ -283,9 +283,15 @@ const WakaPostcard: React.FC<{
   waka: WakaEntry;
   isRecommended?: boolean;
   onClose?: () => void;
-  lunarLabelOverride?: string;  // 오늘용: solarlunar 결과
-  hideSeasonalLabel?: boolean;  // 오늘 카드에서는 계절라벨 숨김
-}> = ({ waka, isRecommended, onClose, lunarLabelOverride, hideSeasonalLabel }) => {
+  lunarLabelOverride?: string; // 오늘용: solarlunar 결과
+  hideSeasonalLabel?: boolean; // 오늘 카드에서는 계절라벨 숨김 여부
+}> = ({
+  waka,
+  isRecommended,
+  onClose,
+  lunarLabelOverride,
+  hideSeasonalLabel,
+}) => {
   const [revealed, setRevealed] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -300,6 +306,7 @@ const WakaPostcard: React.FC<{
     [waka.date.month]
   );
 
+  // 추천 카드일 때만 약간 딜레이 후 등장
   useEffect(() => {
     if (isRecommended) {
       const timer = setTimeout(() => setRevealed(true), 600);
@@ -309,6 +316,7 @@ const WakaPostcard: React.FC<{
     return undefined;
   }, [waka.id, isRecommended]);
 
+  // 배경 사운드 재생 컨트롤
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -348,38 +356,43 @@ const WakaPostcard: React.FC<{
     setIsMuted((prev) => !prev);
   };
 
-  // 날짜 라벨: 양력 / (동적으로 계산한) 음력 / (옵션) 계절 설명
-  // 날짜 라벨: 1줄 = "양력 … · 음력 …" / 2줄째 = 계절 설명(있을 때만)
-  const solar = waka.date.solarLabel?.trim();
+  // ─── 날짜 라벨: 1줄(양력 · 음력) + 2줄째(절기) ───
+  let primaryLine = '';
+  if (waka.date.solarLabel) {
+    primaryLine = waka.date.solarLabel;
+  }
 
-  // 오늘 카드면 solarlunar 결과, 아니면 데이터의 lunarLabel
-  const lunar =
-    (lunarLabelOverride && lunarLabelOverride.trim()) ||
-    (waka.date.lunarLabel && waka.date.lunarLabel.trim()) ||
-    '';
+  // 음력 텍스트: 우선순위 = override > 데이터의 lunarLabel
+  let lunarText = '';
+  if (lunarLabelOverride && lunarLabelOverride.trim() !== '') {
+    lunarText = lunarLabelOverride.trim();
+  } else if (waka.date.lunarLabel && waka.date.lunarLabel.trim() !== '') {
+    lunarText = waka.date.lunarLabel.trim();
+  }
 
-  const seasonal =
+  if (lunarText) {
+    primaryLine = primaryLine
+      ? `${primaryLine} · ${lunarText}`
+      : lunarText;
+  }
+
+  let secondaryLine = '';
+  if (
     !hideSeasonalLabel &&
     waka.date.seasonalLabel &&
-    waka.date.seasonalLabel.trim()
-      ? waka.date.seasonalLabel.trim()
-      : '';
-
-  const firstLineParts: string[] = [];
-  if (solar) firstLineParts.push(solar);
-  if (lunar) firstLineParts.push(lunar);
-
-  const lines: string[] = [];
-  if (firstLineParts.length > 0) {
-    // 👉 양력 · 음력 한 줄로
-    lines.push(firstLineParts.join(' · '));
-  }
-  if (seasonal) {
-    // 👉 두 번째 줄: 절기/계절 설명만
-    lines.push(seasonal);
+    waka.date.seasonalLabel.trim() !== ''
+  ) {
+    // 2줄째에는 절기/계절 설명만
+    secondaryLine = waka.date.seasonalLabel.trim();
   }
 
-  const dateLabel = lines.join('\n');
+  const dateLabel =
+    secondaryLine.length > 0
+      ? `${primaryLine}\n${secondaryLine}`
+      : primaryLine;
+
+  // 날짜 / 저자·출전 공통 포인트 색
+  const DATE_ACCENT_COLOR = '#c3a27a';
 
   // ─── 스타일 ───
   const outerWrapper: React.CSSProperties = {
@@ -427,7 +440,7 @@ const WakaPostcard: React.FC<{
     inset: 0,
     display: 'flex',
     flexDirection: 'column',
-    padding: '13px 26px 24px',
+    padding: '10px 26px 24px', // ⬆ 날짜 조금 더 위로
     transition: 'opacity 2000ms ease, transform 2000ms ease',
     opacity: revealed ? 1 : 0,
     transform: revealed ? 'translateY(0)' : 'translateY(8px)',
@@ -463,19 +476,17 @@ const WakaPostcard: React.FC<{
     paddingBottom: 4,
     flex: 'none',
   };
-  
-  const DATE_ACCENT_COLOR = '#c3a27a'; // 더 진하게 하고 싶은 톤으로 조절 가능
 
   const dateLabelStyle: React.CSSProperties = {
     fontSize: 11,
     letterSpacing: '0.18em',
     textTransform: 'uppercase',
-    color: DATE_ACCENT_COLOR,               // 날짜 글자 색
-    borderBottom: `1px solid ${DATE_ACCENT_COLOR}`, // 아래 선도 같은 색
+    color: DATE_ACCENT_COLOR,
+    borderBottom: `1px solid ${DATE_ACCENT_COLOR}`,
     paddingBottom: 1,
     fontFamily: 'var(--font-kor)',
     whiteSpace: 'pre-line',
-    textShadow: '0 1px 2px rgba(0,0,0,0.45)', // 배경 위에서 또렷하게
+  };
 
   const wakaArea: React.CSSProperties = {
     position: 'relative',
@@ -518,9 +529,8 @@ const WakaPostcard: React.FC<{
     fontFamily: 'var(--font-jp-std)',
     letterSpacing: '0.1em',
     fontSize: 10,
-    color: DATE_ACCENT_COLOR,
-    opacity: 0.98,
-    textShadow: '0 1px 2px rgba(0,0,0,0.55)',
+    color: DATE_ACCENT_COLOR, // 날짜와 동일 포인트 색
+    opacity: 0.95,
   };
 
   const soundButtonWrapper: React.CSSProperties = {
@@ -690,7 +700,7 @@ const WakaPostcard: React.FC<{
           style={{
             width: 32,
             height: 1,
-            backgroundColor: '#e6dfd4',
+            backgroundColor: DATE_ACCENT_COLOR, // 날짜와 같은 색의 얇은 선
             margin: '4px auto',
           }}
         />
@@ -758,6 +768,7 @@ const WakaPostcard: React.FC<{
     </div>
   );
 };
+
 
 // ─── 심리테스트 모달 ───
 const AdvancedTest: React.FC<{
