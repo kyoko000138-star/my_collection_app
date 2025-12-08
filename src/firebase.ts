@@ -21,8 +21,6 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 // 🔐 Auth + Google 로그인 프로바이더
 const auth = getAuth(app);
-
-// ❗❗ 여기만 이렇게 수정!
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
   prompt: 'select_account',
@@ -35,5 +33,5 @@ const storage = getStorage(app);
 // 📁 Firestore 네임스페이스
 const appId = 'my-collection-app';
 
-// ✅ 최종 export (여기서만 한 번에 export)
+// ✅ 최종 export
 export { app, auth, db, storage, googleProvider, appId };
