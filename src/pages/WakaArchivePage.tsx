@@ -417,13 +417,16 @@ const WakaPostcard: React.FC<{
 
   const dateLabelStyle: React.CSSProperties = {
     fontSize: 11,
-    letterSpacing: '0.15em',
+    letterSpacing: '0.16em',
     textTransform: 'uppercase',
-    color: '#a08f7e',
-    borderBottom: '1px solid #d3c4af',
-    paddingBottom: 3,
     fontFamily: 'var(--font-kor)',
     whiteSpace: 'pre-line',
+    display: 'inline-block',
+    padding: '1px 5px',
+    borderRadius: 6,
+    color: '#4f4134',
+    border: '1px solid rgba(211, 196, 175, 0.9)',
+ 
   };
 
   const wakaArea: React.CSSProperties = {
@@ -460,16 +463,21 @@ const WakaPostcard: React.FC<{
     paddingTop: 48,
   };
 
+  // 👉 변경
   const authorBlock: React.CSSProperties = {
     position: 'absolute',
-    bottom: 16,
-    left: 12,
+    bottom: 14,
+    left: 10,
     fontFamily: 'var(--font-jp-std)',
     letterSpacing: '0.1em',
     fontSize: 10,
-    color: '#8e8070',
-    opacity: 0.85,
-  };
+    color: '#5e4d3c',
+    opacity: 0.95,
+    padding: '8px 6px',
+    borderRadius: 6,
+    border: '1px solid rgba(218, 201, 178, 0.9)',
+    boxShadow: '0 2px 10px rgba(255,255,255,0.9)',
+}
 
   const soundButtonWrapper: React.CSSProperties = {
     position: 'absolute',
