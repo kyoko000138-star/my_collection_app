@@ -1376,40 +1376,35 @@ function CalendarView({
     );
 
     const moodCounts: Record<string, number> = {};
-    monthlyEntries.forEach((e) => {
-      Object.values(e.answers).forEach((ans) => {
-        if (ans.moodId)
-          moodCounts[ans.moodId] = (moodCounts[ans.moodId] || 0) + 1;
-      });
-    });
+monthlyEntries.forEach((e) => {
+  // ① 오늘의 기분도 1회로 카운트
+  if (e.dayMoodId) {
+    moodCounts[e.dayMoodId] = (moodCounts[e.dayMoodId] || 0) + 1;
+  }
 
-    setMoodStats(
-      Object.entries(moodCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3) // 🔹 최대 상위 3개만 표시 → 14개 다 선택해도 여기서는 3개만 나옴
-        .map(([id, count]) => {
-          const info = ALL_MOOD_STAMPS.find((s) => s.id === id);
-          return info ? { icon: info.icon, label: info.label, count } : null;
-        })
-        .filter(Boolean) as any[]
-    );
+  // ② 각 질문 스탬프
+  Object.values(e.answers || {}).forEach((ans) => {
+    if (ans.moodId) {
+      moodCounts[ans.moodId] = (moodCounts[ans.moodId] || 0) + 1;
+    }
+  });
+});
 
     const placeCounts: Record<string, number> = {};
     monthlyEntries.forEach((e) => {
-      e.timeline.forEach((t) => {
+      (e.timeline || []).forEach((t) => {
         if (t.category !== 'home' && t.category !== 'work') {
-          const placeName = t.place.trim() || '외출';
-          placeCounts[placeName] = (placeCounts[placeName] || 0) + 1;
+          const preset = PLACE_PRESETS.find((p) => p.id === t.category);
+          const baseName = (t.place || '').trim();
+      // ① 내가 쓴 장소 이름
+      // ② 없으면 프리셋 라벨(마트, 카페, 약속…)
+      // ③ 그것도 없으면 '외출'
+          const placeName = baseName || preset?.label || '외출';
+
+           placeCounts[placeName] = (placeCounts[placeName] || 0) + 1;
         }
       });
     });
-    setEscapeStats(
-      Object.entries(placeCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 4)
-        .map(([p, c]) => ({ place: p, count: c }))
-    );
-  };
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDay = new Date(year, month, 1).getDay();
@@ -1676,6 +1671,26 @@ function JournalView({
   const [activeMoodSelector, setActiveMoodSelector] = useState<number | null>(
     null
   );
+
+    // 타임라인 시간 수정용
+  const handleTimelineTimeChangeInline = (id: string, raw: string) => {
+    setTimeline((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, time: raw } : t
+      )
+    );
+  };
+
+  const handleTimelineTimeBlurInline = (id: string) => {
+    setTimeline((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? { ...t, time: formatTimeDigits(t.time || '') }
+          : t
+      )
+    );
+  };
+
 
   const [docIdForDay, setDocIdForDay] = useState<string | null>(null); // 🔹 이 날짜 문서 id 기억
 
@@ -1997,18 +2012,27 @@ function JournalView({
                 }}
               >
                 {/* 시간 */}
-                <span
+                <input
+                  value={t.time}
+                  onChange={(e) =>
+                    handleTimelineTimeChangeInline(t.id, e.target.value)
+                  }
+                  onBlur={() => handleTimelineTimeBlurInline(t.id)}
+                  placeholder="00:00"
                   style={{
+                    border: 'none',
+                    background: 'transparent',
+                    width: '45px',
                     fontWeight: 'bold',
                     fontSize: '14px',
                     fontFamily: "'Noto Sans KR'",
                     color: '#666',
-                    minWidth: '45px',
+                    textAlign: 'center',
                     flexShrink: 0,
                   }}
-                >
-                  {t.time}
-                </span>
+                  />
+
+                
 
                 {/* 카테고리 뱃지 */}
                 <div
