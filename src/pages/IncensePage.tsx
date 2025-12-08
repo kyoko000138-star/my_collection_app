@@ -768,6 +768,16 @@ const IncensePage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0); // 🔹 추가
 
+  // ⬇⬇⬇ 이 부분 새로 추가
+  const triggerFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+  // ⬆⬆⬆ 여기까지
+
+
+  
   const [formData, setFormData] = useState<FormData>({
     id: null,
     date: todayString(),
