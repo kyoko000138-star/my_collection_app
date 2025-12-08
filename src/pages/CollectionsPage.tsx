@@ -429,6 +429,15 @@ const CollectionsPage: React.FC = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // ✅ 여기 추가!
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setAuthLoading(false);
+    });
+
+    return () => unsub();
+  }, []);
 
   const [formData, setFormData] = useState<{
     id: string | null;
