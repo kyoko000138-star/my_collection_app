@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus,
   Camera,
@@ -185,6 +185,21 @@ const Styles: any = {
     boxShadow: `0 2px 8px rgba(0,0,0,0.03)`,
     cursor: 'pointer',
   },
+  uploadButton: {
+    width: '100%',
+    height: 48,
+    borderRadius: 4,
+    border: `1px dashed ${Colors.border}`,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#FAF7F2',
+    color: Colors.textSub,
+    cursor: 'pointer',
+    fontSize: 13,
+    gap: 8,
+    marginBottom: 12,
+  },
 };
 
 /* -------------------------------------------------------------------------- */
@@ -235,6 +250,18 @@ const COLLECTION_NAME = 'collectionItems';
 const todayString = () => new Date().toISOString().slice(0, 10);
 
 /* -------------------------------------------------------------------------- */
+/* 파일 → base64 data URL 변환 (IncensePage와 동일)                           */
+/* -------------------------------------------------------------------------- */
+
+const fileToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+/* -------------------------------------------------------------------------- */
 /* 타입 정의                                                                  */
 /* -------------------------------------------------------------------------- */
 
@@ -255,7 +282,12 @@ interface CollectionItem {
   weight: string;
   condition: string;
   tags: string[];
-  imageUrls: string[]; // Firestore에는 여전히 배열로 저장 (첫 번째만 사용)
+  imageUrls: string[]; // Firestore에는 여전히 배열로 저장
+}
+
+interface FormImage {
+  url: string; // data URL
+  file: File | null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -265,27 +297,64 @@ interface CollectionItem {
 const ImageStrip = ({
   images,
   onClick,
+  onRemove,
 }: {
   images: string[];
-  onClick: (url: string) => void;
+  onClick?: (url: string, index: number) => void;
+  onRemove?: (index: number) => void;
 }) => (
   <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
     {images.map((url, i) => (
-      <img
+      <div
         key={i}
-        src={url}
-        alt={`thumb-${i}`}
         style={{
+          position: 'relative',
           width: 70,
           height: 70,
-          objectFit: 'cover',
-          borderRadius: 4,
-          border: `1px solid ${Colors.border}`,
           flexShrink: 0,
-          cursor: 'pointer',
         }}
-        onClick={() => onClick(url)}
-      />
+      >
+        <img
+          src={url}
+          alt={`thumb-${i}`}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            borderRadius: 4,
+            border: `1px solid ${Colors.border}`,
+            cursor: onClick ? 'pointer' : 'default',
+          }}
+          onClick={() => onClick && onClick(url, i)}
+        />
+        {onRemove && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(i);
+            }}
+            style={{
+              position: 'absolute',
+              top: -6,
+              right: -6,
+              width: 18,
+              height: 18,
+              borderRadius: '50%',
+              border: 'none',
+              backgroundColor: 'rgba(0,0,0,0.65)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              padding: 5,
+            }}
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
     ))}
   </div>
 );
@@ -357,7 +426,8 @@ const CollectionsPage: React.FC = () => {
   const [fullImage, setFullImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // ⚠️ 이미지: 파일이 아니라 "URL 한 줄"만 저장
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const [formData, setFormData] = useState<{
     id: string | null;
     name: string;
@@ -375,7 +445,7 @@ const CollectionsPage: React.FC = () => {
     weight: string;
     condition: string;
     tags: string[];
-    imageUrl: string;
+    images: FormImage[];
   }>({
     id: null,
     name: '',
@@ -393,7 +463,7 @@ const CollectionsPage: React.FC = () => {
     weight: '',
     condition: '양호',
     tags: [],
-    imageUrl: '',
+    images: [],
   });
 
   /* ---------------------------- Auth & Firestore ------------------------- */
@@ -450,7 +520,6 @@ const CollectionsPage: React.FC = () => {
         setItems(list);
         setItemsLoading(false);
 
-        // detail 보고 있었다면 최신 데이터로 갱신
         if (selectedItem) {
           const updated = list.find((it) => it.id === selectedItem.id);
           if (updated) setSelectedItem(updated);
@@ -488,7 +557,7 @@ const CollectionsPage: React.FC = () => {
         weight: item.weight || '',
         condition: item.condition || '양호',
         tags: item.tags || [],
-        imageUrl: item.imageUrls?.[0] ?? '', // 기존 이미지 있으면 첫 번째만
+        images: (item.imageUrls || []).map((url) => ({ url, file: null })),
       });
     } else {
       setFormData({
@@ -508,7 +577,7 @@ const CollectionsPage: React.FC = () => {
         weight: '',
         condition: '양호',
         tags: [],
-        imageUrl: '',
+        images: [],
       });
     }
     setMode('form');
@@ -530,10 +599,8 @@ const CollectionsPage: React.FC = () => {
         ? Number(formData.priceAmount)
         : null;
 
-      // 🔹 Storage 안 쓰고, imageUrl 문자열만 배열로 감싸서 저장
-      const imageUrls = formData.imageUrl.trim()
-        ? [formData.imageUrl.trim()]
-        : [];
+      // 🔹 IncensePage와 동일: 폼의 images 배열 → imageUrls
+      const imageUrls = formData.images.map((img) => img.url);
 
       const payload = {
         name: formData.name.trim(),
@@ -589,6 +656,35 @@ const CollectionsPage: React.FC = () => {
       console.error(err);
       alert('삭제 중 오류가 발생했습니다.');
     }
+  };
+
+  /* --------------------------- 이미지 업로드 ------------------------------ */
+
+  const handleImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const fileArray = Array.from(files);
+    const newImages: FormImage[] = [];
+
+    for (const file of fileArray) {
+      const url = await fileToDataUrl(file);
+      newImages.push({ url, file });
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      images: [...prev.images, ...newImages],
+    }));
+
+    // 같은 파일 다시 선택 가능하도록 리셋
+    e.target.value = '';
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
   };
 
   /* ------------------------------ 필터링 로직 ----------------------------- */
@@ -1003,7 +1099,10 @@ const CollectionsPage: React.FC = () => {
             {/* 이미지 */}
             {i.imageUrls?.length > 0 && (
               <section style={{ marginBottom: 24 }}>
-                <ImageStrip images={i.imageUrls} onClick={setFullImage} />
+                <ImageStrip
+                  images={i.imageUrls}
+                  onClick={(url) => setFullImage(url)}
+                />
               </section>
             )}
 
@@ -1143,43 +1242,49 @@ const CollectionsPage: React.FC = () => {
           </button>
 
           <form onSubmit={handleSave} style={{ paddingBottom: 40 }}>
-            {/* 사진 (URL 입력 방식) */}
+            {/* 사진 (파일 업로드 방식) */}
             <section style={{ ...Styles.section, paddingTop: 56 }}>
               <div style={{ marginBottom: 8 }}>
-                <span style={Styles.label}>이미지 URL (선택)</span>
+                <span style={Styles.label}>사진</span>
               </div>
-              <input
-                type="text"
-                style={Styles.input}
-                placeholder="https:// 로 시작하는 이미지 주소를 붙여넣으세요"
-                value={formData.imageUrl}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    imageUrl: e.target.value,
-                  }))
-                }
-              />
-              <p
+              <div
                 style={{
-                  marginTop: 8,
-                  fontSize: 11,
-                  color: Colors.textSub,
-                  lineHeight: 1.6,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
                 }}
               >
-                파일을 직접 올리는 대신, 외부에 저장된 이미지 주소를 연결합니다.
-                <br />
-                이미지가 없으면 이 칸은 비워두셔도 괜찮아요.
-              </p>
-              {formData.imageUrl && (
-                <div style={{ marginTop: 10 }}>
-                  <ImageStrip
-                    images={[formData.imageUrl]}
-                    onClick={() => {}}
-                  />
-                </div>
-              )}
+                <button
+                  type="button"
+                  onClick={triggerFileInput}
+                  style={Styles.uploadButton}
+                >
+                  <Camera size={20} strokeWidth={1.5} />
+                  <span>사진 추가</span>
+                </button>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageUpload}
+                  ref={fileInputRef}
+                  style={{ display: 'none' }}
+                />
+                {formData.images.length > 0 && (
+                  <div style={{ flex: 1, overflowX: 'auto' }}>
+                    <ImageStrip
+                      images={formData.images.map((i) => i.url)}
+                      onClick={() => {}}
+                      onRemove={(idx) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          images: prev.images.filter((_, i) => i !== idx),
+                        }))
+                      }
+                    />
+                  </div>
+                )}
+              </div>
             </section>
 
             {/* 기본 정보 */}
