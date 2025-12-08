@@ -58,30 +58,25 @@ const Fonts = {
 };
 
 // TS 귀찮으니까 any로 통일
-const Styles = ({
+const Styles: any = {
   // 🔹 바깥 회색 영역
   containerWrapper: {
-    // 🔥 flex 정렬 + 추가 패딩 제거
-    // display: 'flex',
-    // justifyContent: 'center',
     backgroundColor: '#F0F0F0',
     minHeight: '100vh',
-    // padding: '0 24px',
-    width: '100%',            // 부모(paMain) 폭 그대로 따라가기
+    width: '100%',
   },
 
   // 🔹 안쪽 하얀 카드(폼 전체)
   pageContainer: {
     width: '100%',
-    // maxWidth: '560px',      // 🔥 이 제한 제거 → paMain 폭 = 컬렉션이랑 동일
     minHeight: '100vh',
     backgroundColor: Colors.bg,
     fontFamily: Fonts.sans,
     color: Colors.textMain,
     paddingBottom: '80px',
-    // boxShadow: '0 0 20px rgba(0,0,0,0.05)', // (원하면 유지, 컬렉션이랑 맞추려면 제거)
     position: 'relative',
   },
+
   header: {
     position: 'sticky',
     top: 0,
@@ -95,11 +90,13 @@ const Styles = ({
     justifyContent: 'space-between',
     height: '60px',
   },
+
   section: {
     padding: '24px 20px',
     borderBottom: `1px solid ${Colors.border}`,
     backgroundColor: Colors.bg,
   },
+
   sectionTitle: {
     fontFamily: Fonts.serif,
     fontSize: '15px',
@@ -111,7 +108,9 @@ const Styles = ({
     alignItems: 'center',
     gap: '6px',
   },
+
   inputGroup: { marginBottom: '24px' },
+
   label: {
     fontSize: '12px',
     fontWeight: 600,
@@ -120,6 +119,7 @@ const Styles = ({
     display: 'block',
     letterSpacing: '0.02em',
   },
+
   input: {
     width: '100%',
     padding: '10px 0',
@@ -133,6 +133,7 @@ const Styles = ({
     fontFamily: Fonts.sans,
     transition: 'border-color 0.2s',
   },
+
   select: {
     padding: '10px 20px 10px 0',
     border: 'none',
@@ -147,6 +148,7 @@ const Styles = ({
     appearance: 'none',
     backgroundImage: 'none',
   },
+
   textArea: {
     width: '100%',
     padding: '16px',
@@ -157,14 +159,15 @@ const Styles = ({
     color: Colors.textMain,
     outline: 'none',
     minHeight: '120px',
-     // 추가
+    // 추가
     maxHeight: '200px',
     overflowY: 'auto',
-  // -----
+    // -----
     resize: 'none',
     lineHeight: 1.6,
     fontFamily: Fonts.serif,
   },
+
   chipRowTight: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -172,7 +175,6 @@ const Styles = ({
     justifyContent: 'flex-start',
   },
 
-  // ✅ 새로 추가: 한 줄 + 가로 스크롤용
   chipRowScroll: {
     display: 'flex',
     flexWrap: 'nowrap',
