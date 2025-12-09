@@ -5,50 +5,34 @@ const FogOverlay: React.FC = () => {
     <div
       style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        pointerEvents: 'none', // 클릭은 통과되도록
-        zIndex: 50,
-        background: 'linear-gradient(to bottom, rgba(100, 80, 120, 0.2), transparent)',
-        backdropFilter: 'blur(1px) grayscale(30%)', // 살짝 흐리고 채도 낮춤
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        top: 0, left: 0, width: '100%', height: '100%',
+        pointerEvents: 'none', // 클릭은 통과됨
+        zIndex: 5, // 배경보다는 위, UI보다는 아래
+        overflow: 'hidden'
       }}
     >
-      {/* 안개 애니메이션 효과 (CSS로 흐르는 느낌) */}
       <style>
         {`
-          @keyframes fogMove {
-            0% { transform: translateX(-10%); opacity: 0.3; }
-            50% { transform: translateX(10%); opacity: 0.6; }
-            100% { transform: translateX(-10%); opacity: 0.3; }
+          @keyframes fogFloat {
+            0% { transform: translateX(-5%) translateY(0); opacity: 0.4; }
+            50% { transform: translateX(5%) translateY(-2%); opacity: 0.7; }
+            100% { transform: translateX(-5%) translateY(0); opacity: 0.4; }
           }
         `}
       </style>
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: -50,
-          right: -50,
-          bottom: 0,
-          background: 'radial-gradient(circle, transparent 40%, rgba(200, 200, 220, 0.4) 90%)',
-          animation: 'fogMove 10s infinite ease-in-out',
-        }}
-      />
+      {/* 안개 레이어 1 */}
       <div style={{
-        position: 'absolute',
-        top: '10%',
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 12,
-        fontWeight: 'bold',
-        textShadow: '0 0 5px rgba(0,0,0,0.5)',
-        letterSpacing: '0.1em'
+        position: 'absolute', top: '-50%', left: '-50%', width: '200%', height: '200%',
+        background: 'radial-gradient(ellipse at center, transparent 30%, rgba(120, 110, 130, 0.4) 90%)',
+        backdropFilter: 'blur(2px) grayscale(40%)',
+        animation: 'fogFloat 20s infinite ease-in-out',
+      }} />
+      {/* 안개 텍스트 */}
+      <div style={{
+        position: 'absolute', top: 20, right: 20,
+        color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: 'bold'
       }}>
-        PMS FOG DETECTED
+        PMS FOG ACTIVE
       </div>
     </div>
   );
