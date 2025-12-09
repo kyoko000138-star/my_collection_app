@@ -1,91 +1,31 @@
-// src/pages/MoneyRoomPage.tsx
-
-
-// src/pages/MoneyRoomPage.tsx 내부
-
-// ... imports
-import { createJourney, evaluateJourney, RouteMode } from '../money/moneyJourney';
-
-// ... Main Component
-
-  // 1. [갈림길] 월드맵 상태 (초기값 'calm')
-  const [routeMode, setRouteMode] = useState<RouteMode>('calm');
-  
-  // 2. 월드맵 데이터 생성 (routeMode 의존)
-  const [journey, setJourney] = useState(() => createJourney('calm'));
-
-  // 3. 루트 변경 핸들러
-  const handleRouteChange = (newMode: RouteMode) => {
-    setRouteMode(newMode);
-    // 모드를 바꾸면 맵을 새로 만듦 (현재 진행도가 맵 길이를 넘지 않게 조정)
-    setJourney(prev => {
-      const newMap = createJourney(newMode);
-      const safeNodeId = Math.min(prev.currentNodeId, newMap.nodes.length - 1);
-      return { ...newMap, currentNodeId: safeNodeId };
-    });
-  };
-
-  // 4. 진행도 업데이트 (useEffect)
-  useEffect(() => {
-    // evaluateJourney 호출 시 필요한 데이터 모음
-    const ctx = {
-      variableBudget: monthlyBudget.variableBudget,
-      totalExpense: /* 지출 합계 계산 로직 */,
-      noSpendDays: /* 무지출 일수 계산 로직 */,
-      dayOfMonth: today.getDate(),
-    };
-    
-    setJourney(prev => evaluateJourney(prev, ctx));
-  }, [monthlyBudget, transactions, today]); // 의존성 배열
-
-  // ... (중략)
-
-  return (
-    <div className="...">
-      {/* ... 상단 헤더 ... */}
-
-      {/* 🗺️ 월드맵 (갈림길 기능 포함) */}
-      <JourneyMap 
-        journey={journey} 
-        onChangeRoute={handleRouteChange} 
-      />
-
-      {/* 🌙 Luna 모드 패널 (기존 코드 유지) */}
-      {/* ... */}
-
-      {/* 🛡️ 무지출 보드 (Luna 실드 기능 포함) */}
-      <NoSpendBoard 
-        dayStatuses={dayStatuses} 
-        lunaMode={lunaMode} // <-- Luna 모드 전달 필수
-      />
-
-      {/* ... 나머지 컴포넌트들 ... */}
-    </div>
-  );
-import React, { useMemo, useState } from 'react';
-import { PenTool, Swords, ChevronDown, ChevronUp, Sprout, Search, Zap, PiggyBank, Coffee, Car, ShoppingBag } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { 
+  PenTool, Swords, Sprout, Search, Coffee, Car, ShoppingBag, 
+  Map, Moon, Shield, Scroll, Backpack, DoorOpen 
+} from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 // 컴포넌트
-import MoneyStats from '../components/money/MoneyStats';
-import CollectionBar from '../components/money/CollectionBar';
+import MoneyShopCard from '../components/money/MoneyShopCard';
 import NoSpendBoard from '../components/money/NoSpendBoard';
 import MoneyQuestCard from '../components/money/MoneyQuestCard';
 import MoneyMonsterCard from '../components/money/MoneyMonsterCard';
 import MoneyWeaponCard from '../components/money/MoneyWeaponCard';
-import MoneyShopCard from '../components/money/MoneyShopCard';
+import JourneyMap from '../components/money/JourneyMap'; // [NEW] 월드맵 컴포넌트
 import Modal from '../components/ui/Modal'; 
 
 // 로직
 import { calcLeafPoints, calcHP, calcRPGStats, calcAdvancedXP } from '../money/moneyGameLogic';
 import { calcMonsterHp, pickMonsterForCategory, getTopDiscretionaryCategory } from '../money/moneyMonsters';
+import { createJourney, evaluateJourney, RouteMode, MoneyJourneyState } from '../money/moneyJourney'; // [NEW] 월드맵 로직
+import { calcCycleStatus, CycleSettings, CycleStatus, LunaMode } from '../money/moneyLuna'; // [NEW] Luna 모드 로직
 
 // ---- 타입 정의 ----
 type TxType = 'expense' | 'income';
-interface TransactionLike { id: string; date: string; type: TxType; category: string; amount: number; isEssential?: boolean; }
+interface TransactionLike { id: string; date: string; type: TxType; category: string; amount: number; isEssential?: boolean; isRecoverySnack?: boolean; }
 interface InstallmentLike { id: string; name: string; totalAmount: number; paidAmount: number; }
 interface DayStatusLike { day: number; isNoSpend: boolean; completedQuests: number; }
-interface MonthlyBudgetLike { year: number; month: number; variableBudget: number; noSpendTarget: number; }
+interface MonthlyBudgetLike { year: number; month: number; variableBudget: number; noSpendTarget: number; snackRecoveryBudget?: number; }
 
 // 절약 습관 타입
 interface SavingHabit { id: string; name: string; icon: React.ReactNode; savedAmount: number; checked: boolean; }
@@ -94,24 +34,30 @@ const MoneyRoomPage: React.FC = () => {
   const today = useMemo(() => new Date(), []);
   
   // 🔹 UI 상태
-  const [activeTab, setActiveTab] = useState<'record' | 'adventure'>('record'); // 👈 기본을 'record'로 변경 (가계부 중시)
+  const [activeTab, setActiveTab] = useState<'record' | 'adventure'>('record');
   const [activeModal, setActiveModal] = useState<'inventory' | 'quest' | 'calendar' | null>(null);
   const [location, setLocation] = useState<'field' | 'village'>('field');
   const [farmMessage, setFarmMessage] = useState<string | null>(null);
 
   // 🔹 데이터 상태
-  const [monthlyBudget, setMonthlyBudget] = useState<MonthlyBudgetLike>({ year: today.getFullYear(), month: today.getMonth() + 1, variableBudget: 500_000, noSpendTarget: 10 });
+  const [monthlyBudget, setMonthlyBudget] = useState<MonthlyBudgetLike>({ 
+    year: today.getFullYear(), 
+    month: today.getMonth() + 1, 
+    variableBudget: 500_000, 
+    noSpendTarget: 10,
+    snackRecoveryBudget: 30_000 // [NEW] 회복 간식 예산
+  });
   const [transactions, setTransactions] = useState<TransactionLike[]>([]);
   const [installments, setInstallments] = useState<InstallmentLike[]>([]);
   const [dayStatuses, setDayStatuses] = useState<DayStatusLike[]>([]);
+  
+  // 게임 재화
   const [gameGold, setGameGold] = useState(0); 
   const [spentLeaf, setSpentLeaf] = useState(0);
   const [energy, setEnergy] = useState(5);
-  
-  // 💰 [NEW] 현실 저축 누적액 (가계부 기능 강화)
-  const [realSavings, setRealSavings] = useState(0);
+  const [realSavings, setRealSavings] = useState(0); // 현실 저축 누적
 
-  // 🌱 [NEW] 오늘의 절약 습관 (매일 초기화 로직은 생략, 예시용 state)
+  // 🌱 오늘의 절약 습관
   const [habits, setHabits] = useState<SavingHabit[]>([
     { id: 'coffee', name: '커피 대신 물', icon: <Coffee size={14}/>, savedAmount: 4500, checked: false },
     { id: 'taxi', name: '택시 대신 버스', icon: <Car size={14}/>, savedAmount: 10000, checked: false },
@@ -119,19 +65,73 @@ const MoneyRoomPage: React.FC = () => {
   ]);
 
   // 🔹 입력 폼
-  const [txForm, setTxForm] = useState({ date: today.toISOString().slice(0, 10), type: 'expense' as TxType, category: '', amount: '', isEssential: false });
+  const [txForm, setTxForm] = useState({ 
+    date: today.toISOString().slice(0, 10), 
+    type: 'expense' as TxType, 
+    category: '', 
+    amount: '', 
+    isEssential: false,
+    isRecoverySnack: false // [NEW] 회복 간식 체크
+  });
 
-  // 🧮 계산 로직
+  // ---------------- [NEW] Luna 모드 로직 ----------------
+  const [cycleSettings, setCycleSettings] = useState<CycleSettings>({
+    lastPeriodStart: '',   // 사용자 입력 필요
+    cycleLength: 33,       // 평균 주기
+    manualMode: null,
+  });
+
+  const cycleStatus: CycleStatus = useMemo(
+    () => calcCycleStatus(today, cycleSettings),
+    [today, cycleSettings],
+  );
+  const lunaMode: LunaMode = cycleStatus.mode;
+
+  // ---------------- [NEW] 월드맵(Journey) 로직 ----------------
+  const [routeMode, setRouteMode] = useState<RouteMode>('calm');
+  const [journey, setJourney] = useState<MoneyJourneyState>(() => createJourney('calm'));
+
+  // 루트 변경 핸들러
+  const handleRouteChange = (newMode: RouteMode) => {
+    setRouteMode(newMode);
+    setJourney(prev => {
+      const newMap = createJourney(newMode);
+      // 기존 진행도를 유지하되, 새 맵의 최대 길이를 넘지 않게 조정
+      const safeNodeId = Math.min(prev.currentNodeId, newMap.nodes.length - 1);
+      return { ...newMap, currentNodeId: safeNodeId };
+    });
+  };
+
+  // 진행도 업데이트 (데이터 변경 시 자동 계산)
+  useEffect(() => {
+    // 실제 지출 합계
+    const calculatedTotalExpense = transactions
+      .filter((t) => t.type === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    // 실제 무지출 일수
+    const calculatedNoSpendDays = dayStatuses.filter((d) => d.isNoSpend).length;
+
+    const ctx = {
+      variableBudget: monthlyBudget.variableBudget,
+      totalExpense: calculatedTotalExpense,
+      noSpendDays: calculatedNoSpendDays,
+      dayOfMonth: today.getDate(),
+    };
+    
+    setJourney(prev => evaluateJourney(prev, ctx));
+  }, [monthlyBudget, transactions, dayStatuses, today]);
+
+
+  // 🧮 기존 계산 로직들
   const totalLeafPoints = useMemo(() => calcLeafPoints(transactions, dayStatuses, installments), [transactions, dayStatuses, installments]);
   const currentLeaf = Math.max(0, totalLeafPoints - spentLeaf);
   const currentHP = useMemo(() => calcHP(monthlyBudget, transactions), [monthlyBudget, transactions]);
   
-  // RPG 스탯 (저축액이 DEX에 반영됨!)
   const rpgStats = useMemo(() => calcRPGStats(transactions, dayStatuses, gameGold + realSavings / 100), [transactions, dayStatuses, gameGold, realSavings]);
   const { currentExp, level, maxExp } = useMemo(() => calcAdvancedXP(rpgStats, installments), [rpgStats, installments]);
   const expRatio = (currentExp / maxExp) * 100;
 
-  // 예산 계산
   const totalExpense = useMemo(() => transactions.filter(t => t.type === 'expense').reduce((acc, cur) => acc + cur.amount, 0), [transactions]);
   const remainBudget = monthlyBudget.variableBudget - totalExpense;
   const budgetRatio = Math.min(100, Math.max(0, (remainBudget / monthlyBudget.variableBudget) * 100));
@@ -168,9 +168,17 @@ const MoneyRoomPage: React.FC = () => {
   const handleAddTx = () => {
     const amountNum = Number(txForm.amount.replace(/,/g, ''));
     if (!txForm.category || !amountNum) return alert('입력 확인');
-    const newTx: TransactionLike = { id: `${Date.now()}`, date: txForm.date, type: txForm.type, category: txForm.category.trim(), amount: amountNum, isEssential: txForm.isEssential };
+    const newTx: TransactionLike = { 
+      id: `${Date.now()}`, 
+      date: txForm.date, 
+      type: txForm.type, 
+      category: txForm.category.trim(), 
+      amount: amountNum, 
+      isEssential: txForm.isEssential,
+      isRecoverySnack: txForm.isRecoverySnack
+    };
     setTransactions((prev) => [newTx, ...prev]);
-    setTxForm((prev) => ({ ...prev, amount: '', category: '' }));
+    setTxForm((prev) => ({ ...prev, amount: '', category: '', isRecoverySnack: false }));
   };
 
   const toggleTodayNoSpend = () => {
@@ -202,11 +210,11 @@ const MoneyRoomPage: React.FC = () => {
     setHabits(prev => prev.map(h => {
       if (h.id === id) {
         const nextState = !h.checked;
-        if (nextState) { // 체크 시
-          setRealSavings(s => s + h.savedAmount); // 저축액 증가
-          setGameGold(g => g + 50); // 게임 골드 보상
+        if (nextState) {
+          setRealSavings(s => s + h.savedAmount);
+          setGameGold(g => g + 50);
           confetti({ particleCount: 30, origin: { y: 0.8 }, colors: ['#88ff5a'] });
-        } else { // 체크 해제 시
+        } else {
           setRealSavings(s => Math.max(0, s - h.savedAmount));
           setGameGold(g => Math.max(0, g - 50));
         }
@@ -250,21 +258,47 @@ const MoneyRoomPage: React.FC = () => {
 
       {/* 🔹 탭 전환 */}
       <div style={{ padding: '16px', display: 'flex', gap: 10 }}>
-        <button onClick={() => setActiveTab('record')} style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', backgroundColor: activeTab === 'record' ? '#fff' : 'rgba(255,255,255,0.2)', color: activeTab === 'record' ? '#333' : '#fff', fontWeight: 'bold', cursor: 'pointer' }}>
-          <PenTool size={14} style={{ marginRight: 4, display: 'inline' }} />
-          기록 & 습관
+        <button onClick={() => setActiveTab('record')} style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', backgroundColor: activeTab === 'record' ? '#fff' : 'rgba(255,255,255,0.2)', color: activeTab === 'record' ? '#333' : '#fff', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <PenTool size={14} style={{ marginRight: 4 }} /> 기록 & 습관
         </button>
-        <button onClick={() => setActiveTab('adventure')} style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', backgroundColor: activeTab === 'adventure' ? '#fff' : 'rgba(255,255,255,0.2)', color: activeTab === 'adventure' ? '#333' : '#fff', fontWeight: 'bold', cursor: 'pointer' }}>
-          <Swords size={14} style={{ marginRight: 4, display: 'inline' }} />
-          모험 & 전투
+        <button onClick={() => setActiveTab('adventure')} style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', backgroundColor: activeTab === 'adventure' ? '#fff' : 'rgba(255,255,255,0.2)', color: activeTab === 'adventure' ? '#333' : '#fff', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <Swords size={14} style={{ marginRight: 4 }} /> 모험 & 전투
         </button>
       </div>
 
-      {/* ========== [기록 & 습관 탭] (대폭 강화됨!) ========== */}
+      {/* ========== [기록 & 습관 탭] ========== */}
       {activeTab === 'record' && (
         <div className="fade-in" style={{ padding: '0 16px', color: '#333' }}>
           
-          {/* 1. 예산 모니터 (Visual) */}
+          {/* 🗺️ [NEW] 월드맵 (갈림길 기능) */}
+          <JourneyMap journey={journey} onChangeRoute={handleRouteChange} />
+
+          {/* 🌙 [NEW] Luna 모드 패널 */}
+          <div style={{ 
+            marginBottom: 16, padding: '10px 12px', borderRadius: 16, border: '1px solid #e5e5e5', backgroundColor: '#fff',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ padding: 6, borderRadius: '50%', backgroundColor: lunaMode === 'normal' ? '#f3f4f6' : lunaMode === 'pms' ? '#fee2e2' : '#dbeafe' }}>
+                <Moon size={16} color={lunaMode === 'pms' ? '#ef4444' : lunaMode === 'rest' ? '#3b82f6' : '#6b7280'} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 'bold' }}>CURRENT MODE</span>
+                <span style={{ fontSize: 12, fontWeight: 'bold', color: '#374151' }}>
+                  {lunaMode === 'normal' && 'NORMAL'}
+                  {lunaMode === 'pms' && 'PMS (주의)'}
+                  {lunaMode === 'rest' && 'REST (휴식)'}
+                </span>
+              </div>
+            </div>
+            
+            {/* 설정 (간단 토글 버튼 등) */}
+            <div style={{ fontSize: 10, color: '#9ca3af', textAlign: 'right' }}>
+              {lunaMode === 'normal' ? '평온한 상태' : '시스템 보호 가동중'}
+            </div>
+          </div>
+
+          {/* 1. 예산 모니터 */}
           <div style={{ padding: '20px', borderRadius: 20, backgroundColor: '#fff', marginBottom: 16, boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 }}>
               <div style={{ fontSize: 12, color: '#888' }}>이번 달 남은 예산</div>
@@ -286,7 +320,7 @@ const MoneyRoomPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 2. 절약 습관 트래커 (Habit Tracker) */}
+          {/* 2. 절약 습관 트래커 */}
           <div style={{ padding: '16px', borderRadius: 20, backgroundColor: '#fff', marginBottom: 16, boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
             <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
               <Sprout size={16} color="#4caf50" /> 오늘의 절약 행동
@@ -319,12 +353,11 @@ const MoneyRoomPage: React.FC = () => {
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed #eee', textAlign: 'center' }}>
                 <span style={{ fontSize: 12, color: '#555' }}>오늘 아낀 돈 합계: </span>
                 <span style={{ fontSize: 14, fontWeight: 'bold', color: '#2e7d32' }}>{formatMoney(realSavings)}원</span>
-                <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>(이 돈은 캐릭터 DEX 스탯을 올려줍니다!)</div>
               </div>
             )}
           </div>
 
-          {/* 3. 빠른 지출 입력 */}
+          {/* 3. 빠른 지출 입력 (회복 간식 체크 포함) */}
           <div style={{ padding: '20px', borderRadius: 20, backgroundColor: '#fff', marginBottom: 16 }}>
             <div style={{ fontWeight: 'bold', marginBottom: 12, fontSize: 14 }}>💸 지출 기록하기</div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -335,9 +368,29 @@ const MoneyRoomPage: React.FC = () => {
               </select>
             </div>
             <input placeholder="내용 (예: 편의점)" value={txForm.category} onChange={e => setTxForm(p => ({...p, category: e.target.value}))} style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: 10, marginBottom: 8 }} />
-            <div style={{ display: 'flex', gap: 8 }}>
+            
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
               <input placeholder="금액" value={txForm.amount} onChange={e => setTxForm(p => ({...p, amount: e.target.value}))} style={{ flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: 10 }} />
-              <button onClick={handleAddTx} style={{ padding: '0 20px', backgroundColor: '#333', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 'bold' }}>입력</button>
+              <button onClick={handleAddTx} style={{ padding: '0 20px', height: 42, backgroundColor: '#333', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 'bold' }}>입력</button>
+            </div>
+
+            {/* 옵션 체크박스 */}
+            <div style={{ display: 'flex', gap: 12 }}>
+               <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#666' }}>
+                 <input type="checkbox" checked={txForm.isEssential} onChange={e => setTxForm(p => ({...p, isEssential: e.target.checked}))} />
+                 필수 지출
+               </label>
+               
+               {/* [NEW] 회복 간식 체크 (Luna 모드 연동) */}
+               <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: lunaMode === 'normal' ? '#ccc' : '#e11d48' }}>
+                 <input 
+                   type="checkbox" 
+                   checked={txForm.isRecoverySnack} 
+                   onChange={e => setTxForm(p => ({...p, isRecoverySnack: e.target.checked}))}
+                   disabled={lunaMode === 'normal'} 
+                 />
+                 회복 간식 {lunaMode === 'normal' && '(비활성)'}
+               </label>
             </div>
           </div>
 
@@ -347,7 +400,10 @@ const MoneyRoomPage: React.FC = () => {
               <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>최근 내역</div>
               {transactions.slice(0, 3).map(t => (
                 <div key={t.id} style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f5f5f5' }}>
-                  <span style={{ color: '#555' }}>{t.category}</span>
+                  <span style={{ color: '#555' }}>
+                    {t.category} 
+                    {t.isRecoverySnack && <span style={{ fontSize: 10, color: '#e11d48', marginLeft: 4 }}>[회복]</span>}
+                  </span>
                   <span style={{ fontWeight: 500, color: t.type === 'expense' ? '#ff4444' : '#4caf50' }}>
                     {t.type === 'expense' ? '-' : '+'}{formatMoney(t.amount)}
                   </span>
@@ -358,7 +414,7 @@ const MoneyRoomPage: React.FC = () => {
         </div>
       )}
 
-      {/* ========== [모험 탭] (기존 게임 요소) ========== */}
+      {/* ========== [모험 탭] ========== */}
       {activeTab === 'adventure' && location === 'field' && (
         <div className="fade-in" style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
           
@@ -428,11 +484,16 @@ const MoneyRoomPage: React.FC = () => {
             🔥 공격 (성공 체크)
           </button>
         </div>
-        <NoSpendBoard year={monthlyBudget.year} month={monthlyBudget.month} dayStatuses={dayStatuses as any} />
+        {/* [NEW] Luna 모드 전달하여 실드 기능 활성화 */}
+        <NoSpendBoard 
+          dayStatuses={dayStatuses as any} 
+          lunaMode={lunaMode} 
+        />
       </Modal>
 
       <Modal isOpen={activeModal === 'quest'} onClose={() => setActiveModal(null)} title="📜 길드 의뢰서">
-        <MoneyQuestCard isNoSpendToday={isNoSpendToday} hasTxToday={hasTxToday} />
+        {/* [NEW] Luna 모드 전달 */}
+        <MoneyQuestCard isNoSpendToday={isNoSpendToday} hasTxToday={hasTxToday} lunaMode={lunaMode} />
       </Modal>
 
       <Modal isOpen={activeModal === 'inventory'} onClose={() => setActiveModal(null)} title="🎒 내 가방">
