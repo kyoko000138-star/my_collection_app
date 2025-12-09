@@ -1,6 +1,7 @@
 // src/pages/MoneyRoomPage.tsx
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { PenTool, Swords, ChevronDown, ChevronUp } from 'lucide-react';
+import confetti from 'canvas-confetti'; // 🎉 폭죽 라이브러리
 
 import MoneyStats from '../components/money/MoneyStats';
 import CollectionBar from '../components/money/CollectionBar';
@@ -8,6 +9,10 @@ import NoSpendBoard from '../components/money/NoSpendBoard';
 import MoneyQuestCard from '../components/money/MoneyQuestCard';
 import MoneyMonsterCard from '../components/money/MoneyMonsterCard';
 import MoneyWeaponCard from '../components/money/MoneyWeaponCard';
+
+// 로직 함수 가져오기 (레벨 계산용)
+import { calcLeafPoints } from '../money/moneyGameLogic';
+import { calcHP } from '../money/moneyGameLogic'; // HP 계산용
 
 // ---- 타입 정의 ----
 type TxType = 'expense' | 'income';
@@ -18,25 +23,39 @@ interface MonthlyBudgetLike { year: number; month: number; variableBudget: numbe
 
 const MoneyRoomPage: React.FC = () => {
   const today = useMemo(() => new Date(), []);
-  
-  // 🔹 탭 상태
   const [activeTab, setActiveTab] = useState<'record' | 'adventure'>('adventure');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
+  // 데이터 상태
   const [monthlyBudget, setMonthlyBudget] = useState<MonthlyBudgetLike>({
     year: today.getFullYear(), month: today.getMonth() + 1, variableBudget: 500_000, noSpendTarget: 10,
   });
-
   const [transactions, setTransactions] = useState<TransactionLike[]>([]);
   const [installments, setInstallments] = useState<InstallmentLike[]>([]);
   const [dayStatuses, setDayStatuses] = useState<DayStatusLike[]>([]);
 
-  // ---- 입력 폼 상태 ----
+  // 입력 폼 상태
   const [budgetInput, setBudgetInput] = useState({ variableBudget: String(monthlyBudget.variableBudget), noSpendTarget: String(monthlyBudget.noSpendTarget) });
   const [txForm, setTxForm] = useState({ date: today.toISOString().slice(0, 10), type: 'expense' as TxType, category: '', amount: '', isEssential: false });
   const [instForm, setInstForm] = useState({ name: '', totalAmount: '', paidAmount: '' });
 
-  // ---- 핸들러 ----
+  // 🧮 실시간 스탯 계산 (레벨업/HP연출용)
+  const leafPoints = useMemo(() => calcLeafPoints(transactions, dayStatuses, installments), [transactions, dayStatuses, installments]);
+  const currentHP = useMemo(() => calcHP(monthlyBudget, transactions), [monthlyBudget, transactions]);
+
+  // 🆙 레벨 & 칭호 시스템
+  const level = Math.floor(leafPoints / 10) + 1;
+  const currentExp = leafPoints % 10; // 10점마다 레벨업
+  const expRatio = (currentExp / 10) * 100;
+
+  const userTitle = useMemo(() => {
+    if (level >= 10) return '💰 재정의 마스터';
+    if (level >= 5) return '🛡️ 노련한 관리자';
+    if (level >= 3) return '⚔️ 떠오르는 용사';
+    return '🌱 초심자';
+  }, [level]);
+
+  // 핸들러들
   const handleSaveBudget = () => {
     const vb = Number(budgetInput.variableBudget.replace(/,/g, ''));
     const nt = Number(budgetInput.noSpendTarget);
@@ -48,9 +67,7 @@ const MoneyRoomPage: React.FC = () => {
   const handleAddTx = () => {
     const amountNum = Number(txForm.amount.replace(/,/g, ''));
     if (!txForm.category || !amountNum) return alert('내용을 입력해주세요.');
-    const newTx: TransactionLike = {
-      id: `${Date.now()}`, date: txForm.date, type: txForm.type, category: txForm.category.trim(), amount: amountNum, isEssential: txForm.isEssential,
-    };
+    const newTx: TransactionLike = { id: `${Date.now()}`, date: txForm.date, type: txForm.type, category: txForm.category.trim(), amount: amountNum, isEssential: txForm.isEssential };
     setTransactions((prev) => [newTx, ...prev]);
     setTxForm((prev) => ({ ...prev, amount: '', category: '' }));
   };
@@ -59,17 +76,29 @@ const MoneyRoomPage: React.FC = () => {
     if (!instForm.name) return alert('이름을 입력해주세요.');
     const total = Number(instForm.totalAmount.replace(/,/g, ''));
     const paid = Number(instForm.paidAmount.replace(/,/g, '')) || 0;
-    const newIns: InstallmentLike = {
-      id: `${Date.now()}`, name: instForm.name.trim(), totalAmount: total, paidAmount: Math.min(paid, total),
-    };
+    const newIns: InstallmentLike = { id: `${Date.now()}`, name: instForm.name.trim(), totalAmount: total, paidAmount: Math.min(paid, total) };
     setInstallments((prev) => [newIns, ...prev]);
     setInstForm({ name: '', totalAmount: '', paidAmount: '' });
   };
 
+  // 🎉 무지출 토글 시 폭죽 효과
   const toggleTodayNoSpend = () => {
     const day = today.getDate();
+    
     setDayStatuses((prev) => {
       const existing = prev.find((d) => d.day === day);
+      const isSuccess = !existing || !existing.isNoSpend; // 이번에 성공으로 바뀌는가?
+
+      if (isSuccess) {
+        // ✨ 폭죽 팡!
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#26ccff', '#a25afd', '#ff5e7e', '#88ff5a', '#fcff42', '#ffa62d', '#ff36ff']
+        });
+      }
+
       if (!existing) return [...prev, { day, isNoSpend: true, completedQuests: 0 }];
       return prev.map((d) => (d.day === day ? { ...d, isNoSpend: !d.isNoSpend } : d));
     });
@@ -78,31 +107,26 @@ const MoneyRoomPage: React.FC = () => {
   const formatMoney = (n: number) => n.toLocaleString('ko-KR');
   const monthLabel = `${monthlyBudget.year}. ${String(monthlyBudget.month).padStart(2, '0')}`;
   
-  // 🎨 스타일
+  // 스타일
   const scrollContainerStyle: React.CSSProperties = {
-    display: 'flex',
-    overflowX: 'auto',
-    gap: '12px',
-    padding: '4px 12px 24px', 
-    scrollSnapType: 'x mandatory',
-    WebkitOverflowScrolling: 'touch',
-    alignItems: 'flex-start', // 카드 높이가 달라도 위쪽 정렬
+    display: 'flex', overflowX: 'auto', gap: '12px', padding: '4px 12px 24px', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', alignItems: 'flex-start',
   };
+  const scrollItemStyle: React.CSSProperties = { minWidth: '90%', scrollSnapAlign: 'center', flexShrink: 0 };
 
-  const scrollItemStyle: React.CSSProperties = {
-    minWidth: '90%', 
-    scrollSnapAlign: 'center',
-    flexShrink: 0,
+  // 🩸 HP 위기 상태 스타일 (화면 테두리 붉게)
+  const isDanger = currentHP <= 30 && currentHP > 0;
+  const containerStyle: React.CSSProperties = {
+    padding: '12px 0 60px',
+    backgroundColor: '#f4f1ea',
+    backgroundImage: `radial-gradient(#dcd1bf 1px, transparent 1px)`,
+    backgroundSize: '20px 20px',
+    minHeight: '100vh',
+    transition: 'box-shadow 0.5s ease',
+    boxShadow: isDanger ? 'inset 0 0 50px rgba(255, 0, 0, 0.15)' : 'none', // 위기일 때 붉은 기운
   };
 
   return (
-    <div style={{ 
-      padding: '12px 0 60px',
-      backgroundColor: '#f4f1ea', 
-      backgroundImage: `radial-gradient(#dcd1bf 1px, transparent 1px)`, 
-      backgroundSize: '20px 20px',
-      minHeight: '100vh'
-    }}>
+    <div style={containerStyle}>
       
       {/* 헤더 */}
       <div style={{ marginBottom: 16, padding: '0 12px' }}>
@@ -111,35 +135,18 @@ const MoneyRoomPage: React.FC = () => {
         <div style={{ fontSize: 12, color: '#777' }}>{monthLabel}의 모험 기록</div>
       </div>
 
-      {/* 🔹 HUD: 스탯창 */}
+      {/* 🔹 HUD */}
       <div style={{ margin: '0 12px 20px' }}>
-        <MoneyStats
-          monthlyBudget={monthlyBudget as any}
-          transactions={transactions}
-          dayStatuses={dayStatuses}
-          installments={installments}
-        />
-        <div style={{ marginTop: -12 }}>
-          <CollectionBar
-            transactions={transactions}
-            dayStatuses={dayStatuses}
-            installments={installments}
-          />
-        </div>
+        <MoneyStats monthlyBudget={monthlyBudget as any} transactions={transactions} dayStatuses={dayStatuses} installments={installments} />
+        <div style={{ marginTop: -12 }}><CollectionBar transactions={transactions} dayStatuses={dayStatuses} installments={installments} /></div>
       </div>
 
       {/* 🔹 탭 버튼 */}
       <div style={{ display: 'flex', margin: '0 12px 24px', backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 999, padding: 4 }}>
-        <button
-          onClick={() => setActiveTab('record')}
-          style={{ flex: 1, padding: '8px 0', borderRadius: 999, border: 'none', backgroundColor: activeTab === 'record' ? '#fff' : 'transparent', color: activeTab === 'record' ? '#333' : '#888', fontWeight: activeTab === 'record' ? 700 : 400, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-        >
+        <button onClick={() => setActiveTab('record')} style={{ flex: 1, padding: '8px 0', borderRadius: 999, border: 'none', backgroundColor: activeTab === 'record' ? '#fff' : 'transparent', color: activeTab === 'record' ? '#333' : '#888', fontWeight: activeTab === 'record' ? 700 : 400, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
           <PenTool size={14} /> 기록
         </button>
-        <button
-          onClick={() => setActiveTab('adventure')}
-          style={{ flex: 1, padding: '8px 0', borderRadius: 999, border: 'none', backgroundColor: activeTab === 'adventure' ? '#fff' : 'transparent', color: activeTab === 'adventure' ? '#333' : '#888', fontWeight: activeTab === 'adventure' ? 700 : 400, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-        >
+        <button onClick={() => setActiveTab('adventure')} style={{ flex: 1, padding: '8px 0', borderRadius: 999, border: 'none', backgroundColor: activeTab === 'adventure' ? '#fff' : 'transparent', color: activeTab === 'adventure' ? '#333' : '#888', fontWeight: activeTab === 'adventure' ? 700 : 400, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
           <Swords size={14} /> 모험
         </button>
       </div>
@@ -167,38 +174,33 @@ const MoneyRoomPage: React.FC = () => {
         </div>
       )}
 
-      {/* 🔹 탭 2: 모험 (여기가 핵심!) */}
+      {/* 🔹 탭 2: 모험 */}
       {activeTab === 'adventure' && (
         <div className="fade-in">
-
-          {/* 👇 가로 스크롤 컨테이너 👇 */}
           <div style={scrollContainerStyle}>
             
-            {/* 카드 1: [내 캐릭터 + 장비 합성] 합체! */}
+            {/* 1. 내 캐릭터 (업그레이드 버전!) */}
             <div style={scrollItemStyle}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                
-                {/* (1) 내 캐릭터 */}
                 <div style={{
-                  padding: '24px',
-                  borderRadius: '20px',
-                  backgroundColor: '#fff',
-                  border: '1px solid #ddd',
+                  padding: '20px', borderRadius: '20px', backgroundColor: '#fff', border: '1px solid #ddd',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden'
                 }}>
-                  <div style={{ fontSize: 12, color: '#b59a7a', letterSpacing: '2px', marginBottom: 10 }}>MY CHARACTER</div>
-                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#f4f1ea', fontSize: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, border: '4px solid #e5e5e5' }}>
-                    🧙‍♀️
-                  </div>
-                  <div style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>알뜰한 모험가</div>
-                  <div style={{ fontSize: 12, color: '#777', marginBottom: 16 }}>Lv. 1 (초심자)</div>
+                  {/* EXP 게이지 바 (배경에 깔기) */}
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, height: '6px', width: `${expRatio}%`, backgroundColor: '#ffd700', transition: 'width 0.5s ease' }} />
                   
-                  {/* 미니 스탯 */}
+                  <div style={{ fontSize: 12, color: '#b59a7a', letterSpacing: '2px', marginBottom: 10 }}>MY CHARACTER</div>
+                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#f4f1ea', fontSize: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10, border: '4px solid #e5e5e5' }}>🧙‍♀️</div>
+                  
+                  {/* 레벨 & 칭호 표시 */}
+                  <div style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>{userTitle}</div>
+                  <div style={{ fontSize: 12, color: '#777', marginBottom: 16 }}>Lv. {level} <span style={{color:'#ccc'}}>|</span> EXP {currentExp}/10</div>
+                  
                   <div style={{ display: 'flex', width: '100%', justifyContent: 'space-around', backgroundColor: '#f9f9f9', padding: '10px', borderRadius: '12px' }}>
                     <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{dayStatuses.filter(d => d.isNoSpend).length}</div>
-                      <div style={{ fontSize: 10, color: '#999' }}>무지출</div>
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{leafPoints}</div>
+                      <div style={{ fontSize: 10, color: '#999' }}>Leaf</div>
                     </div>
                     <div style={{ width: 1, height: '100%', backgroundColor: '#eee' }}></div>
                     <div style={{ textAlign: 'center' }}>
@@ -207,61 +209,34 @@ const MoneyRoomPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-
-                {/* (2) 장비 합성 (바로 아래에 붙임) */}
-                <MoneyWeaponCard 
-                  transactions={transactions} 
-                  dayStatuses={dayStatuses} 
-                  installments={installments} 
-                />
+                <MoneyWeaponCard transactions={transactions} dayStatuses={dayStatuses} installments={installments} />
               </div>
             </div>
 
-            {/* 카드 2: 몬스터 (Boss) */}
-            <div style={scrollItemStyle}>
-              <MoneyMonsterCard transactions={transactions} dayStatuses={dayStatuses} />
-            </div>
-            
-            {/* 카드 3: 오늘의 퀘스트 */}
-            <div style={scrollItemStyle}>
-              <MoneyQuestCard />
-            </div>
-
+            {/* 나머지 카드들 */}
+            <div style={scrollItemStyle}><MoneyMonsterCard transactions={transactions} dayStatuses={dayStatuses} /></div>
+            <div style={scrollItemStyle}><MoneyQuestCard /></div>
           </div> 
-          {/* 👆 가로 스크롤 끝 👆 */}
 
-          {/* 무지출 달력 (접이식) */}
+          {/* 무지출 달력 */}
           <div style={{ padding: '0 12px' }}>
-             <div 
-              onClick={() => setIsCalendarOpen(!isCalendarOpen)}
-              style={{ 
-                padding: '12px 16px', backgroundColor: '#fff', borderRadius: 12, border: '1px solid #ccc', 
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: 8
-              }}
-            >
+             <div onClick={() => setIsCalendarOpen(!isCalendarOpen)} style={{ padding: '12px 16px', backgroundColor: '#fff', borderRadius: 12, border: '1px solid #ccc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 'bold', color: '#555' }}>📅 무지출 캘린더</span>
               {isCalendarOpen ? <ChevronUp size={16} color="#999"/> : <ChevronDown size={16} color="#999"/>}
             </div>
-
             {isCalendarOpen && (
               <div className="fade-in">
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                  <button onClick={toggleTodayNoSpend} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 999, border: '1px solid #333', backgroundColor: '#fff', cursor: 'pointer' }}>
-                    오늘 성공/취소
+                  <button onClick={toggleTodayNoSpend} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 999, border: 'none', backgroundColor: '#333', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
+                    ✨ 오늘 무지출 성공!
                   </button>
                 </div>
-                <NoSpendBoard
-                  year={monthlyBudget.year}
-                  month={monthlyBudget.month}
-                  dayStatuses={dayStatuses as any}
-                />
+                <NoSpendBoard year={monthlyBudget.year} month={monthlyBudget.month} dayStatuses={dayStatuses as any} />
               </div>
             )}
           </div>
-
         </div>
       )}
-
     </div>
   );
 };
