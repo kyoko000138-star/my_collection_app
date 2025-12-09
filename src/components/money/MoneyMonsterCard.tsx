@@ -56,6 +56,23 @@ const MoneyMonsterCard: React.FC<MoneyMonsterCardProps> = ({
   const subtitle = topCategory
     ? `이번 달 가장 많이 쓴 비필수 지출: “${topCategory}”`
     : '아직 눈에 띄는 소비 패턴이 없어요.';
+  // 몬스터 HP 비율에 따른 색상/상태 변화
+  const getMonsterStatus = (current: number, max: number) => {
+    if (current === 0) return { color: '#bbb', text: '토벌 완료!', bg: '#eee' };
+    if (current / max <= 0.3) return { color: '#d9534f', text: '빈사 상태', bg: '#fzdwdw' }; // 빨강
+    return { color: '#5a4633', text: '건강함', bg: '#f5efe2' }; // 평소
+  };
+  
+  // ... 렌더링 부분에서
+  const status = getMonsterStatus(currentHp, monster.maxHp);
+  
+  
+  // 아이콘 쪽에 스타일 적용
+  <div style={{ ..., backgroundColor: status.bg, opacity: currentHp === 0 ? 0.5 : 1 }}>
+    {/* 토벌 완료면 아이콘 위에 'CLEAR' 텍스트 덮기 */}
+    {currentHp === 0 && <span className="absolute-clear-badge">CLEAR</span>}
+    {monsterIcon}
+  </div>
 
   return (
     <div
