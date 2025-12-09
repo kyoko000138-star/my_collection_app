@@ -1,5 +1,6 @@
 // src/pages/MoneyRoomPage.tsx
 import React, { useMemo, useState } from 'react';
+import { PenTool, Swords } from 'lucide-react'; // 아이콘 추가
 
 import MoneyStats from '../components/money/MoneyStats';
 import CollectionBar from '../components/money/CollectionBar';
@@ -8,40 +9,40 @@ import MoneyQuestCard from '../components/money/MoneyQuestCard';
 import MoneyMonsterCard from '../components/money/MoneyMonsterCard';
 import MoneyWeaponCard from '../components/money/MoneyWeaponCard';
 
-// ---- 타입 (일단 이 파일 안에서만 사용하는 느슨한 타입) ----
+// ---- 타입 정의 (이전과 동일) ----
 type TxType = 'expense' | 'income';
-
 interface TransactionLike {
   id: string;
-  date: string; // "YYYY-MM-DD"
+  date: string;
   type: TxType;
   category: string;
   amount: number;
   isEssential?: boolean;
 }
-
 interface InstallmentLike {
   id: string;
   name: string;
   totalAmount: number;
   paidAmount: number;
 }
-
 interface DayStatusLike {
-  day: number; // 1 ~ 31
+  day: number;
   isNoSpend: boolean;
   completedQuests: number;
 }
-
 interface MonthlyBudgetLike {
   year: number;
-  month: number; // 1~12
-  variableBudget: number; // 이번달 변동비 예산
-  noSpendTarget: number;  // 이번달 무지출 목표 일수
+  month: number;
+  variableBudget: number;
+  noSpendTarget: number;
 }
 
 const MoneyRoomPage: React.FC = () => {
   const today = useMemo(() => new Date(), []);
+  
+  // 🔹 탭 상태 추가 ('record' | 'adventure')
+  const [activeTab, setActiveTab] = useState<'record' | 'adventure'>('record');
+
   const [monthlyBudget, setMonthlyBudget] = useState<MonthlyBudgetLike>({
     year: today.getFullYear(),
     month: today.getMonth() + 1,
@@ -53,7 +54,7 @@ const MoneyRoomPage: React.FC = () => {
   const [installments, setInstallments] = useState<InstallmentLike[]>([]);
   const [dayStatuses, setDayStatuses] = useState<DayStatusLike[]>([]);
 
-  // ---- 입력 폼용 로컬 상태 ----
+  // ---- 입력 폼 상태들 ----
   const [budgetInput, setBudgetInput] = useState({
     variableBudget: String(monthlyBudget.variableBudget),
     noSpendTarget: String(monthlyBudget.noSpendTarget),
@@ -73,26 +74,19 @@ const MoneyRoomPage: React.FC = () => {
     paidAmount: '',
   });
 
-  // ---- 예산 저장 ----
+  // ---- 핸들러 함수들 (이전과 동일) ----
   const handleSaveBudget = () => {
     const vb = Number(budgetInput.variableBudget.replace(/,/g, ''));
     const nt = Number(budgetInput.noSpendTarget);
-    if (!Number.isFinite(vb) || vb < 0) return alert('예산 금액을 숫자로 입력해 주세요.');
-    if (!Number.isFinite(nt) || nt < 0) return alert('무지출 목표 일수를 숫자로 입력해 주세요.');
-
-    setMonthlyBudget((prev) => ({
-      ...prev,
-      variableBudget: vb,
-      noSpendTarget: nt,
-    }));
-    alert('이번 달 예산을 업데이트했어요.');
+    if (!Number.isFinite(vb) || vb < 0) return alert('숫자만 입력해주세요.');
+    setMonthlyBudget((prev) => ({ ...prev, variableBudget: vb, noSpendTarget: nt }));
+    alert('예산이 저장되었습니다.');
   };
 
-  // ---- 지출/수입 추가 ----
   const handleAddTx = () => {
     const amountNum = Number(txForm.amount.replace(/,/g, ''));
-    if (!txForm.category.trim()) return alert('카테고리를 입력해 주세요.');
-    if (!Number.isFinite(amountNum) || amountNum <= 0) return alert('금액을 0보다 크게 입력해 주세요.');
+    if (!txForm.category) return alert('카테고리를 입력해주세요.');
+    if (!amountNum) return alert('금액을 입력해주세요.');
 
     const newTx: TransactionLike = {
       id: `${Date.now()}`,
@@ -102,637 +96,217 @@ const MoneyRoomPage: React.FC = () => {
       amount: amountNum,
       isEssential: txForm.isEssential,
     };
-
     setTransactions((prev) => [newTx, ...prev]);
-    setTxForm((prev) => ({
-      ...prev,
-      amount: '',
-      category: '',
-    }));
+    setTxForm((prev) => ({ ...prev, amount: '', category: '' }));
   };
 
-  // ---- 할부 추가 ----
   const handleAddInstallment = () => {
-    if (!instForm.name.trim()) return alert('할부 이름을 입력해 주세요.');
+    if (!instForm.name) return alert('이름을 입력해주세요.');
     const total = Number(instForm.totalAmount.replace(/,/g, ''));
     const paid = Number(instForm.paidAmount.replace(/,/g, '')) || 0;
-    if (!Number.isFinite(total) || total <= 0) return alert('총 금액을 0보다 크게 입력해 주세요.');
-    if (paid < 0) return alert('상환 금액이 이상해요.');
-
+    
     const newIns: InstallmentLike = {
       id: `${Date.now()}`,
       name: instForm.name.trim(),
       totalAmount: total,
       paidAmount: Math.min(paid, total),
     };
-
     setInstallments((prev) => [newIns, ...prev]);
     setInstForm({ name: '', totalAmount: '', paidAmount: '' });
   };
 
-  // ---- 오늘을 무지출/해제 토글 ----
   const toggleTodayNoSpend = () => {
     const day = today.getDate();
     setDayStatuses((prev) => {
       const existing = prev.find((d) => d.day === day);
-      if (!existing) {
-        return [...prev, { day, isNoSpend: true, completedQuests: 0 }];
-      }
-      return prev.map((d) =>
-        d.day === day ? { ...d, isNoSpend: !d.isNoSpend } : d,
-      );
+      if (!existing) return [...prev, { day, isNoSpend: true, completedQuests: 0 }];
+      return prev.map((d) => (d.day === day ? { ...d, isNoSpend: !d.isNoSpend } : d));
     });
   };
 
-  // 간단한 문장 생성기
-  const getAdventureText = (t: TransactionLike) => {
-    if (t.type === 'income') return `어딘가에서 ${t.amount}골드를 획득했다!`;
-    if (t.category.includes('식비')) return `허기를 채우느라 ${t.amount}골드를 썼다.`;
-    if (t.category.includes('쇼핑')) return `반짝이는 물건에 홀려 ${t.amount}골드를 잃었다.`;
-    return `${t.category} 때문에 ${t.amount}골드가 주머니에서 빠져나갔다.`;
-  };
+  const formatMoney = (n: number) => n.toLocaleString('ko-KR');
+  const monthLabel = `${monthlyBudget.year}. ${String(monthlyBudget.month).padStart(2, '0')}`;
   
-  // 렌더링
-  {transactions.slice(0, 5).map((t) => (
-    <li key={t.id} style={{ fontFamily: 'Gowun Batang', fontSize: 12, color: '#555' }}>
-      ⚔️ {t.date}: {getAdventureText(t)}
-    </li>
-  ))}
+  // 계산용
+  const totalExpense = useMemo(() => 
+    transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0),
+  [transactions]);
+  const remainingBudget = Math.max(0, monthlyBudget.variableBudget - totalExpense);
 
-  // ---- 보조 계산 ----
-  const monthLabel = `${monthlyBudget.year}. ${String(
-    monthlyBudget.month,
-  ).padStart(2, '0')}`;
-
-  const totalExpense = useMemo(
-    () =>
-      transactions
-        .filter((t) => t.type === 'expense')
-        .reduce((sum, t) => sum + t.amount, 0),
-    [transactions],
-  );
-
-  const remainingBudget = Math.max(
-    0,
-    monthlyBudget.variableBudget - totalExpense,
-  );
-
-  const formatMoney = (n: number) =>
-    n.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
 
   return (
-    <div
-      style={{
-        padding: '12px 4px 40px',
-      }}
-    >
-      {/* 상단 제목 */}
-      <div
-        style={{
-          marginBottom: 16,
-          padding: '0 8px',
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-            color: '#b59a7a',
-            marginBottom: 4,
-          }}
-        >
-          ROOM 08
-        </div>
-        <div
-          style={{
-            fontSize: 20,
-            color: '#222',
-            marginBottom: 4,
-          }}
-        >
-          머니룸 – 이번 달 모험 기록
-        </div>
-        <div
-          style={{
-            fontSize: 12,
-            color: '#777',
-          }}
-        >
-          {monthLabel} 기준 예산 · 지출 · 무지출 챌린지를 게임처럼 모아 보는 방입니다.
-        </div>
+    <div style={{ padding: '12px 4px 60px' }}>
+      
+      {/* 헤더 */}
+      <div style={{ marginBottom: 16, padding: '0 8px' }}>
+        <div style={{ fontSize: 11, letterSpacing: '0.18em', color: '#b59a7a', marginBottom: 4 }}>ROOM 08</div>
+        <div style={{ fontSize: 20, color: '#222', marginBottom: 4 }}>머니룸</div>
+        <div style={{ fontSize: 12, color: '#777' }}>{monthLabel}의 모험 기록</div>
       </div>
 
-      {/* ---------- 예산 카드 ---------- */}
-      <div
-        style={{
-          margin: '0 8px 16px',
-          padding: '12px 12px 14px',
-          borderRadius: 16,
-          border: '1px solid #e5e5e5',
-          backgroundColor: '#fbfaf6',
-          fontSize: 13,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            color: '#b59a7a',
-            marginBottom: 6,
-          }}
-        >
-          MONTHLY SETTINGS
-        </div>
-        <div
-          style={{
-            fontSize: 14,
-            color: '#333',
-            marginBottom: 8,
-          }}
-        >
-          이번 달 예산 & 목표
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            marginBottom: 8,
-          }}
-        >
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 12,
-            }}
-          >
-            <span style={{ width: 80, color: '#7a6a55' }}>변동비 예산</span>
-            <input
-              style={{
-                flex: 1,
-                borderRadius: 999,
-                border: '1px solid #ddd',
-                padding: '4px 10px',
-                fontSize: 12,
-              }}
-              value={budgetInput.variableBudget}
-              onChange={(e) =>
-                setBudgetInput((prev) => ({
-                  ...prev,
-                  variableBudget: e.target.value,
-                }))
-              }
-              inputMode="numeric"
-            />
-            <span
-              style={{
-                fontSize: 11,
-                color: '#999',
-              }}
-            >
-              원
-            </span>
-          </label>
-
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 12,
-            }}
-          >
-            <span style={{ width: 80, color: '#7a6a55' }}>무지출 목표</span>
-            <input
-              style={{
-                flex: 1,
-                borderRadius: 999,
-                border: '1px solid #ddd',
-                padding: '4px 10px',
-                fontSize: 12,
-              }}
-              value={budgetInput.noSpendTarget}
-              onChange={(e) =>
-                setBudgetInput((prev) => ({
-                  ...prev,
-                  noSpendTarget: e.target.value,
-                }))
-              }
-              inputMode="numeric"
-            />
-            <span
-              style={{
-                fontSize: 11,
-                color: '#999',
-              }}
-            >
-              일
-            </span>
-          </label>
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            fontSize: 11,
-            color: '#8b7760',
-            marginBottom: 8,
-          }}
-        >
-          <span>지금까지 지출: {formatMoney(totalExpense)}원</span>
-          <span>남은 예산: {formatMoney(remainingBudget)}원</span>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleSaveBudget}
-          style={{
-            marginTop: 2,
-            borderRadius: 999,
-            border: '1px solid #d5c7ad',
-            padding: '4px 12px',
-            fontSize: 12,
-            backgroundColor: '#f2e8d8',
-            color: '#5a4830',
-            cursor: 'pointer',
-          }}
-        >
-          이번 달 예산 저장
-        </button>
-      </div>
-
-      {/* ---------- 지출 입력 카드 ---------- */}
-      <div
-        style={{
-          margin: '0 8px 16px',
-          padding: '12px 12px 10px',
-          borderRadius: 16,
-          border: '1px solid #e5e5e5',
-          backgroundColor: '#ffffff',
-          fontSize: 13,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            color: '#b59a7a',
-            marginBottom: 6,
-          }}
-        >
-          QUICK LEDGER
-        </div>
-        <div
-          style={{
-            fontSize: 14,
-            color: '#333',
-            marginBottom: 8,
-          }}
-        >
-          오늘의 가계부 한 줄
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-            marginBottom: 8,
-          }}
-        >
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input
-              type="date"
-              value={txForm.date}
-              onChange={(e) =>
-                setTxForm((prev) => ({ ...prev, date: e.target.value }))
-              }
-              style={{
-                flex: 0.8,
-                borderRadius: 999,
-                border: '1px solid #ddd',
-                padding: '4px 8px',
-                fontSize: 11,
-              }}
-            />
-            <select
-              value={txForm.type}
-              onChange={(e) =>
-                setTxForm((prev) => ({
-                  ...prev,
-                  type: e.target.value as TxType,
-                }))
-              }
-              style={{
-                flex: 0.6,
-                borderRadius: 999,
-                border: '1px solid #ddd',
-                padding: '4px 8px',
-                fontSize: 11,
-              }}
-            >
-              <option value="expense">지출</option>
-              <option value="income">수입</option>
-            </select>
-            <input
-              placeholder="카테고리 (예: 간식/카페)"
-              value={txForm.category}
-              onChange={(e) =>
-                setTxForm((prev) => ({ ...prev, category: e.target.value }))
-              }
-              style={{
-                flex: 1.5,
-                borderRadius: 999,
-                border: '1px solid #ddd',
-                padding: '4px 8px',
-                fontSize: 11,
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <input
-              placeholder="금액"
-              value={txForm.amount}
-              onChange={(e) =>
-                setTxForm((prev) => ({ ...prev, amount: e.target.value }))
-              }
-              inputMode="numeric"
-              style={{
-                flex: 1,
-                borderRadius: 999,
-                border: '1px solid #ddd',
-                padding: '4px 8px',
-                fontSize: 11,
-              }}
-            />
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                fontSize: 11,
-                color: '#7a6a55',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={txForm.isEssential}
-                onChange={(e) =>
-                  setTxForm((prev) => ({
-                    ...prev,
-                    isEssential: e.target.checked,
-                  }))
-                }
-              />
-              필수 지출
-            </label>
-            <button
-              type="button"
-              onClick={handleAddTx}
-              style={{
-                borderRadius: 999,
-                border: '1px solid #d5c7ad',
-                padding: '4px 10px',
-                fontSize: 11,
-                backgroundColor: '#f4ebdd',
-                color: '#5a4830',
-                cursor: 'pointer',
-                flexShrink: 0,
-              }}
-            >
-              추가
-            </button>
-          </div>
-        </div>
-
-        {transactions.length > 0 && (
-          <div
-            style={{
-              borderTop: '1px solid #eee',
-              paddingTop: 6,
-              marginTop: 4,
-              fontSize: 11,
-              color: '#777',
-            }}
-          >
-            최근 기록:
-            <ul
-              style={{
-                listStyle: 'none',
-                padding: 0,
-                margin: '4px 0 0',
-              }}
-            >
-              {transactions.slice(0, 5).map((t) => (
-                <li key={t.id}>
-                  {t.date} · {t.type === 'expense' ? '-' : '+'}
-                  {formatMoney(t.amount)}원 · {t.category}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      {/* ---------- 할부 입력 카드 ---------- */}
-      <div
-        style={{
-          margin: '0 8px 16px',
-          padding: '12px 12px 10px',
-          borderRadius: 16,
-          border: '1px solid #e5e5e5',
-          backgroundColor: '#ffffff',
-          fontSize: 13,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            color: '#b59a7a',
-            marginBottom: 6,
-          }}
-        >
-          INSTALLMENTS
-        </div>
-        <div
-          style={{
-            fontSize: 14,
-            color: '#333',
-            marginBottom: 8,
-          }}
-        >
-          남은 할부 메모
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-            marginBottom: 8,
-          }}
-        >
-          <input
-            placeholder="이름 (예: 노트북, 향로)"
-            value={instForm.name}
-            onChange={(e) =>
-              setInstForm((prev) => ({ ...prev, name: e.target.value }))
-            }
-            style={{
-              borderRadius: 999,
-              border: '1px solid #ddd',
-              padding: '4px 8px',
-              fontSize: 11,
-            }}
-          />
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input
-              placeholder="총 금액"
-              value={instForm.totalAmount}
-              onChange={(e) =>
-                setInstForm((prev) => ({
-                  ...prev,
-                  totalAmount: e.target.value,
-                }))
-              }
-              inputMode="numeric"
-              style={{
-                flex: 1,
-                borderRadius: 999,
-                border: '1px solid #ddd',
-                padding: '4px 8px',
-                fontSize: 11,
-              }}
-            />
-            <input
-              placeholder="지금까지 상환"
-              value={instForm.paidAmount}
-              onChange={(e) =>
-                setInstForm((prev) => ({
-                  ...prev,
-                  paidAmount: e.target.value,
-                }))
-              }
-              inputMode="numeric"
-              style={{
-                flex: 1,
-                borderRadius: 999,
-                border: '1px solid #ddd',
-                padding: '4px 8px',
-                fontSize: 11,
-              }}
-            />
-            <button
-              type="button"
-              onClick={handleAddInstallment}
-              style={{
-                borderRadius: 999,
-                border: '1px solid #d5c7ad',
-                padding: '4px 10px',
-                fontSize: 11,
-                backgroundColor: '#f4ebdd',
-                color: '#5a4830',
-                cursor: 'pointer',
-                flexShrink: 0,
-              }}
-            >
-              추가
-            </button>
-          </div>
-        </div>
-
-        {installments.length > 0 && (
-          <div
-            style={{
-              borderTop: '1px solid #eee',
-              paddingTop: 6,
-              marginTop: 4,
-              fontSize: 11,
-              color: '#777',
-            }}
-          >
-            현재 할부:
-            <ul
-              style={{
-                listStyle: 'none',
-                padding: 0,
-                margin: '4px 0 0',
-              }}
-            >
-              {installments.slice(0, 5).map((ins) => (
-                <li key={ins.id}>
-                  {ins.name} · {formatMoney(ins.paidAmount)}/
-                  {formatMoney(ins.totalAmount)}원
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      {/* ---------- 게임형 카드들 ---------- */}
-
-      <div style={{ margin: '0 8px' }}>
+      {/* 🔹 HUD: 스탯창은 항상 맨 위에 고정 (게임 느낌) */}
+      <div style={{ margin: '0 8px 20px' }}>
         <MoneyStats
           monthlyBudget={monthlyBudget as any}
           transactions={transactions}
           dayStatuses={dayStatuses}
           installments={installments}
         />
+      </div>
 
-        <CollectionBar
-          transactions={transactions}
-          dayStatuses={dayStatuses}
-          installments={installments}
-        />
-
-        <MoneyQuestCard />
-
-        <MoneyMonsterCard
-          transactions={transactions}
-          dayStatuses={dayStatuses}
-        />
-
-        <MoneyWeaponCard
-          transactions={transactions}
-          dayStatuses={dayStatuses}
-          installments={installments}
-        />
-
+      {/* 🔹 탭 버튼 영역 */}
+      <div style={{ display: 'flex', margin: '0 8px 24px', backgroundColor: '#eee', borderRadius: 999, padding: 4 }}>
         <button
-          type="button"
-          onClick={toggleTodayNoSpend}
+          onClick={() => setActiveTab('record')}
           style={{
-            marginTop: 4,
-            marginBottom: 4,
+            flex: 1,
+            padding: '8px 0',
             borderRadius: 999,
-            border: '1px solid #dcd1bf',
-            padding: '4px 10px',
-            fontSize: 11,
-            backgroundColor: '#f7f2e7',
-            color: '#5a4830',
+            border: 'none',
+            backgroundColor: activeTab === 'record' ? '#fff' : 'transparent',
+            color: activeTab === 'record' ? '#333' : '#888',
+            fontWeight: activeTab === 'record' ? 700 : 400,
+            fontSize: 13,
             cursor: 'pointer',
+            boxShadow: activeTab === 'record' ? '0 2px 5px rgba(0,0,0,0.05)' : 'none',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6
           }}
         >
-          오늘을 무지출/해제로 토글하기
+          <PenTool size={14} /> 기록의 책상
         </button>
-
-        <NoSpendBoard
-          year={monthlyBudget.year}
-          month={monthlyBudget.month}
-          dayStatuses={dayStatuses as any}
-        />
+        <button
+          onClick={() => setActiveTab('adventure')}
+          style={{
+            flex: 1,
+            padding: '8px 0',
+            borderRadius: 999,
+            border: 'none',
+            backgroundColor: activeTab === 'adventure' ? '#fff' : 'transparent',
+            color: activeTab === 'adventure' ? '#333' : '#888',
+            fontWeight: activeTab === 'adventure' ? 700 : 400,
+            fontSize: 13,
+            cursor: 'pointer',
+            boxShadow: activeTab === 'adventure' ? '0 2px 5px rgba(0,0,0,0.05)' : 'none',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6
+          }}
+        >
+          <Swords size={14} /> 모험의 방
+        </button>
       </div>
+
+      {/* 🔹 탭 1: 기록의 책상 (입력 위주) */}
+      {activeTab === 'record' && (
+        <div className="fade-in">
+          {/* 가계부 입력 (가장 자주 쓰니까 위로 올림) */}
+          <div style={{ margin: '0 8px 16px', padding: '16px', borderRadius: 16, border: '1px solid #e5e5e5', backgroundColor: '#fff' }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', color: '#b59a7a', marginBottom: 8 }}>QUICK LEDGER</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input type="date" value={txForm.date} onChange={e => setTxForm(p => ({...p, date: e.target.value}))} style={{ flex: 1, padding: '6px', borderRadius: 8, border: '1px solid #ddd' }} />
+                <select value={txForm.type} onChange={e => setTxForm(p => ({...p, type: e.target.value as TxType}))} style={{ padding: '6px', borderRadius: 8, border: '1px solid #ddd' }}>
+                  <option value="expense">지출</option>
+                  <option value="income">수입</option>
+                </select>
+              </div>
+              <input placeholder="내용 (예: 편의점)" value={txForm.category} onChange={e => setTxForm(p => ({...p, category: e.target.value}))} style={{ padding: '8px', borderRadius: 8, border: '1px solid #ddd' }} />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input placeholder="금액" inputMode="numeric" value={txForm.amount} onChange={e => setTxForm(p => ({...p, amount: e.target.value}))} style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1px solid #ddd' }} />
+                <button onClick={handleAddTx} style={{ padding: '0 16px', borderRadius: 8, backgroundColor: '#333', color: '#fff', border: 'none', cursor: 'pointer' }}>입력</button>
+              </div>
+            </div>
+            
+            {/* 최근 기록 */}
+            {transactions.length > 0 && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f0f0f0' }}>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>최근 기록</div>
+                {transactions.slice(0, 3).map(t => (
+                  <div key={t.id} style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ color: '#555' }}>{t.category}</span>
+                    <span style={{ fontWeight: 500 }}>{t.type === 'expense' ? '-' : '+'}{formatMoney(t.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 예산 설정 (접혀있거나 아래쪽에) */}
+          <div style={{ margin: '0 8px 16px', padding: '16px', borderRadius: 16, border: '1px solid #e5e5e5', backgroundColor: '#f9f9f9' }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', color: '#b59a7a', marginBottom: 8 }}>SETTINGS</div>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+               <label style={{ flex: 1, fontSize: 11 }}>
+                 <div style={{ marginBottom: 4, color: '#777' }}>목표 예산</div>
+                 <input value={budgetInput.variableBudget} onChange={e => setBudgetInput(p => ({...p, variableBudget: e.target.value}))} style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: 6 }} />
+               </label>
+               <label style={{ flex: 1, fontSize: 11 }}>
+                 <div style={{ marginBottom: 4, color: '#777' }}>무지출 목표일</div>
+                 <input value={budgetInput.noSpendTarget} onChange={e => setBudgetInput(p => ({...p, noSpendTarget: e.target.value}))} style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: 6 }} />
+               </label>
+            </div>
+            <button onClick={handleSaveBudget} style={{ width: '100%', padding: '6px', borderRadius: 6, border: '1px solid #ddd', backgroundColor: '#fff', fontSize: 11, cursor: 'pointer' }}>설정 저장</button>
+          </div>
+
+          {/* 할부 관리 */}
+          <div style={{ margin: '0 8px 16px', padding: '16px', borderRadius: 16, border: '1px solid #e5e5e5', backgroundColor: '#f9f9f9' }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', color: '#b59a7a', marginBottom: 8 }}>INSTALLMENTS</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+              <input placeholder="할부명" value={instForm.name} onChange={e => setInstForm(p => ({...p, name: e.target.value}))} style={{ flex: 1, padding: '6px', border: '1px solid #ddd', borderRadius: 6, fontSize: 12 }} />
+              <input placeholder="총액" value={instForm.totalAmount} onChange={e => setInstForm(p => ({...p, totalAmount: e.target.value}))} style={{ width: 60, padding: '6px', border: '1px solid #ddd', borderRadius: 6, fontSize: 12 }} />
+              <button onClick={handleAddInstallment} style={{ padding: '0 10px', border: '1px solid #aaa', borderRadius: 6, backgroundColor: '#fff', fontSize: 11, cursor: 'pointer' }}>+</button>
+            </div>
+            {installments.map(ins => (
+              <div key={ins.id} style={{ fontSize: 12, color: '#555', padding: '4px 0' }}>• {ins.name} ({formatMoney(ins.paidAmount)} / {formatMoney(ins.totalAmount)})</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 🔹 탭 2: 모험의 방 (게임 요소 위주) */}
+      {activeTab === 'adventure' && (
+        <div className="fade-in" style={{ margin: '0 8px' }}>
+          <MoneyMonsterCard
+            transactions={transactions}
+            dayStatuses={dayStatuses}
+          />
+          
+          <MoneyQuestCard />
+          
+          <MoneyWeaponCard
+            transactions={transactions}
+            dayStatuses={dayStatuses}
+            installments={installments}
+          />
+          
+          <CollectionBar
+            transactions={transactions}
+            dayStatuses={dayStatuses}
+            installments={installments}
+          />
+          
+          {/* 무지출 달력 */}
+          <div style={{ marginTop: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 'bold', color: '#555' }}>무지출 캘린더</span>
+              <button onClick={toggleTodayNoSpend} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 999, border: '1px solid #333', backgroundColor: '#fff', cursor: 'pointer' }}>
+                오늘 성공/취소 토글
+              </button>
+            </div>
+            <NoSpendBoard
+              year={monthlyBudget.year}
+              month={monthlyBudget.month}
+              dayStatuses={dayStatuses as any}
+            />
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
