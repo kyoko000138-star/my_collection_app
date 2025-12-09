@@ -5,6 +5,7 @@ import CollectionBar from '../components/money/CollectionBar';
 import NoSpendBoard from '../components/money/NoSpendBoard';
 import MoneyQuestCard from '../components/money/MoneyQuestCard';
 import MoneyMonsterCard from '../components/money/MoneyMonsterCard';
+import MoneyWeaponCard from '../components/money/MoneyWeaponCard';
 
 const MoneyRoomPage: React.FC = () => {
   // TODO: 여기 나중에 Firestore에서 진짜 데이터 가져오기
@@ -69,6 +70,12 @@ const MoneyRoomPage: React.FC = () => {
       <MoneyMonsterCard
         transactions={dummyTransactions}
         dayStatuses={dummyDayStatuses}
+        />
+      
+      <MoneyWeaponCard
+        transactions={dummyTransactions}
+        dayStatuses={dummyDayStatuses}
+        installments={dummyInstallments}
         />
 
 
