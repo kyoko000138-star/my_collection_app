@@ -1,9 +1,28 @@
 // src/components/money/CollectionBar.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Leaf, Coffee, Flame } from 'lucide-react';
 
-const CollectionBar: React.FC<any> = () => {
-  // TODO: 나중에 Leaf 포인트 계산해서 실제 수집 현황 보여주기
+// moneyGameLogic.ts 위치에 맞게 경로만 확인!
+// 예: src/money/moneyGameLogic.ts 라면 ../../money/moneyGameLogic
+import { calcLeafPoints, deriveCollection } from '../../money/moneyGameLogic';
+
+interface CollectionBarProps {
+  transactions?: any[];
+  dayStatuses?: any[];
+  installments?: any[];
+}
+
+const CollectionBar: React.FC<CollectionBarProps> = ({
+  transactions = [],
+  dayStatuses = [],
+  installments = [],
+}) => {
+  const { leafPoints, leaves, tea, incense } = useMemo(() => {
+    const lp = calcLeafPoints(transactions, dayStatuses, installments);
+    const { leaves, tea, incense } = deriveCollection(lp);
+    return { leafPoints: lp, leaves, tea, incense };
+  }, [transactions, dayStatuses, installments]);
+
   return (
     <div
       style={{
@@ -27,19 +46,23 @@ const CollectionBar: React.FC<any> = () => {
       >
         COLLECTION
       </div>
-      <div style={{ fontSize: 15, marginBottom: 6, color: '#333' }}>
+      <div style={{ fontSize: 15, marginBottom: 4, color: '#333' }}>
         이번 달 재정 컬렉션
+      </div>
+
+      <div style={{ fontSize: 12, marginBottom: 8, color: '#8b7760' }}>
+        Leaf 포인트: <strong>{leafPoints}</strong>
       </div>
 
       <div style={{ display: 'flex', gap: 12, fontSize: 13 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Leaf size={14} /> x 0
+          <Leaf size={14} /> x {leaves}
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Coffee size={14} /> x 0
+          <Coffee size={14} /> x {tea}
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Flame size={14} /> x 0
+          <Flame size={14} /> x {incense}
         </span>
       </div>
     </div>
