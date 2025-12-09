@@ -10,7 +10,7 @@ import NoSpendBoard from '../components/money/NoSpendBoard';
 import MoneyQuestCard from '../components/money/MoneyQuestCard';
 import MoneyMonsterCard from '../components/money/MoneyMonsterCard';
 import MoneyWeaponCard from '../components/money/MoneyWeaponCard';
-import MoneyShopCard from '../components/money/MoneyShopCard'; // 🏪 상점 추가
+import MoneyShopCard from '../components/money/MoneyShopCard';
 
 // 로직 import
 import { calcLeafPoints, calcHP } from '../money/moneyGameLogic';
@@ -28,7 +28,7 @@ const MoneyRoomPage: React.FC = () => {
   // 🔹 탭 & UI 상태
   const [activeTab, setActiveTab] = useState<'record' | 'adventure'>('adventure');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [farmMessage, setFarmMessage] = useState<string | null>(null); // 파밍 메시지
+  const [farmMessage, setFarmMessage] = useState<string | null>(null);
 
   // 🔹 데이터 상태
   const [monthlyBudget, setMonthlyBudget] = useState<MonthlyBudgetLike>({
@@ -37,30 +37,75 @@ const MoneyRoomPage: React.FC = () => {
   const [transactions, setTransactions] = useState<TransactionLike[]>([]);
   const [installments, setInstallments] = useState<InstallmentLike[]>([]);
   const [dayStatuses, setDayStatuses] = useState<DayStatusLike[]>([]);
-  const [spentLeaf, setSpentLeaf] = useState(0); // 💸 상점에서 쓴 Leaf
+  const [spentLeaf, setSpentLeaf] = useState(0);
 
   // 🔹 입력 폼 상태
   const [budgetInput, setBudgetInput] = useState({ variableBudget: String(monthlyBudget.variableBudget), noSpendTarget: String(monthlyBudget.noSpendTarget) });
   const [txForm, setTxForm] = useState({ date: today.toISOString().slice(0, 10), type: 'expense' as TxType, category: '', amount: '', isEssential: false });
   const [instForm, setInstForm] = useState({ name: '', totalAmount: '', paidAmount: '' });
 
-  // 🧮 계산 로직
+  // 🧮 기본 계산 로직
   const totalLeafPoints = useMemo(() => calcLeafPoints(transactions, dayStatuses, installments), [transactions, dayStatuses, installments]);
-  const currentLeaf = Math.max(0, totalLeafPoints - spentLeaf); // 현재 보유 Leaf (총 획득 - 사용)
-  
+  const currentLeaf = Math.max(0, totalLeafPoints - spentLeaf);
   const currentHP = useMemo(() => calcHP(monthlyBudget, transactions), [monthlyBudget, transactions]);
   
-  // 🆙 레벨 & 칭호
+  // 🆙 레벨 & 칭호 (기존)
   const level = Math.floor(totalLeafPoints / 10) + 1;
   const currentExp = totalLeafPoints % 10;
   const expRatio = (currentExp / 10) * 100;
   
   const userTitle = useMemo(() => {
-    if (level >= 10) return '💰 재정의 마스터';
-    if (level >= 5) return '🛡️ 노련한 관리자';
-    if (level >= 3) return '⚔️ 떠오르는 용사';
-    return '🌱 초심자';
+    if (level >= 10) return '전설의 재정 마스터';
+    if (level >= 5) return '노련한 관리자';
+    if (level >= 3) return '떠오르는 용사';
+    return '초심자';
   }, [level]);
+
+  // ⚔️ [NEW] 직업(Class) 계산 로직
+  const userClass = useMemo(() => {
+    if (transactions.length === 0) return { name: '모험가 지망생', icon: '🌱' };
+    
+    const incomeCount = transactions.filter(t => t.type === 'income').length;
+    const expenseCount = transactions.filter(t => t.type === 'expense').length;
+    
+    // 수입 기록이 지출보다 많으면 '상인'
+    if (incomeCount > expenseCount) return { name: '대상인 (Merchant)', icon: '💰' };
+    
+    // 모든 지출이 1만원 이하면 '수도승'
+    const isFrugal = transactions.filter(t => t.type === 'expense').every(t => t.amount <= 10000);
+    if (isFrugal && expenseCount > 0) return { name: '절약의 수도승', icon: '🙏' };
+    
+    return { name: '방랑 검사', icon: '⚔️' };
+  }, [transactions]);
+
+  // 🩸 [NEW] 상태 이상(Buff/Debuff) 계산 로직
+  const activeEffects = useMemo(() => {
+    const effects = [];
+    
+    // 1. [철벽] 최근 3일 중 하루라도 무지출 성공 시
+    const recent = dayStatuses.slice(-3);
+    if (recent.some(d => d.isNoSpend)) {
+      effects.push({ id: 'shield', name: '철벽 방어', icon: '🛡️', color: '#4caf50' });
+    }
+
+    // 2. [출혈] 오늘 지출 3건 이상
+    const todayStr = today.toISOString().slice(0, 10);
+    const todayCount = transactions.filter(t => t.date === todayStr && t.type === 'expense').length;
+    if (todayCount >= 3) {
+      effects.push({ id: 'bleed', name: '지갑 출혈', icon: '🩸', color: '#f44336' });
+    }
+
+    // 3. [식곤증] 최근 지출 중 식비/배달/간식 포함
+    const hasFood = transactions.slice(0, 3).some(t => 
+      t.category.includes('식비') || t.category.includes('배달') || t.category.includes('간식') || t.category.includes('카페')
+    );
+    if (hasFood) {
+      effects.push({ id: 'food', name: '식곤증', icon: '🍗', color: '#ff9800' });
+    }
+
+    return effects;
+  }, [transactions, dayStatuses, today]);
+
 
   // ---- 핸들러 ----
   const handleSaveBudget = () => {
@@ -93,7 +138,6 @@ const MoneyRoomPage: React.FC = () => {
     setDayStatuses((prev) => {
       const existing = prev.find((d) => d.day === day);
       if (!existing || !existing.isNoSpend) {
-        // 성공 시 폭죽
         confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 }, colors: ['#ffdb4d', '#4dff88', '#4da6ff'] });
       }
       if (!existing) return [...prev, { day, isNoSpend: true, completedQuests: 0 }];
@@ -101,23 +145,13 @@ const MoneyRoomPage: React.FC = () => {
     });
   };
 
-  // 🌱 파밍 시스템
   const handleFarming = () => {
-    if (farmMessage) return; // 메시지 떠있으면 중복 방지
-
-    const rewards = [
-      '🌿 작은 풀잎을 발견했다!',
-      '✨ 반짝이는 유리조각을 주웠다.',
-      '🪙 1 골드를 주운 것 같다.',
-      '🪵 쓸만한 나뭇가지를 얻었다.',
-      '🐛 벌레...를 발견했다 (으악!)',
-      '📦 누군가 버린 택배 상자?',
-    ];
+    if (farmMessage) return;
+    const rewards = [ '🌿 작은 풀잎', '✨ 반짝이는 유리', '🪙 1 골드', '🪵 나뭇가지', '🐛 벌레 (윽!)', '📦 빈 상자' ];
     const pick = rewards[Math.floor(Math.random() * rewards.length)];
-    setFarmMessage(pick);
-    
+    setFarmMessage(`${pick} 획득!`);
     confetti({ particleCount: 20, spread: 30, origin: { y: 0.5 }, shapes: ['circle'], colors: ['#88ff5a'] });
-    setTimeout(() => setFarmMessage(null), 2500);
+    setTimeout(() => setFarmMessage(null), 2000);
   };
 
   const formatMoney = (n: number) => n.toLocaleString('ko-KR');
@@ -129,8 +163,6 @@ const MoneyRoomPage: React.FC = () => {
     scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', alignItems: 'flex-start',
   };
   const scrollItemStyle: React.CSSProperties = { minWidth: '90%', scrollSnapAlign: 'center', flexShrink: 0 };
-
-  // HP 위기 시 붉은 효과
   const isDanger = currentHP <= 30 && currentHP > 0;
 
   return (
@@ -151,13 +183,10 @@ const MoneyRoomPage: React.FC = () => {
         <div style={{ fontSize: 12, color: '#777' }}>{monthLabel}의 모험 기록</div>
       </div>
 
-      {/* 🔹 HUD: 스탯창 (상단 고정) */}
+      {/* 🔹 HUD: 스탯창 */}
       <div style={{ margin: '0 12px 20px' }}>
         <MoneyStats monthlyBudget={monthlyBudget as any} transactions={transactions} dayStatuses={dayStatuses} installments={installments} />
-        <div style={{ marginTop: -12 }}>
-          {/* 컬렉션 바에는 현재 보유 Leaf 표시 */}
-          <CollectionBar transactions={transactions} dayStatuses={dayStatuses} installments={installments} />
-        </div>
+        <div style={{ marginTop: -12 }}><CollectionBar transactions={transactions} dayStatuses={dayStatuses} installments={installments} /></div>
       </div>
 
       {/* 🔹 탭 버튼 */}
@@ -190,49 +219,67 @@ const MoneyRoomPage: React.FC = () => {
               </div>
             </div>
           </div>
-          {/* 예산/할부 폼 등은 필요하면 여기에 추가 */}
         </div>
       )}
 
-      {/* 🔹 탭 2: 모험의 방 (메인 게임 화면) */}
+      {/* 🔹 탭 2: 모험의 방 */}
       {activeTab === 'adventure' && (
         <div className="fade-in">
           
-          {/* 👇 가로 스크롤 컨테이너 👇 */}
           <div style={scrollContainerStyle}>
             
             {/* 1. [내 구역] 캐릭터(파밍) + 장비 합성 */}
             <div style={scrollItemStyle}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 
-                {/* 캐릭터 카드 (압축형 + 파밍 버튼) */}
+                {/* 🛡️ 캐릭터 카드 (NEW: 직업/상태이상 표시) */}
                 <div style={{
                   padding: '16px', borderRadius: '20px', backgroundColor: '#fff', border: '1px solid #ddd',
-                  display: 'flex', alignItems: 'center', gap: 16,
+                  display: 'flex', flexDirection: 'column', gap: 12,
                   boxShadow: '0 4px 12px rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden'
                 }}>
-                  {/* 경험치 바 */}
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, height: '4px', width: `${expRatio}%`, backgroundColor: '#ffd700', transition: 'width 0.5s ease' }} />
-                  
-                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#f4f1ea', fontSize: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #e5e5e5', flexShrink: 0 }}>
-                    🧙‍♀️
-                  </div>
-                  
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 10, color: '#b59a7a', letterSpacing: '1px' }}>MY CHARACTER</div>
-                    <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{userTitle}</div>
-                    <div style={{ fontSize: 11, color: '#777' }}>Lv.{level} ({currentExp}/10)</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <div style={{ position: 'relative' }}>
+                      <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#f4f1ea', fontSize: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #e5e5e5' }}>
+                        {userClass.icon} {/* 👈 직업 이모지 */}
+                      </div>
+                      <div style={{ position: 'absolute', bottom: -4, right: -4, backgroundColor: '#333', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '10px', border: '2px solid #fff' }}>
+                        Lv.{level}
+                      </div>
+                    </div>
+                    
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 10, color: '#b59a7a', fontWeight: 'bold', letterSpacing: '1px' }}>{userClass.name}</div>
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{userTitle}</div>
+                      <div style={{ width: '100%', height: '6px', backgroundColor: '#eee', borderRadius: '4px', marginTop: 6, overflow: 'hidden' }}>
+                        <div style={{ width: `${expRatio}%`, height: '100%', backgroundColor: '#ffd700', transition: 'width 0.5s ease' }} />
+                      </div>
+                    </div>
+
+                    <button onClick={handleFarming} style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      padding: '8px 10px', borderRadius: '12px', border: '1px solid #88ff5a', backgroundColor: '#f0ffe5',
+                      cursor: 'pointer', flexShrink: 0
+                    }}>
+                      <Sprout size={16} color="#4caf50" />
+                      <span style={{ fontSize: 10, color: '#2e7d32', marginTop: 2 }}>수확</span>
+                    </button>
                   </div>
 
-                  {/* 🌱 파밍 버튼 */}
-                  <button onClick={handleFarming} style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    padding: '8px 12px', borderRadius: '12px', border: '1px solid #88ff5a', backgroundColor: '#f0ffe5',
-                    cursor: 'pointer', flexShrink: 0
-                  }}>
-                    <Sprout size={18} color="#4caf50" />
-                    <span style={{ fontSize: 10, color: '#2e7d32', marginTop: 2 }}>수확</span>
-                  </button>
+                  {/* 🩸 상태 이상 (버프/디버프 목록) */}
+                  {activeEffects.length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingTop: 10, borderTop: '1px solid #f0f0f0' }}>
+                      {activeEffects.map((ef: any) => (
+                        <div key={ef.name} style={{ 
+                          fontSize: '11px', padding: '3px 8px', borderRadius: '6px', 
+                          backgroundColor: `${ef.color}15`, color: ef.color, border: `1px solid ${ef.color}40`,
+                          display: 'flex', alignItems: 'center', gap: 4, fontWeight: 'bold'
+                        }}>
+                          <span>{ef.icon}</span> {ef.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* 파밍 메시지 */}
@@ -242,7 +289,7 @@ const MoneyRoomPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* 무기 합성 (캐릭터 바로 아래) */}
+                {/* 무기 합성 */}
                 <MoneyWeaponCard transactions={transactions} dayStatuses={dayStatuses} installments={installments} />
               </div>
             </div>
@@ -255,7 +302,7 @@ const MoneyRoomPage: React.FC = () => {
               </div>
             </div>
 
-            {/* 3. [상점 구역] NEW! */}
+            {/* 3. [상점 구역] */}
             <div style={scrollItemStyle}>
               <MoneyShopCard 
                 currentLeaf={currentLeaf} 
@@ -264,9 +311,8 @@ const MoneyRoomPage: React.FC = () => {
             </div>
 
           </div> 
-          {/* 👆 가로 스크롤 끝 */}
 
-          {/* 무지출 달력 (하단 접이식) */}
+          {/* 무지출 달력 */}
           <div style={{ padding: '0 12px' }}>
              <div onClick={() => setIsCalendarOpen(!isCalendarOpen)} style={{ padding: '12px 16px', backgroundColor: '#fff', borderRadius: 12, border: '1px solid #ccc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 'bold', color: '#555' }}>📅 무지출 캘린더</span>
