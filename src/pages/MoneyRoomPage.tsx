@@ -1,9 +1,9 @@
 // src/pages/MoneyRoomPage.tsx
 import React, { useMemo, useState } from 'react';
-import { PenTool, Swords, ChevronDown, ChevronUp, Sprout, Search, Zap } from 'lucide-react';
+import { PenTool, Swords, Zap, Backpack, Scroll, Calendar, Tent, DoorOpen, Search } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-// 컴포넌트들
+// 컴포넌트
 import MoneyStats from '../components/money/MoneyStats';
 import CollectionBar from '../components/money/CollectionBar';
 import NoSpendBoard from '../components/money/NoSpendBoard';
@@ -11,12 +11,13 @@ import MoneyQuestCard from '../components/money/MoneyQuestCard';
 import MoneyMonsterCard from '../components/money/MoneyMonsterCard';
 import MoneyWeaponCard from '../components/money/MoneyWeaponCard';
 import MoneyShopCard from '../components/money/MoneyShopCard';
+import Modal from '../components/ui/Modal'; // 👈 새로 만든 모달
 
-// 로직 import
+// 로직
 import { calcLeafPoints, calcHP, calcRPGStats, calcAdvancedXP } from '../money/moneyGameLogic';
 import { calcMonsterHp, pickMonsterForCategory, getTopDiscretionaryCategory } from '../money/moneyMonsters';
 
-// ---- 타입 정의 ----
+// ---- 타입 정의 (기존 유지) ----
 type TxType = 'expense' | 'income';
 interface TransactionLike { id: string; date: string; type: TxType; category: string; amount: number; isEssential?: boolean; }
 interface InstallmentLike { id: string; name: string; totalAmount: number; paidAmount: number; }
@@ -26,44 +27,33 @@ interface MonthlyBudgetLike { year: number; month: number; variableBudget: numbe
 const MoneyRoomPage: React.FC = () => {
   const today = useMemo(() => new Date(), []);
   
-  // 🔹 탭 & UI 상태
+  // 🔹 UI 상태 (모달 제어용)
   const [activeTab, setActiveTab] = useState<'record' | 'adventure'>('adventure');
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [farmMessage, setFarmMessage] = useState<string | null>(null);
-  
-  // 🗺️ 위치 상태
+  const [activeModal, setActiveModal] = useState<'inventory' | 'quest' | 'calendar' | null>(null); // 현재 열린 모달
   const [location, setLocation] = useState<'field' | 'village'>('field');
-
-  // ⚡ 행동력 (Energy) 시스템
-  const MAX_ENERGY = 5;
-  const [energy, setEnergy] = useState(MAX_ENERGY); // 기본 5/5
+  const [farmMessage, setFarmMessage] = useState<string | null>(null);
 
   // 🔹 데이터 상태
-  const [monthlyBudget, setMonthlyBudget] = useState<MonthlyBudgetLike>({
-    year: today.getFullYear(), month: today.getMonth() + 1, variableBudget: 500_000, noSpendTarget: 10,
-  });
+  const [monthlyBudget, setMonthlyBudget] = useState<MonthlyBudgetLike>({ year: today.getFullYear(), month: today.getMonth() + 1, variableBudget: 500_000, noSpendTarget: 10 });
   const [transactions, setTransactions] = useState<TransactionLike[]>([]);
   const [installments, setInstallments] = useState<InstallmentLike[]>([]);
   const [dayStatuses, setDayStatuses] = useState<DayStatusLike[]>([]);
-  
   const [gameGold, setGameGold] = useState(0); 
-  const [spentLeaf, setSpentLeaf] = useState(0); 
+  const [spentLeaf, setSpentLeaf] = useState(0);
+  const [energy, setEnergy] = useState(5); // 행동력
 
-  // 🔹 입력 폼 상태
-  const [budgetInput, setBudgetInput] = useState({ variableBudget: String(monthlyBudget.variableBudget), noSpendTarget: String(monthlyBudget.noSpendTarget) });
+  // 🔹 입력 폼 (기존 유지)
   const [txForm, setTxForm] = useState({ date: today.toISOString().slice(0, 10), type: 'expense' as TxType, category: '', amount: '', isEssential: false });
-  const [instForm, setInstForm] = useState({ name: '', totalAmount: '', paidAmount: '' });
 
   // 🧮 계산 로직
   const totalLeafPoints = useMemo(() => calcLeafPoints(transactions, dayStatuses, installments), [transactions, dayStatuses, installments]);
   const currentLeaf = Math.max(0, totalLeafPoints - spentLeaf);
   const currentHP = useMemo(() => calcHP(monthlyBudget, transactions), [monthlyBudget, transactions]);
-  
   const rpgStats = useMemo(() => calcRPGStats(transactions, dayStatuses, gameGold), [transactions, dayStatuses, gameGold]);
   const { currentExp, level, maxExp } = useMemo(() => calcAdvancedXP(rpgStats, installments), [rpgStats, installments]);
   const expRatio = (currentExp / maxExp) * 100;
 
-  // 몬스터 상태 계산
+  // 몬스터 상태
   const monsterInfo = useMemo(() => {
     const cat = getTopDiscretionaryCategory(transactions);
     const mon = pickMonsterForCategory(cat);
@@ -72,36 +62,21 @@ const MoneyRoomPage: React.FC = () => {
     return { ...mon, currentHp: hp, isDead: hp <= 0 };
   }, [transactions, dayStatuses]);
 
-  // 퀘스트 자동 완료용 상태 계산
-  const isNoSpendToday = useMemo(() => {
-    const todayDate = today.getDate();
-    return dayStatuses.some(d => d.day === todayDate && d.isNoSpend);
-  }, [dayStatuses, today]);
+  // 퀘스트용 상태
+  const isNoSpendToday = useMemo(() => dayStatuses.some(d => d.day === today.getDate() && d.isNoSpend), [dayStatuses, today]);
+  const hasTxToday = useMemo(() => transactions.some(t => t.date === today.toISOString().slice(0, 10)), [transactions, today]);
 
-  const hasTxToday = useMemo(() => {
-    const todayStr = today.toISOString().slice(0, 10);
-    return transactions.some(t => t.date === todayStr);
-  }, [transactions, today]);
-
-  // ⚔️ 직업 & 칭호
+  // ⚔️ 직업
   const userClass = useMemo(() => {
     if (transactions.length === 0) return { name: '모험가 지망생', icon: '🌱' };
-    const incomeCount = transactions.filter(t => t.type === 'income').length;
-    const expenseCount = transactions.filter(t => t.type === 'expense').length;
-    if (incomeCount > expenseCount) return { name: '대상인', icon: '💰' };
-    const isFrugal = transactions.filter(t => t.type === 'expense').every(t => t.amount <= 10000);
-    if (isFrugal && expenseCount > 0) return { name: '수도승', icon: '🙏' };
+    const income = transactions.filter(t => t.type === 'income').length;
+    const expense = transactions.filter(t => t.type === 'expense').length;
+    if (income > expense) return { name: '대상인', icon: '💰' };
+    if (transactions.filter(t => t.type === 'expense').every(t => t.amount <= 10000)) return { name: '수도승', icon: '🙏' };
     return { name: '방랑 검사', icon: '⚔️' };
   }, [transactions]);
 
-  const userTitle = useMemo(() => {
-    if (level >= 10) return '전설의 마스터';
-    if (level >= 5) return '베테랑 모험가';
-    return '초심자 모험가';
-  }, [level]);
-
   // ---- 핸들러 ----
-  const handleSaveBudget = () => { /* ... */ };
   const handleAddTx = () => {
     const amountNum = Number(txForm.amount.replace(/,/g, ''));
     if (!txForm.category || !amountNum) return alert('입력 확인');
@@ -109,7 +84,6 @@ const MoneyRoomPage: React.FC = () => {
     setTransactions((prev) => [newTx, ...prev]);
     setTxForm((prev) => ({ ...prev, amount: '', category: '' }));
   };
-  const handleAddInstallment = () => { /* ... */ };
 
   const toggleTodayNoSpend = () => {
     const day = today.getDate();
@@ -123,230 +97,191 @@ const MoneyRoomPage: React.FC = () => {
     });
   };
 
-  // 🌱 필드 파밍 (행동력 소모)
   const handleFieldSearch = () => {
-    if (energy <= 0) {
-      setFarmMessage('⚡ 행동력이 부족합니다! (내일 충전됨)');
-      setTimeout(() => setFarmMessage(null), 1500);
-      return;
-    }
+    if (energy <= 0) { setFarmMessage('⚡ 행동력이 부족합니다!'); setTimeout(() => setFarmMessage(null), 1500); return; }
     if (farmMessage) return;
-
-    setEnergy(prev => prev - 1); // 행동력 차감
-
+    setEnergy(p => p - 1);
     const rewards = [ { text: '🌿 잡초 (10G)', gold: 10 }, { text: '✨ 유리조각 (50G)', gold: 50 }, { text: '🪙 동전 (100G)', gold: 100 }, { text: '📦 상자 (500G)', gold: 500 } ];
     const pick = rewards[Math.floor(Math.random() * rewards.length)];
     setFarmMessage(pick.text);
-    setGameGold(prev => prev + pick.gold);
+    setGameGold(p => p + pick.gold);
     if (pick.gold > 0) confetti({ particleCount: 30, spread: 40, origin: { y: 0.5 }, colors: ['#ffd700'] });
     setTimeout(() => setFarmMessage(null), 2000);
   };
 
-  // 지역 이동
-  const handleMoveToVillage = () => {
-    if (!monsterInfo.isDead) return alert('몬스터를 처치해야 마을로 갈 수 있습니다!');
-    setLocation('village');
-    confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } });
-  };
-  const handleMoveToField = () => setLocation('field');
-
-  const formatMoney = (n: number) => n.toLocaleString('ko-KR');
-  const monthLabel = `${monthlyBudget.year}. ${String(monthlyBudget.month).padStart(2, '0')}`;
+  // ---- 렌더링 ----
   const isDanger = currentHP <= 30 && currentHP > 0;
 
   return (
     <div style={{ 
-      padding: '12px 0 60px',
-      backgroundColor: location === 'village' ? '#fffaf0' : '#f4f1ea',
-      backgroundImage: `radial-gradient(${location === 'village' ? '#dcd1bf' : '#ccc'} 1px, transparent 1px)`, 
+      minHeight: '100vh', backgroundColor: location === 'village' ? '#fffaf0' : '#222', // 전투시 어두운 배경
+      backgroundImage: location === 'village' ? `radial-gradient(#dcd1bf 1px, transparent 1px)` : undefined,
       backgroundSize: '20px 20px',
-      minHeight: '100vh',
-      transition: 'background 0.5s ease, box-shadow 0.5s ease',
-      boxShadow: isDanger ? 'inset 0 0 50px rgba(255, 0, 0, 0.15)' : 'none',
+      color: location === 'field' ? '#fff' : '#333',
+      transition: 'all 0.5s ease',
+      boxShadow: isDanger ? 'inset 0 0 50px rgba(255, 0, 0, 0.3)' : 'none',
+      paddingBottom: '80px'
     }}>
       
-      {/* 헤더 */}
-      <div style={{ marginBottom: 16, padding: '0 12px' }}>
-        <div style={{ fontSize: 11, letterSpacing: '0.18em', color: '#b59a7a', marginBottom: 4 }}>ROOM 08</div>
-        <div style={{ fontSize: 20, color: '#222', marginBottom: 4 }}>
-          {location === 'field' ? '⚔️ 위험한 필드' : '🏠 평화로운 마을'}
-        </div>
-        <div style={{ fontSize: 12, color: '#777' }}>
-          {location === 'field' ? '몬스터가 배회하고 있습니다.' : '상점에서 물건을 사고 정비하세요.'}
-        </div>
-      </div>
-
-      {/* 🔹 HUD: 스탯 + 행동력 표시 */}
-      <div style={{ margin: '0 12px 20px' }}>
-        <MoneyStats monthlyBudget={monthlyBudget as any} transactions={transactions} dayStatuses={dayStatuses} installments={installments} />
-        <div style={{ marginTop: -12 }}><CollectionBar transactions={transactions} dayStatuses={dayStatuses} installments={installments} /></div>
-        
-        {/* ⚡ 행동력 바 (NEW!) */}
-        <div style={{ marginTop: 8, padding: '8px 12px', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #ddd', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 11, fontWeight: 'bold', color: '#555', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Zap size={14} color="#fbc02d" fill="#fbc02d" /> 행동력
+      {/* 🔹 상단 HUD (고정) */}
+      <div style={{ padding: '16px 16px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 18, fontWeight: 'bold' }}>
+            {location === 'field' ? '⚔️ 황야' : '🏠 마을'}
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
-            {Array.from({ length: MAX_ENERGY }).map((_, i) => (
-              <div key={i} style={{ width: 24, height: 8, borderRadius: 4, backgroundColor: i < energy ? '#fbc02d' : '#eee', transition: 'background 0.3s' }} />
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} style={{ width: 16, height: 6, borderRadius: 4, backgroundColor: i < energy ? '#fbc02d' : '#555' }} />
             ))}
           </div>
         </div>
-      </div>
-
-      {/* 🔹 탭 버튼 */}
-      <div style={{ display: 'flex', margin: '0 12px 24px', backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 999, padding: 4 }}>
-        <button onClick={() => setActiveTab('record')} style={{ flex: 1, padding: '8px 0', borderRadius: 999, border: 'none', backgroundColor: activeTab === 'record' ? '#fff' : 'transparent', color: activeTab === 'record' ? '#333' : '#888', fontWeight: activeTab === 'record' ? 700 : 400, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-          <PenTool size={14} /> 기록
-        </button>
-        <button onClick={() => setActiveTab('adventure')} style={{ flex: 1, padding: '8px 0', borderRadius: 999, border: 'none', backgroundColor: activeTab === 'adventure' ? '#fff' : 'transparent', color: activeTab === 'adventure' ? '#333' : '#888', fontWeight: activeTab === 'adventure' ? 700 : 400, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-          {location === 'field' ? <Swords size={14} /> : <Tent size={14} />} {location === 'field' ? '전투' : '마을'}
-        </button>
-      </div>
-
-      {/* 🔹 탭 1: 기록 */}
-      {activeTab === 'record' && (
-        <div className="fade-in" style={{ padding: '0 12px' }}>
-          <div style={{ padding: '16px', borderRadius: 16, border: '1px solid #e5e5e5', backgroundColor: '#fff', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', color: '#b59a7a', marginBottom: 8 }}>QUICK LEDGER</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input type="date" value={txForm.date} onChange={e => setTxForm(p => ({...p, date: e.target.value}))} style={{ flex: 1, padding: '6px', borderRadius: 8, border: '1px solid #ddd' }} />
-                <select value={txForm.type} onChange={e => setTxForm(p => ({...p, type: e.target.value as TxType}))} style={{ padding: '6px', borderRadius: 8, border: '1px solid #ddd' }}>
-                  <option value="expense">지출</option>
-                  <option value="income">수입</option>
-                </select>
-              </div>
-              <input placeholder="내용" value={txForm.category} onChange={e => setTxForm(p => ({...p, category: e.target.value}))} style={{ padding: '8px', borderRadius: 8, border: '1px solid #ddd' }} />
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input placeholder="금액" inputMode="numeric" value={txForm.amount} onChange={e => setTxForm(p => ({...p, amount: e.target.value}))} style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1px solid #ddd' }} />
-                <button onClick={handleAddTx} style={{ padding: '0 16px', borderRadius: 8, backgroundColor: '#333', color: '#fff', border: 'none', cursor: 'pointer' }}>입력</button>
-              </div>
-            </div>
-          </div>
+        {/* HP바 */}
+        <div style={{ width: '100%', height: 10, backgroundColor: '#444', borderRadius: 5, overflow: 'hidden' }}>
+          <div style={{ width: `${currentHP}%`, height: '100%', backgroundColor: isDanger ? '#ff4444' : '#4da6ff', transition: 'width 0.5s' }} />
         </div>
-      )}
+      </div>
 
-      {/* 🔹 탭 2: 모험의 방 */}
-      {activeTab === 'adventure' && (
-        <div className="fade-in" style={{ padding: '0 12px' }}>
+      {/* 🔹 탭 전환 */}
+      <div style={{ padding: '16px', display: 'flex', gap: 10 }}>
+        <button onClick={() => setActiveTab('adventure')} style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', backgroundColor: activeTab === 'adventure' ? '#fff' : 'rgba(255,255,255,0.2)', color: activeTab === 'adventure' ? '#333' : '#fff', fontWeight: 'bold', cursor: 'pointer' }}>모험</button>
+        <button onClick={() => setActiveTab('record')} style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', backgroundColor: activeTab === 'record' ? '#fff' : 'rgba(255,255,255,0.2)', color: activeTab === 'record' ? '#333' : '#fff', fontWeight: 'bold', cursor: 'pointer' }}>기록</button>
+      </div>
+
+      {/* ========== [모험 탭] ========== */}
+      {activeTab === 'adventure' && location === 'field' && (
+        <div className="fade-in" style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
           
-          {/* 1. 내 캐릭터 (파밍 버튼 제거됨 -> 필드로 이동) */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{
-              padding: '16px', borderRadius: '20px', backgroundColor: '#fff', border: '1px solid #ddd',
-              display: 'flex', flexDirection: 'column', gap: 12,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ position: 'relative' }}>
-                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#f4f1ea', fontSize: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #e5e5e5' }}>
-                    {userClass.icon}
-                  </div>
-                  <div style={{ position: 'absolute', bottom: -4, right: -4, backgroundColor: '#333', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '10px', border: '2px solid #fff' }}>
-                    Lv.{level}
-                  </div>
-                </div>
-                
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 10, color: '#b59a7a', fontWeight: 'bold' }}>{userClass.name}</div>
-                  <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{userTitle}</div>
-                  <div style={{ width: '100%', height: '6px', backgroundColor: '#eee', borderRadius: '4px', marginTop: 6, overflow: 'hidden' }}>
-                    <div style={{ width: `${expRatio}%`, height: '100%', backgroundColor: '#ffd700', transition: 'width 0.5s ease' }} />
-                  </div>
-                </div>
-              </div>
-
-              {/* 장비창 */}
-              <MoneyWeaponCard transactions={transactions} dayStatuses={dayStatuses} savedAmount={gameGold} />
+          {/* 1. 메인 스테이지 (몬스터) */}
+          <div style={{ position: 'relative' }}>
+            <MoneyMonsterCard transactions={transactions} dayStatuses={dayStatuses} />
+            
+            {/* 파밍 버튼 (오버레이) */}
+            <div style={{ position: 'absolute', bottom: -20, right: 10, zIndex: 10 }}>
+              <button onClick={handleFieldSearch} style={{ width: 50, height: 50, borderRadius: '50%', border: '4px solid #fff', backgroundColor: '#4caf50', color: '#fff', boxShadow: '0 4px 10px rgba(0,0,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Search size={24} />
+              </button>
             </div>
+            {/* 파밍 메시지 */}
+            {farmMessage && (
+              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'rgba(0,0,0,0.8)', color: '#fff', padding: '8px 12px', borderRadius: 8, fontSize: 12, zIndex: 20 }}>
+                {farmMessage}
+              </div>
+            )}
           </div>
 
-          {/* ⚔️ 필드 모드: 몬스터 & 파밍 & 퀘스트 */}
-          {location === 'field' && (
-            <div className="fade-in">
-              <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: 14, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {/* ... */}
-                </div>
-                {monsterInfo.isDead && (
-                  <button onClick={handleMoveToVillage} style={{
-                    padding: '6px 12px', borderRadius: '20px', backgroundColor: '#333', color: '#fff', fontSize: 12, border: 'none', cursor: 'pointer',
-                    animation: 'pulse 1s infinite alternate'
-                  }}>
-                    🏠 마을 입장하기 &gt;
-                  </button>
-                )}
-              </div>
-
-              <MoneyMonsterCard transactions={transactions} dayStatuses={dayStatuses} />
-              
-              {/* 🌱 필드 파밍 버튼 (NEW PLACE!) */}
-              <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0' }}>
-                <button 
-                  onClick={handleFieldSearch} 
-                  disabled={energy <= 0}
-                  style={{
-                    width: '100%', padding: '12px', borderRadius: '16px', border: '2px dashed #88ff5a',
-                    backgroundColor: energy > 0 ? '#f0ffe5' : '#eee', color: energy > 0 ? '#2e7d32' : '#999',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: energy > 0 ? 'pointer' : 'not-allowed',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  <Search size={18} />
-                  {energy > 0 ? '주변 수색하기 (행동력 -1)' : '지쳐서 움직일 수 없습니다...'}
-                </button>
-              </div>
-
-              {/* 파밍 메시지 (중앙) */}
-              {farmMessage && (
-                <div className="fade-in" style={{ 
-                  textAlign: 'center', padding: '8px 16px', backgroundColor: '#333', color: '#fff', 
-                  borderRadius: '20px', fontSize: '12px', marginBottom: 16, width: 'fit-content', margin: '0 auto 16px'
-                }}>
-                  {farmMessage}
-                </div>
-              )}
-
-              {/* 퀘스트 (자동 연동됨) */}
-              <MoneyQuestCard isNoSpendToday={isNoSpendToday} hasTxToday={hasTxToday} />
-              
-              <div style={{ height: 16 }} />
-              {/* 무지출 달력 (전투용) */}
-              <div style={{ padding: '16px', backgroundColor: '#fff', borderRadius: 20, border: '1px solid #ddd' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <span style={{ fontWeight: 'bold', fontSize: 14 }}>공격하기 (무지출 체크)</span>
-                  <button onClick={toggleTodayNoSpend} style={{ fontSize: 12, padding: '6px 12px', borderRadius: 999, border: 'none', backgroundColor: '#ff4444', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
-                    ⚔️ 공격!
-                  </button>
-                </div>
-                <NoSpendBoard year={monthlyBudget.year} month={monthlyBudget.month} dayStatuses={dayStatuses as any} />
+          {/* 2. 내 캐릭터 요약 (작게) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{userClass.icon}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, color: '#aaa' }}>Lv.{level} {userClass.name}</div>
+              <div style={{ width: '100%', height: 4, backgroundColor: '#555', borderRadius: 2, marginTop: 4 }}>
+                <div style={{ width: `${expRatio}%`, height: '100%', backgroundColor: '#ffd700' }} />
               </div>
             </div>
-          )}
+            <div style={{ fontSize: 14, fontWeight: 'bold', color: '#ffd700' }}>{gameGold} G</div>
+          </div>
 
-          {/* 🏠 마을 모드 */}
-          {location === 'village' && (
-            <div className="fade-in">
-              {/* ... 상점 등 (이전과 동일) ... */}
-              <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: 14, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{width: 16, height: 16, backgroundColor: '#333', borderRadius: '50%'}} /> 마을
-                </div>
-                <button onClick={handleMoveToField} style={{
-                  padding: '6px 12px', borderRadius: '20px', backgroundColor: '#fff', color: '#333', fontSize: 12, border: '1px solid #ccc', cursor: 'pointer'
-                }}>
-                  필드로 나가기
-                </button>
-              </div>
-              <MoneyShopCard currentLeaf={currentLeaf} onBuy={(cost) => setSpentLeaf(prev => prev + cost)} />
-            </div>
-          )}
+          {/* 3. 하단 액션 버튼들 (핵심!) */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+            <button onClick={() => setActiveModal('calendar')} style={{ padding: '16px 0', borderRadius: 12, border: 'none', backgroundColor: '#ff4444', color: '#fff', fontWeight: 'bold', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+              <Swords size={20} /> 공격 (무지출)
+            </button>
+            <button onClick={() => setActiveModal('quest')} style={{ padding: '16px 0', borderRadius: 12, border: 'none', backgroundColor: '#333', color: '#fff', fontWeight: 'bold', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+              <Scroll size={20} /> 의뢰서
+            </button>
+            <button onClick={() => setActiveModal('inventory')} style={{ padding: '16px 0', borderRadius: 12, border: 'none', backgroundColor: '#444', color: '#fff', fontWeight: 'bold', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+              <Backpack size={20} /> 가방
+            </button>
+          </div>
 
+          {/* 마을 이동 버튼 (토벌 시 활성) */}
+          {monsterInfo.isDead && (
+            <button onClick={() => { setLocation('village'); confetti({ particleCount: 100, origin: { y: 0.6 } }); }} style={{ padding: '12px', borderRadius: 12, border: 'none', backgroundColor: '#fff', color: '#333', fontWeight: 'bold', cursor: 'pointer', marginTop: 10 }}>
+              🏠 마을로 귀환하기
+            </button>
+          )}
         </div>
       )}
 
-      <style>{`@keyframes pulse { from { transform: scale(1); } to { transform: scale(1.05); } }`}</style>
+      {/* ========== [마을 탭] ========== */}
+      {activeTab === 'adventure' && location === 'village' && (
+        <div className="fade-in" style={{ padding: '0 16px' }}>
+          <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#fff', borderRadius: 16, marginBottom: 20 }}>
+            <div style={{ fontSize: 18, fontWeight: 'bold' }}>평화로운 마을</div>
+            <p style={{ fontSize: 12, color: '#666' }}>전투에서 지친 몸을 쉬어가세요.</p>
+          </div>
+          
+          <MoneyShopCard currentLeaf={currentLeaf} onBuy={(cost) => setSpentLeaf(p => p + cost)} />
+          
+          <button onClick={() => setLocation('field')} style={{ width: '100%', padding: '16px', marginTop: 20, borderRadius: 12, border: 'none', backgroundColor: '#333', color: '#fff', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <DoorOpen size={18} /> 필드로 나가기
+          </button>
+        </div>
+      )}
+
+      {/* ========== [기록 탭] ========== */}
+      {activeTab === 'record' && (
+        <div className="fade-in" style={{ padding: '0 16px', color: '#333' }}>
+          <div style={{ padding: '20px', borderRadius: 16, backgroundColor: '#fff', marginBottom: 16 }}>
+            <div style={{ fontWeight: 'bold', marginBottom: 12 }}>빠른 지출 입력</div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <input type="date" value={txForm.date} onChange={e => setTxForm(p => ({...p, date: e.target.value}))} style={{ flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: 8 }} />
+              <select value={txForm.type} onChange={e => setTxForm(p => ({...p, type: e.target.value as TxType}))} style={{ padding: '8px', border: '1px solid #ddd', borderRadius: 8 }}>
+                <option value="expense">지출</option>
+                <option value="income">수입</option>
+              </select>
+            </div>
+            <input placeholder="내용" value={txForm.category} onChange={e => setTxForm(p => ({...p, category: e.target.value}))} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: 8, marginBottom: 8 }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input placeholder="금액" value={txForm.amount} onChange={e => setTxForm(p => ({...p, amount: e.target.value}))} style={{ flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: 8 }} />
+              <button onClick={handleAddTx} style={{ padding: '0 20px', backgroundColor: '#333', color: '#fff', border: 'none', borderRadius: 8 }}>V</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========== [모달 창들] ========== */}
+      
+      {/* 1. 공격 (무지출 달력) */}
+      <Modal isOpen={activeModal === 'calendar'} onClose={() => setActiveModal(null)} title="⚔️ 이번 달 공략집">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <span style={{ fontSize: 12, color: '#666' }}>오늘 지출이 없었다면 공격하세요!</span>
+          <button onClick={toggleTodayNoSpend} style={{ padding: '6px 12px', borderRadius: 20, border: 'none', backgroundColor: '#ff4444', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+            🔥 공격 (성공 체크)
+          </button>
+        </div>
+        <NoSpendBoard year={monthlyBudget.year} month={monthlyBudget.month} dayStatuses={dayStatuses as any} />
+      </Modal>
+
+      {/* 2. 퀘스트 */}
+      <Modal isOpen={activeModal === 'quest'} onClose={() => setActiveModal(null)} title="📜 길드 의뢰서">
+        <MoneyQuestCard isNoSpendToday={isNoSpendToday} hasTxToday={hasTxToday} />
+      </Modal>
+
+      {/* 3. 가방 (장비 & 스탯) */}
+      <Modal isOpen={activeModal === 'inventory'} onClose={() => setActiveModal(null)} title="🎒 내 가방">
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>{userClass.icon}</div>
+          <div style={{ fontSize: 18, fontWeight: 'bold' }}>{userClass.name}</div>
+          <div style={{ fontSize: 12, color: '#666' }}>{userTitle} (Lv.{level})</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          <div style={{ flex: 1, backgroundColor: '#f9f9f9', padding: '10px', borderRadius: 8, textAlign: 'center' }}>
+            <div style={{ fontSize: 12, fontWeight: 'bold', color: '#ff6b6b' }}>STR</div>
+            <div>{rpgStats.str}</div>
+          </div>
+          <div style={{ flex: 1, backgroundColor: '#f9f9f9', padding: '10px', borderRadius: 8, textAlign: 'center' }}>
+            <div style={{ fontSize: 12, fontWeight: 'bold', color: '#4da6ff' }}>INT</div>
+            <div>{rpgStats.int}</div>
+          </div>
+          <div style={{ flex: 1, backgroundColor: '#f9f9f9', padding: '10px', borderRadius: 8, textAlign: 'center' }}>
+            <div style={{ fontSize: 12, fontWeight: 'bold', color: '#ffd700' }}>DEX</div>
+            <div>{rpgStats.dex}</div>
+          </div>
+        </div>
+        <MoneyWeaponCard transactions={transactions} dayStatuses={dayStatuses} savedAmount={gameGold} />
+      </Modal>
+
     </div>
   );
 };
