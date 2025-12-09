@@ -1,17 +1,16 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   PenTool, Swords, Sprout, Search, Coffee, Car, ShoppingBag, 
-  Moon, Backpack, Edit2, Shield, Calendar as CalendarIcon 
+  Moon, Backpack, Edit2, Shield, CheckSquare, Square, Trash2, Calendar as CalendarIcon 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 // 컴포넌트
 import NoSpendBoard from '../components/money/NoSpendBoard';
-import MoneyQuestCard from '../components/money/MoneyQuestCard';
 import MoneyMonsterCard from '../components/money/MoneyMonsterCard';
 import MoneyWeaponCard from '../components/money/MoneyWeaponCard';
 import JourneyMap from '../components/money/JourneyMap';
-import FogOverlay from '../components/effects/FogOverlay'; // [NEW] 안개 효과
+import FogOverlay from '../components/effects/FogOverlay'; // [NEW] 안개
 import Modal from '../components/ui/Modal'; 
 
 // 로직
@@ -28,6 +27,9 @@ interface DayStatusLike { day: number; isNoSpend: boolean; completedQuests: numb
 interface MonthlyBudgetLike { year: number; month: number; variableBudget: number; noSpendTarget: number; snackRecoveryBudget?: number; }
 interface SavingActionTemplate { id: string; name: string; icon: React.ReactNode; defaultAmount: number; }
 
+// [NEW] 전투형 투두리스트 타입
+interface BattleQuest { id: number; text: string; done: boolean; damage: number; }
+
 const MoneyRoomPage: React.FC = () => {
   const today = useMemo(() => new Date(), []);
   
@@ -37,7 +39,7 @@ const MoneyRoomPage: React.FC = () => {
   const [location, setLocation] = useState<'field' | 'village'>('field');
   const [farmMessage, setFarmMessage] = useState<string | null>(null);
   const [isEditingBudget, setIsEditingBudget] = useState(false);
-  const [isAttacking, setIsAttacking] = useState(false); // [NEW] 공격 모션 상태
+  const [isAttacking, setIsAttacking] = useState(false); // 공격 애니메이션 상태
 
   // 🔹 데이터 상태
   const [monthlyBudget, setMonthlyBudget] = useState<MonthlyBudgetLike>({ 
@@ -54,24 +56,32 @@ const MoneyRoomPage: React.FC = () => {
   const [energy, setEnergy] = useState(5);
   const [realSavings, setRealSavings] = useState(0); 
 
-  // 🌱 절약 행동 템플릿
-  const savingTemplates: SavingActionTemplate[] = [
-    { id: 'coffee', name: '커피 대신 물', icon: <Coffee size={14}/>, defaultAmount: 4500 },
-    { id: 'taxi', name: '택시 대신 버스', icon: <Car size={14}/>, defaultAmount: 10000 },
-    { id: 'snack', name: '편의점 패스', icon: <ShoppingBag size={14}/>, defaultAmount: 3000 },
-  ];
-  
-  const [selectedSaving, setSelectedSaving] = useState<SavingActionTemplate | null>(null);
-  const [savingAmountInput, setSavingAmountInput] = useState('');
+  // [NEW] 전투 퀘스트 (투두리스트)
+  // 할 일을 완료할 때마다 데미지를 줍니다.
+  const [battleQuests, setBattleQuests] = useState<BattleQuest[]>([
+    { id: 1, text: '지출 내역 확인하기', done: false, damage: 50 },
+    { id: 2, text: '영수증 정리하기', done: false, damage: 30 },
+    { id: 3, text: '내일 예산 미리보기', done: false, damage: 40 },
+    { id: 4, text: '따뜻한 물 한잔 (Self-care)', done: false, damage: 100 }, // 힐링이 곧 공격!
+  ]);
 
   // 🔹 입력 폼
   const [txForm, setTxForm] = useState({ 
     date: today.toISOString().slice(0, 10), type: 'expense' as TxType, category: '', amount: '', isEssential: false, isRecoverySnack: false
   });
 
+  // 절약 템플릿 & 팝업
+  const savingTemplates: SavingActionTemplate[] = [
+    { id: 'coffee', name: '커피 대신 물', icon: <Coffee size={14}/>, defaultAmount: 4500 },
+    { id: 'taxi', name: '택시 대신 버스', icon: <Car size={14}/>, defaultAmount: 10000 },
+    { id: 'snack', name: '편의점 패스', icon: <ShoppingBag size={14}/>, defaultAmount: 3000 },
+  ];
+  const [selectedSaving, setSelectedSaving] = useState<SavingActionTemplate | null>(null);
+  const [savingAmountInput, setSavingAmountInput] = useState('');
+
   // ---------------- [로직 연동] ----------------
   const [cycleSettings, setCycleSettings] = useState<CycleSettings>({
-    lastPeriodStart: '2025-11-25', cycleLength: 33, manualMode: null, // 테스트용 날짜 넣어둠
+    lastPeriodStart: '2025-11-25', cycleLength: 33, manualMode: null,
   });
   const cycleStatus = useMemo(() => calcCycleStatus(today, cycleSettings), [today, cycleSettings]);
   const lunaMode = cycleStatus.mode;
@@ -92,17 +102,12 @@ const MoneyRoomPage: React.FC = () => {
     const totalExpense = transactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
     const noSpendDays = dayStatuses.filter((d) => d.isNoSpend).length;
     const ctx = {
-      variableBudget: monthlyBudget.variableBudget,
-      totalExpense,
-      noSpendDays,
-      dayOfMonth: today.getDate(),
+      variableBudget: monthlyBudget.variableBudget, totalExpense, noSpendDays, dayOfMonth: today.getDate(),
     };
     setJourney(prev => evaluateJourney(prev, ctx));
   }, [monthlyBudget, transactions, dayStatuses, today]);
 
-  // 계산 로직들
-  const totalLeafPoints = useMemo(() => calcLeafPoints(transactions, dayStatuses, installments), [transactions, dayStatuses, installments]);
-  const currentLeaf = Math.max(0, totalLeafPoints - spentLeaf);
+  // 계산 로직
   const currentHP = useMemo(() => calcHP(monthlyBudget, transactions), [monthlyBudget, transactions]);
   const rpgStats = useMemo(() => calcRPGStats(transactions, dayStatuses, gameGold + realSavings / 100), [transactions, dayStatuses, gameGold, realSavings]);
   const { currentExp, level } = useMemo(() => calcAdvancedXP(rpgStats, installments), [rpgStats, installments]);
@@ -116,14 +121,18 @@ const MoneyRoomPage: React.FC = () => {
     const cat = getTopDiscretionaryCategory(transactions);
     const mon = pickMonsterForCategory(cat);
     const noSpendDays = dayStatuses.filter(d => d.isNoSpend).length;
-    // 몬스터 HP는 예산/지출 상황에 따라 변함
-    const hp = calcMonsterHp(mon, { noSpendDays });
-    return { ...mon, currentHp: hp, isDead: hp <= 0 };
-  }, [transactions, dayStatuses]);
+    // 퀘스트 완료 데미지 추가 (완료된 퀘스트 데미지 합산)
+    const questDamage = battleQuests.filter(q => q.done).reduce((sum, q) => sum + q.damage, 0);
+    
+    // 기본 계산된 HP에서 퀘스트 데미지 차감
+    const baseHp = calcMonsterHp(mon, { noSpendDays });
+    const finalHp = Math.max(0, baseHp - questDamage);
+
+    return { ...mon, currentHp: finalHp, isDead: finalHp <= 0 };
+  }, [transactions, dayStatuses, battleQuests]); // battleQuests 의존성 추가
 
   const isNoSpendToday = useMemo(() => dayStatuses.some(d => d.day === today.getDate() && d.isNoSpend), [dayStatuses, today]);
-  const hasTxToday = useMemo(() => transactions.some(t => t.date === today.toISOString().slice(0, 10)), [transactions, today]);
-
+  
   const userClass = useMemo(() => {
     if (transactions.length === 0) return { name: '초심자', icon: '🌱' };
     return { name: '모험가', icon: '⚔️' };
@@ -132,7 +141,7 @@ const MoneyRoomPage: React.FC = () => {
   // ---- [NEW] 공격 이펙트 트리거 ----
   const triggerAttack = () => {
     setIsAttacking(true);
-    setTimeout(() => setIsAttacking(false), 500); // 0.5초간 타격 효과
+    setTimeout(() => setIsAttacking(false), 500); 
   };
 
   // ---- 핸들러 ----
@@ -144,9 +153,7 @@ const MoneyRoomPage: React.FC = () => {
     };
     setTransactions((prev) => [newTx, ...prev]);
     setTxForm((prev) => ({ ...prev, amount: '', category: '', isRecoverySnack: false }));
-    
-    // 공격 발동! (기록 = 공격)
-    triggerAttack();
+    triggerAttack(); // 기록 = 공격
   };
 
   // [NEW] 무지출 도장 토글 (실수 방지 포함)
@@ -155,18 +162,30 @@ const MoneyRoomPage: React.FC = () => {
     setDayStatuses((prev) => {
       const existing = prev.find((d) => d.day === day);
       
-      // 1. 이미 체크되어 있으면 -> 취소 (토글)
+      // 1. 이미 체크됨 -> 취소 (토글)
       if (existing && existing.isNoSpend) {
+        // 취소 시 공격 효과는 없음 (조용히 취소)
         return prev.map((d) => (d.day === day ? { ...d, isNoSpend: false } : d));
       }
       
-      // 2. 체크 안 되어 있으면 -> 성공!
+      // 2. 체크 안 됨 -> 성공!
       confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 }, colors: ['#ffdb4d', '#4dff88', '#4da6ff'] });
-      triggerAttack(); // 무지출 성공도 공격!
+      triggerAttack(); // 무지출 성공은 강력한 공격!
 
       if (!existing) return [...prev, { day, isNoSpend: true, completedQuests: 0 }];
       return prev.map((d) => (d.day === day ? { ...d, isNoSpend: true } : d));
     });
+  };
+
+  // [NEW] 전투 퀘스트 체크 핸들러
+  const toggleBattleQuest = (id: number) => {
+    setBattleQuests(prev => prev.map(q => {
+      if (q.id === id) {
+        if (!q.done) triggerAttack(); // 체크할 때만 공격
+        return { ...q, done: !q.done };
+      }
+      return q;
+    }));
   };
 
   const handleSavingClick = (template: SavingActionTemplate) => {
@@ -182,26 +201,19 @@ const MoneyRoomPage: React.FC = () => {
       setRealSavings(prev => prev + amount);
       setGameGold(prev => prev + Math.floor(amount / 10));
       confetti({ particleCount: 50, origin: { y: 0.6 }, colors: ['#4caf50', '#ffd700'] });
-      triggerAttack(); // 절약도 공격!
+      triggerAttack(); 
     }
     setActiveModal(null);
     setSelectedSaving(null);
   };
 
   const startEditBudget = () => {
-    setEditBudgetForm({
-      variable: String(monthlyBudget.variableBudget), target: String(monthlyBudget.noSpendTarget), snack: String(monthlyBudget.snackRecoveryBudget || 0)
-    });
+    setEditBudgetForm({ variable: String(monthlyBudget.variableBudget), target: String(monthlyBudget.noSpendTarget), snack: String(monthlyBudget.snackRecoveryBudget || 0) });
     setIsEditingBudget(true);
   };
 
   const saveBudget = () => {
-    setMonthlyBudget(prev => ({
-      ...prev,
-      variableBudget: Number(editBudgetForm.variable.replace(/,/g, '')),
-      noSpendTarget: Number(editBudgetForm.target),
-      snackRecoveryBudget: Number(editBudgetForm.snack.replace(/,/g, ''))
-    }));
+    setMonthlyBudget(prev => ({ ...prev, variableBudget: Number(editBudgetForm.variable.replace(/,/g, '')), noSpendTarget: Number(editBudgetForm.target), snackRecoveryBudget: Number(editBudgetForm.snack.replace(/,/g, '')) }));
     setIsEditingBudget(false);
   };
 
@@ -221,21 +233,19 @@ const MoneyRoomPage: React.FC = () => {
     <div style={{ 
       minHeight: '100vh', backgroundColor: location === 'village' ? '#fffaf0' : '#222',
       color: location === 'field' ? '#fff' : '#333',
-      transition: 'all 0.5s ease',
-      paddingBottom: '80px',
-      position: 'relative' // 안개 효과용
+      transition: 'all 0.5s ease', paddingBottom: '80px', position: 'relative'
     }}>
       
-      {/* 🌫️ PMS 안개 이펙트 Overlay */}
+      {/* 🌫️ PMS 안개 이펙트 (PMS 주간에만 등장) */}
       {lunaMode === 'pms' && <FogOverlay />}
 
       {/* 🔹 상단 HUD */}
-      <div style={{ padding: '16px 16px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ padding: '16px 16px 0', display: 'flex', flexDirection: 'column', gap: 8, position: 'relative', zIndex: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 18, fontWeight: 'bold', zIndex: 10 }}>
+          <div style={{ fontSize: 18, fontWeight: 'bold' }}>
             {activeTab === 'record' ? '📊 가계부 상황실' : (location === 'field' ? '⚔️ 황야' : '🏠 마을')}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, zIndex: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ fontSize: 12, color: '#ffd700', fontWeight: 'bold' }}>{gameGold} G</div>
             <div style={{ width: 80, height: 8, backgroundColor: '#444', borderRadius: 4, overflow: 'hidden' }}>
               <div style={{ width: `${currentHP}%`, height: '100%', backgroundColor: currentHP < 30 ? '#ff4444' : '#4da6ff' }} />
@@ -245,7 +255,7 @@ const MoneyRoomPage: React.FC = () => {
       </div>
 
       {/* 🔹 탭 버튼 */}
-      <div style={{ padding: '16px', display: 'flex', gap: 10, zIndex: 10, position: 'relative' }}>
+      <div style={{ padding: '16px', display: 'flex', gap: 10, position: 'relative', zIndex: 10 }}>
         <button onClick={() => setActiveTab('record')} style={{ flex: 1, padding: '10px', borderRadius: 12, border: 'none', backgroundColor: activeTab === 'record' ? '#fff' : 'rgba(255,255,255,0.2)', color: activeTab === 'record' ? '#333' : '#fff', fontWeight: 'bold' }}>
           <PenTool size={16} style={{ marginBottom: -2, marginRight: 6 }} /> 기록 & 방어
         </button>
@@ -258,28 +268,55 @@ const MoneyRoomPage: React.FC = () => {
       {activeTab === 'record' && (
         <div className="fade-in" style={{ padding: '0 16px', color: '#333', position: 'relative', zIndex: 10 }}>
           
-          {/* 🌙 Luna 모드 */}
+          {/* 🌙 Luna 모드 상태 */}
           <div style={{ 
             marginBottom: 16, padding: '8px 12px', borderRadius: 12, backgroundColor: '#fff',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 'bold', color: '#555' }}>
               <Moon size={14} color={lunaMode === 'pms' ? '#ef4444' : lunaMode === 'rest' ? '#3b82f6' : '#9ca3af'} />
-              {lunaMode === 'normal' ? '평온 주간' : lunaMode === 'pms' ? 'PMS 주의보 (안개)' : '휴식 주간'}
+              {lunaMode === 'normal' ? '평온 주간' : lunaMode === 'pms' ? 'PMS 주의보' : '휴식 주간'}
             </div>
             {lunaMode === 'pms' && <div style={{ fontSize: 10, color: '#ef4444' }}>안개 속이라 몬스터가 잘 안 보입니다!</div>}
           </div>
 
-          {/* 🛡️ 방어전 (무지출 도장) - 기록 탭으로 이동 */}
+          {/* 1. 전투형 투두리스트 (New!) */}
           <div style={{ padding: '16px', borderRadius: 20, backgroundColor: '#fff', marginBottom: 16, boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <div style={{ fontSize: 14, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Shield size={16} color="#3b82f6" /> 오늘의 방어전
+                <Swords size={16} color="#ef4444" /> 오늘의 전투 행동
               </div>
-              <div style={{ fontSize: 11, color: '#888' }}>지출이 없다면 도장을 꾹!</div>
+              <div style={{ fontSize: 11, color: '#888' }}>체크하면 몬스터를 공격합니다!</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {battleQuests.map(q => (
+                <div 
+                  key={q.id} 
+                  onClick={() => toggleBattleQuest(q.id)}
+                  style={{ 
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px', borderRadius: 12,
+                    backgroundColor: q.done ? '#fdf2f2' : '#fafafa', cursor: 'pointer',
+                    textDecoration: q.done ? 'line-through' : 'none', color: q.done ? '#aaa' : '#333',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {q.done ? <CheckSquare size={18} color="#ef4444" /> : <Square size={18} color="#ddd" />}
+                  <span style={{ fontSize: 13, flex: 1 }}>{q.text}</span>
+                  <span style={{ fontSize: 11, fontWeight: 'bold', color: '#ef4444' }}>-{q.damage} HP</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 2. 무지출 방어전 (수정됨) */}
+          <div style={{ padding: '16px', borderRadius: 20, backgroundColor: '#fff', marginBottom: 16, boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Shield size={16} color="#3b82f6" /> 무지출의 맹세
+              </div>
             </div>
             
-            {/* 도장 버튼 */}
+            {/* 도장 버튼 (직접 누르는 방식) */}
             <button 
               onClick={toggleTodayNoSpend}
               style={{
@@ -293,20 +330,23 @@ const MoneyRoomPage: React.FC = () => {
             >
               {isNoSpendToday ? (
                 <>
-                  <Shield size={20} fill="#3b82f6" /> 방어 성공! (취소하려면 클릭)
+                  <Shield size={20} fill="#3b82f6" /> 
+                  <div>
+                    방어 성공! <span style={{fontSize:11, fontWeight:'normal'}}>(취소하려면 클릭)</span>
+                  </div>
                 </>
               ) : (
                 <>
                   <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid #ddd' }} /> 
-                  오늘 무지출 성공 체크하기
+                  오늘 돈을 안 썼다면 꾹!
                 </>
               )}
             </button>
           </div>
 
-          {/* 1. 예산 카드 */}
+          {/* 3. 예산 카드 */}
           <div style={{ padding: '20px', borderRadius: 20, backgroundColor: '#fff', marginBottom: 16, boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
-            {!isEditingBudget ? (
+             {!isEditingBudget ? (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                   <div>
@@ -322,47 +362,18 @@ const MoneyRoomPage: React.FC = () => {
                 <div style={{ width: '100%', height: 10, backgroundColor: '#f0f0f0', borderRadius: 5, overflow: 'hidden', marginBottom: 10 }}>
                   <div style={{ width: `${budgetRatio}%`, height: '100%', backgroundColor: budgetRatio < 20 ? '#ff4444' : '#4caf50', transition: 'width 0.5s' }} />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#888' }}>
-                  <span>쓴 돈: {formatMoney(totalExpense)}</span>
-                  <span>총 예산: {formatMoney(monthlyBudget.variableBudget)}</span>
-                </div>
               </>
             ) : (
-              // 수정 폼 (생략 - 위와 동일)
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {/* ... (위 코드 복붙) ... */}
-                <button onClick={saveBudget} style={{ padding: 10, backgroundColor: '#333', color:'#fff', border:'none', borderRadius:8 }}>저장</button>
+                 <button onClick={saveBudget} style={{ padding: 10, backgroundColor: '#333', color:'#fff', border:'none', borderRadius:8 }}>저장</button>
               </div>
             )}
           </div>
 
-          {/* 2. 절약 행동 (공격) */}
-          <div style={{ padding: '16px', borderRadius: 20, backgroundColor: '#fff', marginBottom: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Sprout size={16} color="#4caf50" /> 절약은 최고의 공격
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {savingTemplates.map((item) => (
-                <button 
-                  key={item.id} 
-                  onClick={() => handleSavingClick(item)}
-                  style={{ 
-                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                    padding: '12px 0', borderRadius: 12, border: '1px solid #eee', backgroundColor: '#fafafa', cursor: 'pointer'
-                  }}
-                >
-                  <div style={{ color: '#2e7d32' }}>{item.icon}</div>
-                  <div style={{ fontSize: 11, color: '#555' }}>{item.name}</div>
-                </button>
-              ))}
-            </div>
-            {realSavings > 0 && <div style={{ marginTop: 12, textAlign: 'center', fontSize: 12, color: '#2e7d32' }}>오늘 총 {formatMoney(realSavings)}원 방어함!</div>}
-          </div>
-
-          {/* 3. 지출 기록 (공격) */}
+          {/* 4. 절약 & 지출 기록 */}
           <div style={{ padding: '20px', borderRadius: 20, backgroundColor: '#fff', marginBottom: 16 }}>
-            <div style={{ fontWeight: 'bold', marginBottom: 12, fontSize: 14 }}>💸 기록도 공격이다 (지출 입력)</div>
-            {/* ...입력 폼... */}
+            <div style={{ fontWeight: 'bold', marginBottom: 12, fontSize: 14 }}>💸 지출 기록하기</div>
+            {/* 입력 폼 UI (생략 없이 유지) */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <input type="date" value={txForm.date} onChange={e => setTxForm(p => ({...p, date: e.target.value}))} style={{ flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: 10 }} />
               <select value={txForm.type} onChange={e => setTxForm(p => ({...p, type: e.target.value as TxType}))} style={{ padding: '10px', border: '1px solid #ddd', borderRadius: 10 }}>
@@ -375,8 +386,7 @@ const MoneyRoomPage: React.FC = () => {
               <input placeholder="금액" value={txForm.amount} onChange={e => setTxForm(p => ({...p, amount: e.target.value}))} style={{ flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: 10 }} />
               <button onClick={handleAddTx} style={{ padding: '0 20px', backgroundColor: '#333', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 'bold' }}>입력</button>
             </div>
-            {/* 체크박스들 */}
-            <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
+             <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
                <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                  <input type="checkbox" checked={txForm.isEssential} onChange={e => setTxForm(p => ({...p, isEssential: e.target.checked}))} /> 필수
                </label>
@@ -392,16 +402,16 @@ const MoneyRoomPage: React.FC = () => {
       {activeTab === 'adventure' && (
         <div className="fade-in" style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 20, position: 'relative', zIndex: 10 }}>
           
-          {/* 🗺️ 월드맵 (이미지 적용 가능하게 교체) */}
+          {/* 🗺️ 월드맵 */}
           <JourneyMap journey={journey} onChangeRoute={handleRouteChange} />
 
-          {/* ⚔️ 몬스터 (이미지 적용 + 공격 효과) */}
+          {/* ⚔️ 몬스터 (공격 효과 적용됨) */}
           <div style={{ position: 'relative' }}>
              <MoneyMonsterCard 
                 monsterName={monsterInfo.name}
                 currentHp={monsterInfo.currentHp}
                 maxHp={monsterInfo.hp}
-                isHit={isAttacking} // 공격 상태 전달
+                isHit={isAttacking} // 투두 체크하면 흔들림!
              />
              <div style={{ position: 'absolute', bottom: -20, right: 10, zIndex: 10 }}>
                <button onClick={handleFieldSearch} style={{ width: 50, height: 50, borderRadius: '50%', border: '4px solid #fff', backgroundColor: '#4caf50', color: '#fff', boxShadow: '0 4px 10px rgba(0,0,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -428,7 +438,6 @@ const MoneyRoomPage: React.FC = () => {
       )}
 
       {/* ========== [모달들] ========== */}
-      
       <Modal isOpen={activeModal === 'inventory'} onClose={() => setActiveModal(null)} title="🎒 모험가의 가방">
         <div style={{ textAlign: 'center', marginBottom: 20, padding: 16, backgroundColor: '#f9f9f9', borderRadius: 12 }}>
           <div style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 4 }}>{userClass.name} (Lv.{level})</div>
@@ -438,31 +447,15 @@ const MoneyRoomPage: React.FC = () => {
       </Modal>
 
       <Modal isOpen={activeModal === 'saving'} onClose={() => setActiveModal(null)} title="절약 기록">
+        {/* 절약 모달 UI (생략) */}
         <div style={{ textAlign: 'center', padding: '10px 0' }}>
-          <div style={{ fontSize: 40, marginBottom: 10 }}>{selectedSaving?.icon}</div>
-          <div style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 20 }}>{selectedSaving?.name}</div>
-          <label style={{ display: 'block', textAlign: 'left', fontSize: 12, color: '#666', marginBottom: 6 }}>아낀 금액</label>
-          <input 
-            type="number" 
-            value={savingAmountInput}
-            onChange={(e) => setSavingAmountInput(e.target.value)}
-            style={{ width: '100%', padding: '12px', fontSize: 18, fontWeight: 'bold', border: '2px solid #4caf50', borderRadius: 12, marginBottom: 20 }}
-            autoFocus
-          />
-          <button 
-            onClick={confirmSaving}
-            style={{ width: '100%', padding: '14px', backgroundColor: '#4caf50', color: '#fff', fontWeight: 'bold', border: 'none', borderRadius: 12, fontSize: 16 }}
-          >
-            공격하기! (확인)
-          </button>
+           <input type="number" value={savingAmountInput} onChange={(e) => setSavingAmountInput(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: 20 }} />
+           <button onClick={confirmSaving} style={{ width: '100%', padding: '14px', backgroundColor: '#4caf50', color: '#fff' }}>공격하기!</button>
         </div>
       </Modal>
 
       <Modal isOpen={activeModal === 'quest'} onClose={() => setActiveModal(null)} title="📅 월간 기록">
          <NoSpendBoard dayStatuses={dayStatuses as any} lunaMode={lunaMode} />
-         <div style={{ marginTop: 12, textAlign: 'center', fontSize: 12, color: '#888' }}>
-           무지출 도장은 '기록' 탭에서 찍을 수 있습니다.
-         </div>
       </Modal>
 
     </div>
