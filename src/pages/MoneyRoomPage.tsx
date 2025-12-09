@@ -1,6 +1,6 @@
 // src/pages/MoneyRoomPage.tsx
 import React, { useMemo, useState } from 'react';
-import { PenTool, Swords, ChevronDown, ChevronUp, Sprout, Map, Tent, DoorOpen } from 'lucide-react';
+import { PenTool, Swords, ChevronDown, ChevronUp, Sprout, Search, Zap } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 // 컴포넌트들
@@ -31,8 +31,12 @@ const MoneyRoomPage: React.FC = () => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [farmMessage, setFarmMessage] = useState<string | null>(null);
   
-  // 🗺️ 현재 위치 상태 (field: 몬스터 전투 / village: 마을 휴식)
+  // 🗺️ 위치 상태
   const [location, setLocation] = useState<'field' | 'village'>('field');
+
+  // ⚡ 행동력 (Energy) 시스템
+  const MAX_ENERGY = 5;
+  const [energy, setEnergy] = useState(MAX_ENERGY); // 기본 5/5
 
   // 🔹 데이터 상태
   const [monthlyBudget, setMonthlyBudget] = useState<MonthlyBudgetLike>({
@@ -41,6 +45,7 @@ const MoneyRoomPage: React.FC = () => {
   const [transactions, setTransactions] = useState<TransactionLike[]>([]);
   const [installments, setInstallments] = useState<InstallmentLike[]>([]);
   const [dayStatuses, setDayStatuses] = useState<DayStatusLike[]>([]);
+  
   const [gameGold, setGameGold] = useState(0); 
   const [spentLeaf, setSpentLeaf] = useState(0); 
 
@@ -58,7 +63,7 @@ const MoneyRoomPage: React.FC = () => {
   const { currentExp, level, maxExp } = useMemo(() => calcAdvancedXP(rpgStats, installments), [rpgStats, installments]);
   const expRatio = (currentExp / maxExp) * 100;
 
-  // 몬스터 상태 계산 (처치 여부 확인용)
+  // 몬스터 상태 계산
   const monsterInfo = useMemo(() => {
     const cat = getTopDiscretionaryCategory(transactions);
     const mon = pickMonsterForCategory(cat);
@@ -66,6 +71,17 @@ const MoneyRoomPage: React.FC = () => {
     const hp = calcMonsterHp(mon, { noSpendDays });
     return { ...mon, currentHp: hp, isDead: hp <= 0 };
   }, [transactions, dayStatuses]);
+
+  // 퀘스트 자동 완료용 상태 계산
+  const isNoSpendToday = useMemo(() => {
+    const todayDate = today.getDate();
+    return dayStatuses.some(d => d.day === todayDate && d.isNoSpend);
+  }, [dayStatuses, today]);
+
+  const hasTxToday = useMemo(() => {
+    const todayStr = today.toISOString().slice(0, 10);
+    return transactions.some(t => t.date === todayStr);
+  }, [transactions, today]);
 
   // ⚔️ 직업 & 칭호
   const userClass = useMemo(() => {
@@ -85,17 +101,15 @@ const MoneyRoomPage: React.FC = () => {
   }, [level]);
 
   // ---- 핸들러 ----
-  const handleSaveBudget = () => { /* ...생략(기존동일)... */ };
+  const handleSaveBudget = () => { /* ... */ };
   const handleAddTx = () => {
-    /* ...생략(기존동일)... */ 
-    // 편의상 입력 로직은 유지하되 코드 길이 줄임
     const amountNum = Number(txForm.amount.replace(/,/g, ''));
     if (!txForm.category || !amountNum) return alert('입력 확인');
     const newTx: TransactionLike = { id: `${Date.now()}`, date: txForm.date, type: txForm.type, category: txForm.category.trim(), amount: amountNum, isEssential: txForm.isEssential };
     setTransactions((prev) => [newTx, ...prev]);
     setTxForm((prev) => ({ ...prev, amount: '', category: '' }));
   };
-  const handleAddInstallment = () => { /* ...생략(기존동일)... */ };
+  const handleAddInstallment = () => { /* ... */ };
 
   const toggleTodayNoSpend = () => {
     const day = today.getDate();
@@ -109,8 +123,17 @@ const MoneyRoomPage: React.FC = () => {
     });
   };
 
-  const handleFarming = () => {
+  // 🌱 필드 파밍 (행동력 소모)
+  const handleFieldSearch = () => {
+    if (energy <= 0) {
+      setFarmMessage('⚡ 행동력이 부족합니다! (내일 충전됨)');
+      setTimeout(() => setFarmMessage(null), 1500);
+      return;
+    }
     if (farmMessage) return;
+
+    setEnergy(prev => prev - 1); // 행동력 차감
+
     const rewards = [ { text: '🌿 잡초 (10G)', gold: 10 }, { text: '✨ 유리조각 (50G)', gold: 50 }, { text: '🪙 동전 (100G)', gold: 100 }, { text: '📦 상자 (500G)', gold: 500 } ];
     const pick = rewards[Math.floor(Math.random() * rewards.length)];
     setFarmMessage(pick.text);
@@ -119,16 +142,13 @@ const MoneyRoomPage: React.FC = () => {
     setTimeout(() => setFarmMessage(null), 2000);
   };
 
-  // 🚀 지역 이동 핸들러
+  // 지역 이동
   const handleMoveToVillage = () => {
     if (!monsterInfo.isDead) return alert('몬스터를 처치해야 마을로 갈 수 있습니다!');
     setLocation('village');
     confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } });
   };
-
-  const handleMoveToField = () => {
-    setLocation('field');
-  };
+  const handleMoveToField = () => setLocation('field');
 
   const formatMoney = (n: number) => n.toLocaleString('ko-KR');
   const monthLabel = `${monthlyBudget.year}. ${String(monthlyBudget.month).padStart(2, '0')}`;
@@ -137,7 +157,7 @@ const MoneyRoomPage: React.FC = () => {
   return (
     <div style={{ 
       padding: '12px 0 60px',
-      backgroundColor: location === 'village' ? '#fffaf0' : '#f4f1ea', // 마을이면 좀 더 밝은 색
+      backgroundColor: location === 'village' ? '#fffaf0' : '#f4f1ea',
       backgroundImage: `radial-gradient(${location === 'village' ? '#dcd1bf' : '#ccc'} 1px, transparent 1px)`, 
       backgroundSize: '20px 20px',
       minHeight: '100vh',
@@ -156,10 +176,22 @@ const MoneyRoomPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 🔹 HUD */}
+      {/* 🔹 HUD: 스탯 + 행동력 표시 */}
       <div style={{ margin: '0 12px 20px' }}>
         <MoneyStats monthlyBudget={monthlyBudget as any} transactions={transactions} dayStatuses={dayStatuses} installments={installments} />
         <div style={{ marginTop: -12 }}><CollectionBar transactions={transactions} dayStatuses={dayStatuses} installments={installments} /></div>
+        
+        {/* ⚡ 행동력 바 (NEW!) */}
+        <div style={{ marginTop: 8, padding: '8px 12px', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #ddd', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 11, fontWeight: 'bold', color: '#555', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Zap size={14} color="#fbc02d" fill="#fbc02d" /> 행동력
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {Array.from({ length: MAX_ENERGY }).map((_, i) => (
+              <div key={i} style={{ width: 24, height: 8, borderRadius: 4, backgroundColor: i < energy ? '#fbc02d' : '#eee', transition: 'background 0.3s' }} />
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* 🔹 탭 버튼 */}
@@ -172,10 +204,9 @@ const MoneyRoomPage: React.FC = () => {
         </button>
       </div>
 
-      {/* 🔹 탭 1: 기록의 책상 */}
+      {/* 🔹 탭 1: 기록 */}
       {activeTab === 'record' && (
         <div className="fade-in" style={{ padding: '0 12px' }}>
-          {/* 가계부 입력 폼 (이전과 동일) */}
           <div style={{ padding: '16px', borderRadius: 16, border: '1px solid #e5e5e5', backgroundColor: '#fff', marginBottom: 16 }}>
             <div style={{ fontSize: 11, letterSpacing: '0.14em', color: '#b59a7a', marginBottom: 8 }}>QUICK LEDGER</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -196,11 +227,11 @@ const MoneyRoomPage: React.FC = () => {
         </div>
       )}
 
-      {/* 🔹 탭 2: 모험의 방 (위치에 따라 다름) */}
+      {/* 🔹 탭 2: 모험의 방 */}
       {activeTab === 'adventure' && (
         <div className="fade-in" style={{ padding: '0 12px' }}>
           
-          {/* 1. 내 캐릭터 (공통) */}
+          {/* 1. 내 캐릭터 (파밍 버튼 제거됨 -> 필드로 이동) */}
           <div style={{ marginBottom: 24 }}>
             <div style={{
               padding: '16px', borderRadius: '20px', backgroundColor: '#fff', border: '1px solid #ddd',
@@ -224,40 +255,24 @@ const MoneyRoomPage: React.FC = () => {
                     <div style={{ width: `${expRatio}%`, height: '100%', backgroundColor: '#ffd700', transition: 'width 0.5s ease' }} />
                   </div>
                 </div>
-
-                <button onClick={handleFarming} style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  padding: '8px 10px', borderRadius: '12px', border: '1px solid #88ff5a', backgroundColor: '#f0ffe5',
-                  cursor: 'pointer', flexShrink: 0
-                }}>
-                  <Sprout size={16} color="#4caf50" />
-                  <span style={{ fontSize: 10, color: '#2e7d32', marginTop: 2 }}>수색</span>
-                </button>
               </div>
 
-              {/* 장비창 (마을에서만 자세히 봐도 됨, 여기선 요약만 or 유지) */}
+              {/* 장비창 */}
               <MoneyWeaponCard transactions={transactions} dayStatuses={dayStatuses} savedAmount={gameGold} />
-
-              {/* 파밍 메시지 */}
-              {farmMessage && (
-                <div className="fade-in" style={{ position: 'absolute', top: 10, right: 60, padding: '4px 8px', backgroundColor: 'rgba(0,0,0,0.8)', color: '#fff', borderRadius: '6px', fontSize: '11px' }}>
-                  {farmMessage}
-                </div>
-              )}
             </div>
           </div>
 
-          {/* ⚔️ 필드 모드: 몬스터 & 퀘스트 */}
+          {/* ⚔️ 필드 모드: 몬스터 & 파밍 & 퀘스트 */}
           {location === 'field' && (
             <div className="fade-in">
               <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: 14, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Map size={16} /> 현재 위치: 거친 황야
+                  {/* ... */}
                 </div>
                 {monsterInfo.isDead && (
                   <button onClick={handleMoveToVillage} style={{
                     padding: '6px 12px', borderRadius: '20px', backgroundColor: '#333', color: '#fff', fontSize: 12, border: 'none', cursor: 'pointer',
-                    animation: 'pulse 1s infinite alternate' // 깜빡임 효과
+                    animation: 'pulse 1s infinite alternate'
                   }}>
                     🏠 마을 입장하기 &gt;
                   </button>
@@ -265,11 +280,39 @@ const MoneyRoomPage: React.FC = () => {
               </div>
 
               <MoneyMonsterCard transactions={transactions} dayStatuses={dayStatuses} />
-              <div style={{ height: 16 }} />
-              <MoneyQuestCard />
+              
+              {/* 🌱 필드 파밍 버튼 (NEW PLACE!) */}
+              <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0' }}>
+                <button 
+                  onClick={handleFieldSearch} 
+                  disabled={energy <= 0}
+                  style={{
+                    width: '100%', padding: '12px', borderRadius: '16px', border: '2px dashed #88ff5a',
+                    backgroundColor: energy > 0 ? '#f0ffe5' : '#eee', color: energy > 0 ? '#2e7d32' : '#999',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: energy > 0 ? 'pointer' : 'not-allowed',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Search size={18} />
+                  {energy > 0 ? '주변 수색하기 (행동력 -1)' : '지쳐서 움직일 수 없습니다...'}
+                </button>
+              </div>
+
+              {/* 파밍 메시지 (중앙) */}
+              {farmMessage && (
+                <div className="fade-in" style={{ 
+                  textAlign: 'center', padding: '8px 16px', backgroundColor: '#333', color: '#fff', 
+                  borderRadius: '20px', fontSize: '12px', marginBottom: 16, width: 'fit-content', margin: '0 auto 16px'
+                }}>
+                  {farmMessage}
+                </div>
+              )}
+
+              {/* 퀘스트 (자동 연동됨) */}
+              <MoneyQuestCard isNoSpendToday={isNoSpendToday} hasTxToday={hasTxToday} />
               
               <div style={{ height: 16 }} />
-              {/* 무지출 달력 (전투에 필수) */}
+              {/* 무지출 달력 (전투용) */}
               <div style={{ padding: '16px', backgroundColor: '#fff', borderRadius: 20, border: '1px solid #ddd' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <span style={{ fontWeight: 'bold', fontSize: 14 }}>공격하기 (무지출 체크)</span>
@@ -282,45 +325,28 @@ const MoneyRoomPage: React.FC = () => {
             </div>
           )}
 
-          {/* 🏠 마을 모드: 상점 */}
+          {/* 🏠 마을 모드 */}
           {location === 'village' && (
             <div className="fade-in">
+              {/* ... 상점 등 (이전과 동일) ... */}
               <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: 14, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Tent size={16} /> 현재 위치: 초심자의 마을
+                  <div style={{width: 16, height: 16, backgroundColor: '#333', borderRadius: '50%'}} /> 마을
                 </div>
                 <button onClick={handleMoveToField} style={{
                   padding: '6px 12px', borderRadius: '20px', backgroundColor: '#fff', color: '#333', fontSize: 12, border: '1px solid #ccc', cursor: 'pointer'
                 }}>
-                  <DoorOpen size={12} style={{ marginRight: 4 }} /> 
                   필드로 나가기
                 </button>
               </div>
-
-              <div style={{ padding: '20px', backgroundColor: '#fff', borderRadius: '20px', border: '1px solid #ddd', textAlign: 'center', marginBottom: 20 }}>
-                <div style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 4 }}>안전 지대</div>
-                <div style={{ fontSize: 12, color: '#777' }}>
-                  이곳에서는 몬스터가 출몰하지 않습니다.<br/>
-                  모은 Leaf로 물건을 사거나 정비하세요.
-                </div>
-              </div>
-
-              <MoneyShopCard 
-                currentLeaf={currentLeaf} 
-                onBuy={(cost) => setSpentLeaf(prev => prev + cost)} 
-              />
+              <MoneyShopCard currentLeaf={currentLeaf} onBuy={(cost) => setSpentLeaf(prev => prev + cost)} />
             </div>
           )}
 
         </div>
       )}
 
-      <style>{`
-        @keyframes pulse {
-          from { transform: scale(1); }
-          to { transform: scale(1.05); }
-        }
-      `}</style>
+      <style>{`@keyframes pulse { from { transform: scale(1); } to { transform: scale(1.05); } }`}</style>
     </div>
   );
 };
