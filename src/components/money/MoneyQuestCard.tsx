@@ -1,9 +1,13 @@
 // src/components/money/MoneyQuestCard.tsx
-import React, { useState, useMemo } from 'react';
-import { Scroll, CheckCircle2, Circle, Trophy, Star } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Scroll, CheckCircle2, Circle, Star, Lock } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-// ─── 퀘스트 데이터 (나중에 파일로 분리 가능) ───
+interface MoneyQuestCardProps {
+  isNoSpendToday: boolean; // 👈 외부에서 받아온 무지출 여부
+  hasTxToday: boolean;     // 👈 외부에서 받아온 기록 여부
+}
+
 type Difficulty = 'EASY' | 'NORMAL' | 'HARD';
 
 interface Quest {
@@ -11,166 +15,118 @@ interface Quest {
   title: string;
   desc: string;
   difficulty: Difficulty;
-  reward: number; // Leaf 포인트
+  reward: number;
+  type: 'auto' | 'manual'; // 자동완료인지 수동인지 구분
 }
 
+// 퀘스트 목록
 const QUEST_POOL: Quest[] = [
-  { id: 'q1', title: '무지출의 맹세', desc: '오늘 하루, 1원도 쓰지 않고 버티기', difficulty: 'HARD', reward: 5 },
-  { id: 'q2', title: '냉장고 파먹기', desc: '배달앱을 켜는 대신 냉장고를 여세요', difficulty: 'NORMAL', reward: 3 },
-  { id: 'q3', title: '기록의 시작', desc: '오늘 발생한 지출을 1건이라도 기록하기', difficulty: 'EASY', reward: 1 },
-  { id: 'q4', title: '지출 봉인', desc: '오후 6시 이후로 지출하지 않기', difficulty: 'NORMAL', reward: 3 },
-  { id: 'q5', title: '잔돈 저금', desc: '오늘 남은 예산의 끝자리를 저금통에 넣기', difficulty: 'EASY', reward: 1 },
+  { id: 'q_nospend', title: '무지출의 맹세', desc: '달력에 무지출 도장을 찍으세요 (자동)', difficulty: 'HARD', reward: 5, type: 'auto' },
+  { id: 'q_record', title: '기록의 시작', desc: '가계부를 1건 이상 작성하세요 (자동)', difficulty: 'EASY', reward: 2, type: 'auto' },
+  { id: 'q_fridge', title: '냉장고 파먹기', desc: '배달 대신 냉장고 재료 쓰기', difficulty: 'NORMAL', reward: 3, type: 'manual' },
+  { id: 'q_clean', title: '지출 봉인', desc: '오후 6시 이후 지출 안 하기', difficulty: 'NORMAL', reward: 3, type: 'manual' },
+  { id: 'q_coin', title: '잔돈 저금', desc: '오늘 남은 예산 끝자리 저금하기', difficulty: 'EASY', reward: 1, type: 'manual' },
 ];
 
-// 난이도별 색상 설정
 const DIFFICULTY_COLORS: Record<Difficulty, { bg: string; text: string; border: string }> = {
   EASY: { bg: '#e6f4ea', text: '#1e8e3e', border: '#ceead6' },
   NORMAL: { bg: '#e8f0fe', text: '#1967d2', border: '#d2e3fc' },
   HARD: { bg: '#fce8e6', text: '#d93025', border: '#fad2cf' },
 };
 
-const MoneyQuestCard: React.FC = () => {
-  // 오늘 날짜 기준으로 랜덤하게 3개 뽑기 (새로고침해도 유지되도록 날짜 시드 사용)
+const MoneyQuestCard: React.FC<MoneyQuestCardProps> = ({ isNoSpendToday, hasTxToday }) => {
+  const [manualCompleted, setManualCompleted] = useState<string[]>([]);
+
+  // 오늘 날짜 시드로 퀘스트 3개 뽑기 (고정)
   const todaysQuests = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10);
     const seed = todayStr.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    // 간단한 셔플
-    const shuffled = [...QUEST_POOL].sort((a, b) => {
-      const hashA = (seed + a.id.charCodeAt(1)) % 100;
-      const hashB = (seed + b.id.charCodeAt(1)) % 100;
-      return hashA - hashB;
-    });
-    return shuffled.slice(0, 3); // 3개만 노출
+    // 무조건 q_nospend, q_record는 포함하고, 나머지 1개를 랜덤으로
+    const manuals = QUEST_POOL.filter(q => q.type === 'manual');
+    const randomManual = manuals[seed % manuals.length];
+    
+    return [QUEST_POOL[0], QUEST_POOL[1], randomManual];
   }, []);
 
-  const [completedIds, setCompletedIds] = useState<string[]>([]);
+  // 퀘스트 클릭 핸들러
+  const handleQuestClick = (quest: Quest) => {
+    // 자동 퀘스트는 클릭으로 완료 불가
+    if (quest.type === 'auto') {
+      alert(quest.id === 'q_nospend' ? '아래 달력에서 "성공 체크"를 누르면 완료됩니다!' : '가계부를 입력하면 자동으로 완료됩니다!');
+      return;
+    }
 
-  const handleQuestClick = (id: string, reward: number) => {
-    if (completedIds.includes(id)) return; // 이미 완료했으면 무시
+    if (manualCompleted.includes(quest.id)) return; // 이미 완료됨
 
-    // 완료 처리
-    setCompletedIds(prev => [...prev, id]);
-
-    // 🎉 폭죽 효과 (보상 크기에 따라 다르게!)
-    const particleCount = reward * 15;
-    confetti({
-      particleCount,
-      spread: 60,
-      origin: { y: 0.7 },
-      colors: ['#ffd700', '#ffeb3b', '#ffffff'] // 금색 위주
-    });
+    // 수동 완료 처리
+    setManualCompleted(prev => [...prev, quest.id]);
+    confetti({ particleCount: 30, spread: 50, origin: { y: 0.6 }, colors: ['#ffd700'] });
   };
-
-  // 진행률 계산
-  const progress = Math.round((completedIds.length / todaysQuests.length) * 100);
 
   return (
     <div style={{
       padding: '20px', borderRadius: '20px', backgroundColor: '#fff', border: '1px solid #ddd',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.05)', marginBottom: 24,
-      position: 'relative', overflow: 'hidden'
+      boxShadow: '0 4px 12px rgba(0,0,0,0.05)', marginBottom: 24
     }}>
-      
-      {/* 헤더: 길드 의뢰서 느낌 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ padding: 8, backgroundColor: '#f4f1ea', borderRadius: '8px', border: '1px solid #e0d5c2' }}>
-            <Scroll size={18} color="#8b7760" />
-          </div>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 'bold', color: '#3f3428' }}>모험가 길드 의뢰</div>
-            <div style={{ fontSize: 11, color: '#999' }}>오늘의 미션 {completedIds.length}/{todaysQuests.length}</div>
-          </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <div style={{ padding: 8, backgroundColor: '#f4f1ea', borderRadius: '8px', border: '1px solid #e0d5c2' }}>
+          <Scroll size={18} color="#8b7760" />
         </div>
-        {/* 진행률 게이지 */}
-        <div style={{ width: 40, height: 40, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="40" height="40" viewBox="0 0 36 36">
-            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#eee" strokeWidth="4" />
-            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#ffd700" strokeWidth="4" strokeDasharray={`${progress}, 100`} />
-          </svg>
-          <span style={{ position: 'absolute', fontSize: '10px', fontWeight: 'bold', color: '#b59a7a' }}>{progress}%</span>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 'bold', color: '#3f3428' }}>모험가 길드 의뢰</div>
+          <div style={{ fontSize: 11, color: '#999' }}>시스템 연동 퀘스트 가동 중</div>
         </div>
       </div>
 
-      {/* 퀘스트 리스트 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {todaysQuests.map((quest) => {
-          const isDone = completedIds.includes(quest.id);
+          // 완료 여부 판단 (자동 vs 수동)
+          let isDone = false;
+          if (quest.id === 'q_nospend') isDone = isNoSpendToday;
+          else if (quest.id === 'q_record') isDone = hasTxToday;
+          else isDone = manualCompleted.includes(quest.id);
+
           const style = DIFFICULTY_COLORS[quest.difficulty];
 
           return (
             <div 
               key={quest.id}
-              onClick={() => handleQuestClick(quest.id, quest.reward)}
+              onClick={() => handleQuestClick(quest)}
               style={{
-                position: 'relative',
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '12px', borderRadius: '12px',
                 border: isDone ? '1px solid #eee' : `1px solid ${style.border}`,
                 backgroundColor: isDone ? '#fafafa' : '#fff',
-                cursor: isDone ? 'default' : 'pointer',
-                transition: 'all 0.2s ease',
+                cursor: 'pointer',
                 opacity: isDone ? 0.6 : 1,
-                transform: isDone ? 'scale(0.98)' : 'scale(1)'
               }}
             >
-              {/* 왼쪽 체크박스 */}
               <div style={{ color: isDone ? '#ccc' : style.text }}>
-                {isDone ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+                {isDone ? <CheckCircle2 size={20} /> : (quest.type === 'auto' ? <Lock size={16} /> : <Circle size={20} />)}
               </div>
 
-              {/* 내용 */}
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  {/* 난이도 뱃지 */}
-                  <span style={{ 
-                    fontSize: 9, fontWeight: 'bold', padding: '2px 6px', borderRadius: 4,
-                    backgroundColor: style.bg, color: style.text 
-                  }}>
+                  <span style={{ fontSize: 9, fontWeight: 'bold', padding: '2px 6px', borderRadius: 4, backgroundColor: style.bg, color: style.text }}>
                     {quest.difficulty}
                   </span>
-                  <span style={{ 
-                    fontSize: 13, fontWeight: 'bold', 
-                    color: isDone ? '#aaa' : '#333',
-                    textDecoration: isDone ? 'line-through' : 'none'
-                  }}>
+                  <span style={{ fontSize: 13, fontWeight: 'bold', color: isDone ? '#aaa' : '#333', textDecoration: isDone ? 'line-through' : 'none' }}>
                     {quest.title}
                   </span>
                 </div>
-                <div style={{ fontSize: 11, color: '#888' }}>{quest.desc}</div>
+                <div style={{ fontSize: 11, color: '#888' }}>
+                  {quest.desc} {quest.type === 'auto' && <span style={{color: '#ff6b6b'}}>(자동)</span>}
+                </div>
               </div>
 
-              {/* 오른쪽 보상 */}
-              <div style={{ 
-                display: 'flex', flexDirection: 'column', alignItems: 'center', 
-                backgroundColor: isDone ? '#eee' : '#fff8c4', 
-                padding: '4px 8px', borderRadius: '8px', minWidth: '40px'
-              }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: isDone ? '#eee' : '#fff8c4', padding: '4px 8px', borderRadius: '8px', minWidth: '40px' }}>
                 <Star size={12} color={isDone ? '#999' : '#fbc02d'} fill={isDone ? '#999' : '#fbc02d'} />
                 <span style={{ fontSize: 10, fontWeight: 'bold', color: isDone ? '#999' : '#f57f17' }}>+{quest.reward}</span>
               </div>
-
-              {/* 완료 도장 (Absolute) */}
-              {isDone && (
-                <div className="fade-in" style={{
-                  position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%) rotate(-10deg)',
-                  border: '3px solid #ccc', borderRadius: '8px', padding: '4px 10px',
-                  fontSize: '20px', fontWeight: '900', color: '#ccc', opacity: 0.4, pointerEvents: 'none'
-                }}>
-                  COMPLETED
-                </div>
-              )}
             </div>
           );
         })}
       </div>
-
-      {/* 하단 팁 */}
-      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: '#aaa', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-        <Trophy size={10} />
-        <span>모든 의뢰를 완료하면 보너스 경험치가 지급됩니다. (준비중)</span>
-      </div>
-
     </div>
   );
 };
