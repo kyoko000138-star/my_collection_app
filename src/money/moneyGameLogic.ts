@@ -1,3 +1,9 @@
+export function calcHP(...) { ... }
+export function calcMP(...) { ... }
+// ...
+
+
+
 // 이번 달 지출 총합
 function calcMonthlyExpense(transactions: Transaction[]): number {
   return transactions
