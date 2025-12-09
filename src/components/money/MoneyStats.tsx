@@ -1,6 +1,10 @@
 // src/components/money/MoneyStats.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Activity, Brain, Shield } from 'lucide-react';
+
+// 🔗 moneyGameLogic.ts 위치에 맞게 경로만 확인!
+// moneyGameLogic.ts가 `src/money/moneyGameLogic.ts`에 있다고 가정
+import { calcHP, calcMP, calcDEF } from '../../money/moneyGameLogic';
 
 interface MoneyStatsProps {
   monthlyBudget?: any;
@@ -9,11 +13,24 @@ interface MoneyStatsProps {
   installments?: any[];
 }
 
-const MoneyStats: React.FC<MoneyStatsProps> = () => {
-  // 🔹 아직은 계산 안 넣고, 고정값 0으로만 표시
-  const hp = 0;
-  const mp = 0;
-  const def = 0;
+const MoneyStats: React.FC<MoneyStatsProps> = ({
+  monthlyBudget,
+  transactions = [],
+  dayStatuses = [],
+  installments = [],
+}) => {
+  const { hp, mp, def } = useMemo(() => {
+    const safeBudget = monthlyBudget ?? null;
+    const safeTx = transactions ?? [];
+    const safeDays = dayStatuses ?? [];
+    const safeIns = installments ?? [];
+
+    const hp = calcHP(safeBudget, safeTx);
+    const mp = calcMP(safeBudget, safeDays);
+    const def = calcDEF(safeIns);
+
+    return { hp, mp, def };
+  }, [monthlyBudget, transactions, dayStatuses, installments]);
 
   return (
     <div
