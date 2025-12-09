@@ -2,6 +2,68 @@
 import React, { useMemo } from 'react';
 import { Hammer, Swords, Shield, Circle } from 'lucide-react';
 
+
+// src/components/money/MoneyWeaponCard.tsx
+import React, { useMemo } from 'react';
+import { calcRPGStats, getEquippedItems } from '../../money/moneyGameLogic';
+
+interface MoneyWeaponCardProps {
+  transactions?: any[];
+  dayStatuses?: any[];
+  savedAmount?: number; // 저축액 추가
+}
+
+const MoneyWeaponCard: React.FC<MoneyWeaponCardProps> = ({
+  transactions = [],
+  dayStatuses = [],
+  savedAmount = 0,
+}) => {
+  const stats = useMemo(() => calcRPGStats(transactions, dayStatuses, savedAmount), [transactions, dayStatuses, savedAmount]);
+  const gears = useMemo(() => getEquippedItems(stats), [stats]);
+
+  return (
+    <div style={{
+      width: '100%',
+      marginTop: 12,
+      paddingTop: 12,
+      borderTop: '1px dashed #eee',
+    }}>
+      <div style={{ fontSize: 11, color: '#b59a7a', letterSpacing: '1px', marginBottom: 8, textAlign: 'center' }}>
+        EQUIPMENT (스탯 기반 자동 장착)
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+        <GearSlot type="무기" gear={gears.weapon} statName="INT" statVal={stats.int} color="#4da6ff" />
+        <GearSlot type="방어구" gear={gears.armor} statName="STR" statVal={stats.str} color="#ff6b6b" />
+        <GearSlot type="장신구" gear={gears.accessory} statName="DEX" statVal={stats.dex} color="#ffd700" />
+      </div>
+    </div>
+  );
+};
+
+// 작은 장비 슬롯 컴포넌트
+const GearSlot = ({ type, gear, statName, statVal, color }: any) => (
+  <div style={{ 
+    flex: 1, 
+    backgroundColor: '#f9f9f9', 
+    borderRadius: '12px', 
+    padding: '8px 4px', 
+    textAlign: 'center',
+    border: `1px solid ${gear.grade === 'A' ? color : '#eee'}`,
+    boxShadow: gear.grade === 'A' ? `0 0 8px ${color}40` : 'none'
+  }}>
+    <div style={{ fontSize: '24px', marginBottom: 4 }}>{gear.icon}</div>
+    <div style={{ fontSize: 11, fontWeight: 'bold', color: '#333' }}>{gear.name}</div>
+    <div style={{ fontSize: 9, color: '#999', marginTop: 4 }}>
+      {type} <span style={{ color }}>{gear.grade}급</span>
+    </div>
+    <div style={{ fontSize: 9, marginTop: 2, color: '#aaa' }}>
+      ({statName} {statVal})
+    </div>
+  </div>
+);
+
+export default MoneyWeaponCard;
 // 일단 타입 충돌 안 나게 전부 any로
 type AnyTransaction = any;
 type AnyDayStatus = any;
