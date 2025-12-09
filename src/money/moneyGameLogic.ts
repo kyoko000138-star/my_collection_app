@@ -1,10 +1,91 @@
 // src/money/moneyGameLogic.ts
 
+
+type AnyTransaction = any;
+type AnyDayStatus = any;
+type AnyInstallment = any;
+type AnyMonthlyBudget = any;
+
 // ----- 타입 정의 (충돌 방지를 위해 여기서 간단히 정의) -----
 type AnyTransaction = any;
 type AnyDayStatus = any;
 type AnyInstallment = any;
 type AnyMonthlyBudget = any;
+
+// 1. 📊 RPG 스탯 계산기
+export interface RPGStats {
+  str: number; // 무지출 힘
+  int: number; // 기록 지능
+  dex: number; // 저축/파밍 민첩
+  totalPower: number; // 전투력
+}
+
+export function calcRPGStats(
+  transactions: AnyTransaction[],
+  dayStatuses: AnyDayStatus[],
+  savedAmount: number // 이번 달 저축액 (가상의 값 or 파밍으로 획득한 돈)
+): RPGStats {
+  // STR: 무지출 1일 = 10점
+  const str = dayStatuses.filter(d => d.isNoSpend).length * 10;
+
+  // INT: 기록 1건 = 5점
+  const int = transactions.length * 5;
+
+  // DEX: 저축 1,000원당 1점 (예시) + 파밍 횟수(나중에 추가 가능)
+  const dex = Math.floor(savedAmount / 1000);
+
+  return { 
+    str, 
+    int, 
+    dex, 
+    totalPower: str + int + dex 
+  };
+}
+
+// 2. 🆙 경험치(XP) 시스템 강화
+// 행동 하나하나가 전부 경험치가 됨
+export function calcAdvancedXP(
+  stats: RPGStats,
+  installments: AnyInstallment[]
+): { currentExp: number; level: number; maxExp: number } {
+  
+  // 기본 XP = 전투력(스탯 총합)
+  let rawExp = stats.totalPower;
+
+  // 보너스 XP: 할부 완납 1건당 100XP
+  const clearedInstallments = installments.filter(i => i.paidAmount >= i.totalAmount).length;
+  rawExp += (clearedInstallments * 100);
+
+  // 레벨 계산 (누적 방식: 레벨 * 100이 필요 경험치라고 가정)
+  // 예: Lv.1 -> 100xp 필요, Lv.2 -> 200xp 필요...
+  // 간단하게 100 단위로 레벨 나눔
+  const level = Math.floor(rawExp / 100) + 1;
+  const currentExp = rawExp % 100;
+  const maxExp = 100;
+
+  return { currentExp, level, maxExp };
+}
+
+// 3. ⚔️ 장비 진화 로직 (스탯에 따라 장비가 바뀜!)
+export function getEquippedItems(stats: RPGStats) {
+  let weapon = { name: '녹슨 검', icon: '🗡️', grade: 'C' };
+  let armor = { name: '천 옷', icon: '👕', grade: 'C' };
+  let accessory = { name: '실 반지', icon: '💍', grade: 'C' };
+
+  // STR(무지출)이 높으면 갑옷 업그레이드
+  if (stats.str >= 30) armor = { name: '강철 갑옷', icon: '🛡️', grade: 'B' };
+  if (stats.str >= 70) armor = { name: '용의 판금', icon: '🐉', grade: 'A' };
+
+  // INT(기록)가 높으면 무기 업그레이드 (지능캐 컨셉)
+  if (stats.int >= 30) weapon = { name: '마법 깃펜', icon: '✒️', grade: 'B' };
+  if (stats.int >= 70) weapon = { name: '현자의 지팡이', icon: '🪄', grade: 'A' };
+
+  // DEX(저축)가 높으면 악세서리 업그레이드
+  if (stats.dex >= 30) accessory = { name: '금화 주머니', icon: '💰', grade: 'B' };
+  if (stats.dex >= 70) accessory = { name: '다이아 목걸이', icon: '💎', grade: 'A' };
+
+  return { weapon, armor, accessory };
+}
 
 // 1. 이번 달 지출 총합
 export function calcMonthlyExpense(transactions: AnyTransaction[]): number {
