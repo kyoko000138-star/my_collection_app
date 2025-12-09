@@ -12,6 +12,51 @@ type AnyDayStatus = any;
 type AnyInstallment = any;
 type AnyMonthlyBudget = any;
 
+// src/money/moneyGameLogic.ts
+
+// [추가] Luna 실드가 적용된 무지출 콤보 계산
+// dayStatuses: 최신 날짜가 배열의 뒤쪽인지 앞쪽인지 확인 필요. 
+// 보통 달력 데이터는 1일~30일 순서대로 들어오므로, 역순(오늘부터 과거로)으로 돌며 체크합니다.
+export function calcNoSpendComboWithShield(
+  dayStatuses: any[], // [{ date: '...', isNoSpend: true/false }, ...]
+  lunaMode: 'normal' | 'pms' | 'rest' = 'normal',
+): { combo: number; shieldUsed: boolean } {
+  if (!dayStatuses || dayStatuses.length === 0) return { combo: 0, shieldUsed: false };
+
+  // PMS나 REST 모드일 때만 실드 활성화
+  const shieldAvailable = lunaMode === 'pms' || lunaMode === 'rest';
+  
+  let shieldUsed = false;
+  let combo = 0;
+
+  // 배열의 마지막(오늘/최신)부터 역순으로 탐색
+  for (let i = dayStatuses.length - 1; i >= 0; i--) {
+    const day = dayStatuses[i];
+    
+    // 아직 미래 날짜라 데이터가 없으면 패스 (혹은 로직에 따라 처리)
+    if (!day) continue; 
+
+    if (day.isNoSpend) {
+      combo += 1;
+    } else {
+      // 지출한 날(실패)인데
+      if (shieldAvailable && !shieldUsed) {
+        // 실드가 있고 아직 안 썼으면 -> 한 번 봐줌! (콤보는 안 늘어나지만 끊기지도 않음)
+        shieldUsed = true;
+        // continue를 하면 "실패한 날은 콤보 수에 포함 X, 건너뛰고 계속 연결"
+        // 만약 실패한 날도 콤보로 쳐주고 싶으면 combo += 1 하시면 됩니다.
+        // 여기선 "끊기지만 않게(다리 역할)"로 continue 처리합니다.
+        continue; 
+      } else {
+        // 실드 없거나 이미 썼으면 -> 여기서 콤보 끝
+        break;
+      }
+    }
+  }
+
+  return { combo, shieldUsed };
+}
+
 // 1. 📊 RPG 스탯 계산기
 export interface RPGStats {
   str: number; // 무지출 힘
