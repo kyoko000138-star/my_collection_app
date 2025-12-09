@@ -2,7 +2,6 @@
 import React, { useMemo, useState } from 'react';
 import { PenTool, Swords, ChevronDown, ChevronUp, Sprout } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { calcAdvancedXP, calcRPGStats } from '../money/moneyGameLogic'; // 👈 추가
 
 // 컴포넌트들
 import MoneyStats from '../components/money/MoneyStats';
@@ -14,7 +13,7 @@ import MoneyWeaponCard from '../components/money/MoneyWeaponCard';
 import MoneyShopCard from '../components/money/MoneyShopCard';
 
 // 로직 import
-import { calcLeafPoints, calcHP } from '../money/moneyGameLogic';
+import { calcLeafPoints, calcHP, calcRPGStats, calcAdvancedXP } from '../money/moneyGameLogic';
 
 // ---- 타입 정의 ----
 type TxType = 'expense' | 'income';
@@ -25,123 +24,6 @@ interface MonthlyBudgetLike { year: number; month: number; variableBudget: numbe
 
 const MoneyRoomPage: React.FC = () => {
   const today = useMemo(() => new Date(), []);
-
-  const MoneyRoomPage: React.FC = () => {
-  // ... 기존 상태들 ...
-  const [spentLeaf, setSpentLeaf] = useState(0);
-  
-  // 💰 [NEW] 저축액 상태 (파밍하거나 아껴서 모은 돈)
-  // 실제로는 'budget - expense' 남은 돈을 저축으로 칠 수도 있고, 
-  // 파밍으로 얻은 골드를 누적할 수도 있음. 여기선 파밍 골드 + 가상 저축이라 가정.
-  const [savedAmount, setSavedAmount] = useState(0); 
-
-  // ...
-
-  // 🧮 [NEW] RPG 스탯 & 경험치 계산
-  const rpgStats = useMemo(() => calcRPGStats(transactions, dayStatuses, savedAmount), [transactions, dayStatuses, savedAmount]);
-  const { currentExp, level, maxExp } = useMemo(() => calcAdvancedXP(rpgStats, installments), [rpgStats, installments]);
-  const expRatio = (currentExp / maxExp) * 100;
-
-  // 칭호 로직도 레벨 기반으로 유지
-  const userTitle = useMemo(() => {
-    if (level >= 10) return '전설의 용사';
-    if (level >= 5) return '베테랑 모험가';
-    return '초심자 모험가';
-  }, [level]);
-
-  // 🌱 파밍 시스템 업데이트 (돈도 줌!)
-  const handleFarming = () => {
-    if (farmMessage) return;
-    const rewards = [
-      { text: '🌿 약초 발견 (+10원)', gold: 10 },
-      { text: '✨ 반짝이는 동전 (+100원)', gold: 100 },
-      { text: '📦 보물상자 발견! (+500원)', gold: 500 },
-      { text: '🐛 꽝... 아무것도 없었다.', gold: 0 },
-    ];
-    const pick = rewards[Math.floor(Math.random() * rewards.length)];
-    
-    setFarmMessage(pick.text);
-    setSavedAmount(prev => prev + pick.gold); // 저축액 증가 -> DEX 증가 -> 장비 업글!
-    
-    if (pick.gold > 0) {
-      confetti({ particleCount: 30, spread: 40, origin: { y: 0.5 }, colors: ['#ffd700'] });
-    }
-    setTimeout(() => setFarmMessage(null), 2000);
-  };
-
-  // ... (나머지 코드 동일) ...
-
-  return (
-    // ...
-            {/* 1. [내 구역] 캐릭터 + 장비 */}
-            <div style={scrollItemStyle}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                
-                {/* 🛡️ 캐릭터 카드 */}
-                <div style={{
-                  padding: '16px', borderRadius: '20px', backgroundColor: '#fff', border: '1px solid #ddd',
-                  display: 'flex', flexDirection: 'column', gap: 12,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden'
-                }}>
-                  {/* 상단: 아바타 & 레벨 */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{ position: 'relative' }}>
-                      <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#f4f1ea', fontSize: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #e5e5e5' }}>
-                        🧙‍♀️
-                      </div>
-                      <div style={{ position: 'absolute', bottom: -4, right: -4, backgroundColor: '#333', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '10px', border: '2px solid #fff' }}>
-                        Lv.{level}
-                      </div>
-                    </div>
-                    
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 10, color: '#b59a7a', fontWeight: 'bold' }}>{userClass.name}</div>
-                      <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{userTitle}</div>
-                      
-                      {/* EXP bar */}
-                      <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:4 }}>
-                        <div style={{ flex:1, height: '6px', backgroundColor: '#eee', borderRadius: '4px', overflow: 'hidden' }}>
-                          <div style={{ width: `${expRatio}%`, height: '100%', backgroundColor: '#ffd700', transition: 'width 0.5s ease' }} />
-                        </div>
-                        <div style={{ fontSize: 9, color: '#aaa' }}>{Math.floor(expRatio)}%</div>
-                      </div>
-                    </div>
-
-                    <button onClick={handleFarming} style={{ /* ...스타일... */ }}>
-                      <Sprout size={16} color="#4caf50" />
-                      <span style={{ fontSize: 10, color: '#2e7d32', marginTop: 2 }}>수확</span>
-                    </button>
-                  </div>
-
-                  {/* 📊 RPG 스탯 표시 (NEW!) */}
-                  <div style={{ display: 'flex', justifyContent: 'space-around', backgroundColor: '#f8f8f8', padding: '8px', borderRadius: '12px' }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, color: '#ff6b6b', fontWeight:'bold' }}>STR (힘)</div>
-                      <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>{rpgStats.str}</div>
-                      <div style={{ fontSize: 9, color: '#999' }}>무지출</div>
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, color: '#4da6ff', fontWeight:'bold' }}>INT (지능)</div>
-                      <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>{rpgStats.int}</div>
-                      <div style={{ fontSize: 9, color: '#999' }}>기록</div>
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, color: '#ffd700', fontWeight:'bold' }}>DEX (민첩)</div>
-                      <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>{rpgStats.dex}</div>
-                      <div style={{ fontSize: 9, color: '#999' }}>저축</div>
-                    </div>
-                  </div>
-
-                  {/* 장비창 (스탯에 따라 자동 변경됨) */}
-                  <MoneyWeaponCard 
-                    transactions={transactions} 
-                    dayStatuses={dayStatuses} 
-                    savedAmount={savedAmount} // 👈 저축액 전달
-                  />
-                  
-                </div>
-              </div>
-            </div>
   
   // 🔹 탭 & UI 상태
   const [activeTab, setActiveTab] = useState<'record' | 'adventure'>('adventure');
@@ -155,23 +37,38 @@ const MoneyRoomPage: React.FC = () => {
   const [transactions, setTransactions] = useState<TransactionLike[]>([]);
   const [installments, setInstallments] = useState<InstallmentLike[]>([]);
   const [dayStatuses, setDayStatuses] = useState<DayStatusLike[]>([]);
-  const [spentLeaf, setSpentLeaf] = useState(0);
+  
+  // 💰 게임 재화 (현실 돈과 분리!)
+  const [gameGold, setGameGold] = useState(0); // 파밍으로 얻은 골드
+  const [spentLeaf, setSpentLeaf] = useState(0); // 상점에서 쓴 Leaf
 
   // 🔹 입력 폼 상태
   const [budgetInput, setBudgetInput] = useState({ variableBudget: String(monthlyBudget.variableBudget), noSpendTarget: String(monthlyBudget.noSpendTarget) });
   const [txForm, setTxForm] = useState({ date: today.toISOString().slice(0, 10), type: 'expense' as TxType, category: '', amount: '', isEssential: false });
   const [instForm, setInstForm] = useState({ name: '', totalAmount: '', paidAmount: '' });
 
-  // 🧮 기본 계산 로직
+  // 🧮 계산 로직
   const totalLeafPoints = useMemo(() => calcLeafPoints(transactions, dayStatuses, installments), [transactions, dayStatuses, installments]);
   const currentLeaf = Math.max(0, totalLeafPoints - spentLeaf);
   const currentHP = useMemo(() => calcHP(monthlyBudget, transactions), [monthlyBudget, transactions]);
   
-  // 🆙 레벨 & 칭호 (기존)
-  const level = Math.floor(totalLeafPoints / 10) + 1;
-  const currentExp = totalLeafPoints % 10;
-  const expRatio = (currentExp / 10) * 100;
-  
+  // RPG 스탯 (DEX는 gameGold에 영향받음)
+  const rpgStats = useMemo(() => calcRPGStats(transactions, dayStatuses, gameGold), [transactions, dayStatuses, gameGold]);
+  const { currentExp, level, maxExp } = useMemo(() => calcAdvancedXP(rpgStats, installments), [rpgStats, installments]);
+  const expRatio = (currentExp / maxExp) * 100;
+
+  // ⚔️ 직업(Class) 계산
+  const userClass = useMemo(() => {
+    if (transactions.length === 0) return { name: '모험가 지망생', icon: '🌱' };
+    const incomeCount = transactions.filter(t => t.type === 'income').length;
+    const expenseCount = transactions.filter(t => t.type === 'expense').length;
+    if (incomeCount > expenseCount) return { name: '대상인 (Merchant)', icon: '💰' };
+    const isFrugal = transactions.filter(t => t.type === 'expense').every(t => t.amount <= 10000);
+    if (isFrugal && expenseCount > 0) return { name: '절약의 수도승', icon: '🙏' };
+    return { name: '방랑 검사', icon: '⚔️' };
+  }, [transactions]);
+
+  // 🆙 칭호
   const userTitle = useMemo(() => {
     if (level >= 10) return '전설의 재정 마스터';
     if (level >= 5) return '노련한 관리자';
@@ -179,51 +76,26 @@ const MoneyRoomPage: React.FC = () => {
     return '초심자';
   }, [level]);
 
-  // ⚔️ [NEW] 직업(Class) 계산 로직
-  const userClass = useMemo(() => {
-    if (transactions.length === 0) return { name: '모험가 지망생', icon: '🌱' };
-    
-    const incomeCount = transactions.filter(t => t.type === 'income').length;
-    const expenseCount = transactions.filter(t => t.type === 'expense').length;
-    
-    // 수입 기록이 지출보다 많으면 '상인'
-    if (incomeCount > expenseCount) return { name: '대상인 (Merchant)', icon: '💰' };
-    
-    // 모든 지출이 1만원 이하면 '수도승'
-    const isFrugal = transactions.filter(t => t.type === 'expense').every(t => t.amount <= 10000);
-    if (isFrugal && expenseCount > 0) return { name: '절약의 수도승', icon: '🙏' };
-    
-    return { name: '방랑 검사', icon: '⚔️' };
-  }, [transactions]);
-
-  // 🩸 [NEW] 상태 이상(Buff/Debuff) 계산 로직
+  // 🩸 상태 이상
   const activeEffects = useMemo(() => {
     const effects = [];
-    
-    // 1. [철벽] 최근 3일 중 하루라도 무지출 성공 시
     const recent = dayStatuses.slice(-3);
     if (recent.some(d => d.isNoSpend)) {
       effects.push({ id: 'shield', name: '철벽 방어', icon: '🛡️', color: '#4caf50' });
     }
-
-    // 2. [출혈] 오늘 지출 3건 이상
     const todayStr = today.toISOString().slice(0, 10);
     const todayCount = transactions.filter(t => t.date === todayStr && t.type === 'expense').length;
     if (todayCount >= 3) {
       effects.push({ id: 'bleed', name: '지갑 출혈', icon: '🩸', color: '#f44336' });
     }
-
-    // 3. [식곤증] 최근 지출 중 식비/배달/간식 포함
     const hasFood = transactions.slice(0, 3).some(t => 
       t.category.includes('식비') || t.category.includes('배달') || t.category.includes('간식') || t.category.includes('카페')
     );
     if (hasFood) {
       effects.push({ id: 'food', name: '식곤증', icon: '🍗', color: '#ff9800' });
     }
-
     return effects;
   }, [transactions, dayStatuses, today]);
-
 
   // ---- 핸들러 ----
   const handleSaveBudget = () => {
@@ -263,12 +135,24 @@ const MoneyRoomPage: React.FC = () => {
     });
   };
 
+  // 🌱 파밍 시스템 (게임 골드만 획득)
   const handleFarming = () => {
     if (farmMessage) return;
-    const rewards = [ '🌿 작은 풀잎', '✨ 반짝이는 유리', '🪙 1 골드', '🪵 나뭇가지', '🐛 벌레 (윽!)', '📦 빈 상자' ];
+    const rewards = [
+      { text: '🌿 작은 풀잎 (판매가: 10G)', gold: 10 },
+      { text: '✨ 반짝이는 유리 (판매가: 50G)', gold: 50 },
+      { text: '🪙 오래된 동전 (100G)', gold: 100 },
+      { text: '🐛 벌레... (0G)', gold: 0 },
+      { text: '📦 보물상자 발견! (500G)', gold: 500 },
+    ];
     const pick = rewards[Math.floor(Math.random() * rewards.length)];
-    setFarmMessage(`${pick} 획득!`);
-    confetti({ particleCount: 20, spread: 30, origin: { y: 0.5 }, shapes: ['circle'], colors: ['#88ff5a'] });
+    
+    setFarmMessage(pick.text);
+    setGameGold(prev => prev + pick.gold); // 현실 돈 아님, 게임 골드 증가
+    
+    if (pick.gold > 0) {
+      confetti({ particleCount: 30, spread: 40, origin: { y: 0.5 }, colors: ['#ffd700'] });
+    }
     setTimeout(() => setFarmMessage(null), 2000);
   };
 
@@ -337,6 +221,18 @@ const MoneyRoomPage: React.FC = () => {
               </div>
             </div>
           </div>
+          {/* 최근 기록 */}
+          {transactions.length > 0 && (
+            <div style={{ margin: '0 12px 16px', padding: '12px', borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.6)' }}>
+              <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>최근 기록</div>
+              {transactions.slice(0, 3).map(t => (
+                <div key={t.id} style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: '#555' }}>{t.category}</span>
+                  <span style={{ fontWeight: 500 }}>{t.type === 'expense' ? '-' : '+'}{formatMoney(t.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -350,7 +246,7 @@ const MoneyRoomPage: React.FC = () => {
             <div style={scrollItemStyle}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 
-                {/* 🛡️ 캐릭터 카드 (NEW: 직업/상태이상 표시) */}
+                {/* 🛡️ 캐릭터 카드 */}
                 <div style={{
                   padding: '16px', borderRadius: '20px', backgroundColor: '#fff', border: '1px solid #ddd',
                   display: 'flex', flexDirection: 'column', gap: 12,
@@ -359,7 +255,7 @@ const MoneyRoomPage: React.FC = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                     <div style={{ position: 'relative' }}>
                       <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#f4f1ea', fontSize: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #e5e5e5' }}>
-                        {userClass.icon} {/* 👈 직업 이모지 */}
+                        {userClass.icon}
                       </div>
                       <div style={{ position: 'absolute', bottom: -4, right: -4, backgroundColor: '#333', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '10px', border: '2px solid #fff' }}>
                         Lv.{level}
@@ -380,15 +276,34 @@ const MoneyRoomPage: React.FC = () => {
                       cursor: 'pointer', flexShrink: 0
                     }}>
                       <Sprout size={16} color="#4caf50" />
-                      <span style={{ fontSize: 10, color: '#2e7d32', marginTop: 2 }}>수확</span>
+                      <span style={{ fontSize: 10, color: '#2e7d32', marginTop: 2 }}>수색</span>
                     </button>
                   </div>
 
-                  {/* 🩸 상태 이상 (버프/디버프 목록) */}
+                  {/* 📊 RPG 스탯 표시 */}
+                  <div style={{ display: 'flex', justifyContent: 'space-around', backgroundColor: '#f8f8f8', padding: '8px', borderRadius: '12px' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: '#ff6b6b', fontWeight:'bold' }}>STR (힘)</div>
+                      <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>{rpgStats.str}</div>
+                      <div style={{ fontSize: 9, color: '#999' }}>무지출</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: '#4da6ff', fontWeight:'bold' }}>INT (지능)</div>
+                      <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>{rpgStats.int}</div>
+                      <div style={{ fontSize: 9, color: '#999' }}>기록</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: '#ffd700', fontWeight:'bold' }}>DEX (민첩)</div>
+                      <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>{rpgStats.dex}</div>
+                      <div style={{ fontSize: 9, color: '#999' }}>파밍</div>
+                    </div>
+                  </div>
+
+                  {/* 🩸 상태 이상 목록 */}
                   {activeEffects.length > 0 && (
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingTop: 10, borderTop: '1px solid #f0f0f0' }}>
                       {activeEffects.map((ef: any) => (
-                        <div key={ef.name} style={{ 
+                        <div key={ef.id} style={{ 
                           fontSize: '11px', padding: '3px 8px', borderRadius: '6px', 
                           backgroundColor: `${ef.color}15`, color: ef.color, border: `1px solid ${ef.color}40`,
                           display: 'flex', alignItems: 'center', gap: 4, fontWeight: 'bold'
@@ -398,17 +313,20 @@ const MoneyRoomPage: React.FC = () => {
                       ))}
                     </div>
                   )}
+
+                  {/* 파밍 메시지 (말풍선) */}
+                  {farmMessage && (
+                    <div className="fade-in" style={{ 
+                      position: 'absolute', top: 10, right: 60,
+                      textAlign: 'center', padding: '6px 10px', backgroundColor: 'rgba(0,0,0,0.8)', color: '#fff', borderRadius: '8px', fontSize: '11px', zIndex: 10
+                    }}>
+                      {farmMessage}
+                    </div>
+                  )}
                 </div>
 
-                {/* 파밍 메시지 */}
-                {farmMessage && (
-                  <div className="fade-in" style={{ textAlign: 'center', padding: '8px', backgroundColor: '#333', color: '#fff', borderRadius: '8px', fontSize: '12px' }}>
-                    {farmMessage}
-                  </div>
-                )}
-
-                {/* 무기 합성 */}
-                <MoneyWeaponCard transactions={transactions} dayStatuses={dayStatuses} installments={installments} />
+                {/* 무기 합성 (스탯 기반 자동 장착) */}
+                <MoneyWeaponCard transactions={transactions} dayStatuses={dayStatuses} savedAmount={gameGold} />
               </div>
             </div>
 
@@ -430,7 +348,7 @@ const MoneyRoomPage: React.FC = () => {
 
           </div> 
 
-          {/* 무지출 달력 */}
+          {/* 무지출 달력 (하단 접이식) */}
           <div style={{ padding: '0 12px' }}>
              <div onClick={() => setIsCalendarOpen(!isCalendarOpen)} style={{ padding: '12px 16px', backgroundColor: '#fff', borderRadius: 12, border: '1px solid #ccc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 'bold', color: '#555' }}>📅 무지출 캘린더</span>
