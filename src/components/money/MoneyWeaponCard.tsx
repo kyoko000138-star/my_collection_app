@@ -1,16 +1,11 @@
 // src/components/money/MoneyWeaponCard.tsx
 import React, { useMemo } from 'react';
-import { Hammer, Swords, Shield, Circle } from 'lucide-react';
-
-
-// src/components/money/MoneyWeaponCard.tsx
-import React, { useMemo } from 'react';
 import { calcRPGStats, getEquippedItems } from '../../money/moneyGameLogic';
 
 interface MoneyWeaponCardProps {
   transactions?: any[];
   dayStatuses?: any[];
-  savedAmount?: number; // 저축액 추가
+  savedAmount?: number; // 저축액 (게임 골드)
 }
 
 const MoneyWeaponCard: React.FC<MoneyWeaponCardProps> = ({
@@ -18,18 +13,21 @@ const MoneyWeaponCard: React.FC<MoneyWeaponCardProps> = ({
   dayStatuses = [],
   savedAmount = 0,
 }) => {
+  // 스탯 계산
   const stats = useMemo(() => calcRPGStats(transactions, dayStatuses, savedAmount), [transactions, dayStatuses, savedAmount]);
+  
+  // 스탯에 따른 장비 자동 장착
   const gears = useMemo(() => getEquippedItems(stats), [stats]);
 
   return (
     <div style={{
       width: '100%',
-      marginTop: 12,
-      paddingTop: 12,
+      marginTop: 16,
+      paddingTop: 16,
       borderTop: '1px dashed #eee',
     }}>
-      <div style={{ fontSize: 11, color: '#b59a7a', letterSpacing: '1px', marginBottom: 8, textAlign: 'center' }}>
-        EQUIPMENT (스탯 기반 자동 장착)
+      <div style={{ fontSize: 11, color: '#b59a7a', letterSpacing: '1px', marginBottom: 12, textAlign: 'center', fontWeight: 'bold' }}>
+        CURRENT EQUIPMENT
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -37,310 +35,35 @@ const MoneyWeaponCard: React.FC<MoneyWeaponCardProps> = ({
         <GearSlot type="방어구" gear={gears.armor} statName="STR" statVal={stats.str} color="#ff6b6b" />
         <GearSlot type="장신구" gear={gears.accessory} statName="DEX" statVal={stats.dex} color="#ffd700" />
       </div>
+      
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: '#aaa' }}>
+        * 행동(기록/무지출/파밍)을 하면 스탯이 오르고 장비가 진화합니다.
+      </div>
     </div>
   );
 };
 
-// 작은 장비 슬롯 컴포넌트
+// 작은 장비 슬롯 컴포넌트 (내부용)
 const GearSlot = ({ type, gear, statName, statVal, color }: any) => (
   <div style={{ 
     flex: 1, 
-    backgroundColor: '#f9f9f9', 
+    backgroundColor: '#fbfbfb', 
     borderRadius: '12px', 
-    padding: '8px 4px', 
+    padding: '10px 4px', 
     textAlign: 'center',
     border: `1px solid ${gear.grade === 'A' ? color : '#eee'}`,
-    boxShadow: gear.grade === 'A' ? `0 0 8px ${color}40` : 'none'
+    boxShadow: gear.grade === 'A' ? `0 0 10px ${color}30` : 'none',
+    transition: 'all 0.3s ease'
   }}>
-    <div style={{ fontSize: '24px', marginBottom: 4 }}>{gear.icon}</div>
-    <div style={{ fontSize: 11, fontWeight: 'bold', color: '#333' }}>{gear.name}</div>
-    <div style={{ fontSize: 9, color: '#999', marginTop: 4 }}>
-      {type} <span style={{ color }}>{gear.grade}급</span>
+    <div style={{ fontSize: '28px', marginBottom: 6 }}>{gear.icon}</div>
+    <div style={{ fontSize: 12, fontWeight: 'bold', color: '#333', marginBottom: 2 }}>{gear.name}</div>
+    <div style={{ fontSize: 10, color: '#999', marginBottom: 4 }}>
+      {type} <span style={{ color, fontWeight: 'bold' }}>{gear.grade}급</span>
     </div>
-    <div style={{ fontSize: 9, marginTop: 2, color: '#aaa' }}>
-      ({statName} {statVal})
+    <div style={{ fontSize: 9, color: '#aaa', backgroundColor: '#eee', display: 'inline-block', padding: '2px 6px', borderRadius: '4px' }}>
+      {statName} {statVal}
     </div>
   </div>
 );
-
-export default MoneyWeaponCard;
-// 일단 타입 충돌 안 나게 전부 any로
-type AnyTransaction = any;
-type AnyDayStatus = any;
-type AnyInstallment = any;
-
-export interface ShardCounts {
-  recordShard: number;     // 기록의 파편
-  disciplineShard: number; // 절제의 파편 (무지출)
-  repayShard: number;      // 상환의 파편 (할부 완납)
-}
-
-export interface WeaponBonus {
-  hp?: number;
-  mp?: number;
-  def?: number;
-}
-
-export interface Weapon {
-  id: string;
-  name: string;
-  description: string;
-  cost: Partial<ShardCounts>;
-  bonus: WeaponBonus;
-}
-
-// 👉 파편 계산 로직
-export function calcShards(
-  transactions: AnyTransaction[] = [],
-  dayStatuses: AnyDayStatus[] = [],
-  installments: AnyInstallment[] = [],
-): ShardCounts {
-  const recordShard = Math.floor(transactions.length / 5); // 기록 5건당 1조각
-
-  const noSpendDays = dayStatuses.filter((d) => d?.isNoSpend).length;
-  const disciplineShard = Math.floor(noSpendDays / 2); // 무지출 2일당 1조각
-
-  const repayShard = installments.filter(
-    (ins) => (ins?.paidAmount ?? 0) >= (ins?.totalAmount ?? 0) && (ins?.totalAmount ?? 0) > 0,
-  ).length; // 완납 1건당 1조각
-
-  return { recordShard, disciplineShard, repayShard };
-}
-
-// 👉 기본 장비 목록
-export const WEAPONS: Weapon[] = [
-  {
-    id: 'ledger-blade',
-    name: '잔잔한 장부검',
-    description: '매일 장부를 펼치는 사람만 쥘 수 있는 검.',
-    cost: { recordShard: 3, disciplineShard: 1 },
-    bonus: { mp: 1 },
-  },
-  {
-    id: 'tea-shield',
-    name: '차향 방패',
-    description: '충동을 한 번 가라앉혀 주는 방패.',
-    cost: { disciplineShard: 3 },
-    bonus: { hp: 10 },
-  },
-  {
-    id: 'repay-ring',
-    name: '상환의 반지',
-    description: '갚아 나간 시간만큼 단단해지는 반지.',
-    cost: { repayShard: 1 },
-    bonus: { def: 5 },
-  },
-];
-
-export function canCraft(weapon: Weapon, shards: ShardCounts): boolean {
-  const cost = weapon.cost;
-  if ((cost.recordShard ?? 0) > shards.recordShard) return false;
-  if ((cost.disciplineShard ?? 0) > shards.disciplineShard) return false;
-  if ((cost.repayShard ?? 0) > shards.repayShard) return false;
-  return true;
-}
-
-// ───────────────────────── 카드 컴포넌트 ─────────────────────────
-
-interface MoneyWeaponCardProps {
-  transactions?: any[];
-  dayStatuses?: any[];
-  installments?: any[];
-}
-
-const MoneyWeaponCard: React.FC<MoneyWeaponCardProps> = ({
-  transactions = [],
-  dayStatuses = [],
-  installments = [],
-}) => {
-  const shards = useMemo(
-    () => calcShards(transactions, dayStatuses, installments),
-    [transactions, dayStatuses, installments],
-  );
-
-  const { craftable, locked } = useMemo(() => {
-    const can = WEAPONS.filter((w) => canCraft(w, shards));
-    const lock = WEAPONS.filter((w) => !canCraft(w, shards));
-    return { craftable: can, locked: lock };
-  }, [shards]);
-
-  const shardLabel = `기록의 파편 ${shards.recordShard} · 절제의 파편 ${shards.disciplineShard} · 상환의 파편 ${shards.repayShard}`;
-
-  return (
-    <div
-      style={{
-        padding: '14px 16px 16px',
-        borderRadius: 16,
-        border: '1px solid #e5e5e5',
-        backgroundColor: '#ffffff',
-        fontSize: 13,
-        color: '#555',
-        marginBottom: 24,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 11,
-          letterSpacing: '0.14em',
-          textTransform: 'uppercase',
-          color: '#b59a7a',
-          marginBottom: 6,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-        }}
-      >
-        <Hammer size={14} />
-        WEAPON SYNTHESIS
-      </div>
-
-      <div style={{ fontSize: 14, marginBottom: 4, color: '#333' }}>
-        이번 달 합성 가능한 장비
-      </div>
-
-      <div
-        style={{
-          fontSize: 11,
-          color: '#8b7760',
-          marginBottom: 10,
-        }}
-      >
-        {shardLabel}
-      </div>
-
-      {/* 합성 가능 장비 */}
-      {craftable.length > 0 && (
-        <div style={{ marginBottom: 10 }}>
-          <div
-            style={{
-              fontSize: 11,
-              color: '#9b7f55',
-              marginBottom: 4,
-            }}
-          >
-            합성 가능
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {craftable.map((w) => (
-              <WeaponRow key={w.id} weapon={w} active />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 아직 조건 부족 장비 */}
-      {locked.length > 0 && (
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              color: '#b4a38c',
-              marginBottom: 4,
-            }}
-          >
-            조건 부족
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {locked.map((w) => (
-              <WeaponRow key={w.id} weapon={w} active={false} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div
-        style={{
-          marginTop: 10,
-          fontSize: 11,
-          color: '#999',
-        }}
-      >
-        실제 파편은 소모되지 않고, 이번 달 기록을 기준으로
-        “어떤 장비를 쥘 수 있는 상태인지” 보여주는 카드예요.
-      </div>
-    </div>
-  );
-};
-
-interface WeaponRowProps {
-  weapon: Weapon;
-  active: boolean;
-}
-
-const WeaponRow: React.FC<WeaponRowProps> = ({ weapon, active }) => {
-  const icon = (() => {
-    switch (weapon.id) {
-      case 'ledger-blade':
-        return <Swords size={16} />;
-      case 'tea-shield':
-        return <Shield size={16} />;
-      case 'repay-ring':
-        return <Circle size={16} />;
-      default:
-        return <Swords size={16} />;
-    }
-  })();
-
-  const costTexts: string[] = [];
-  if (weapon.cost.recordShard) costTexts.push(`기록 ${weapon.cost.recordShard}`);
-  if (weapon.cost.disciplineShard) costTexts.push(`절제 ${weapon.cost.disciplineShard}`);
-  if (weapon.cost.repayShard) costTexts.push(`상환 ${weapon.cost.repayShard}`);
-
-  const bonusTexts: string[] = [];
-  if (weapon.bonus.hp) bonusTexts.push(`HP +${weapon.bonus.hp}`);
-  if (weapon.bonus.mp) bonusTexts.push(`MP +${weapon.bonus.mp}`);
-  if (weapon.bonus.def) bonusTexts.push(`DEF +${weapon.bonus.def}`);
-
-  return (
-    <div
-      style={{
-        borderRadius: 10,
-        border: '1px solid #e6e0d5',
-        padding: '6px 8px',
-        backgroundColor: active ? '#fbf6ec' : '#f8f6f2',
-        opacity: active ? 1 : 0.65,
-        display: 'flex',
-        gap: 8,
-      }}
-    >
-      <div
-        style={{
-          marginTop: 2,
-          color: active ? '#9c7a3e' : '#b6a585',
-        }}
-      >
-        {icon}
-      </div>
-      <div style={{ flex: 1 }}>
-        <div
-          style={{
-            fontSize: 13,
-            color: '#3f3428',
-            marginBottom: 2,
-          }}
-        >
-          {weapon.name}
-        </div>
-        <div
-          style={{
-            fontSize: 11,
-            color: '#8b7760',
-            marginBottom: 2,
-          }}
-        >
-          {weapon.description}
-        </div>
-        <div
-          style={{
-            fontSize: 11,
-            color: '#a08a6a',
-          }}
-        >
-          비용: {costTexts.join(' · ')} / 보너스: {bonusTexts.join(' · ')}
-        </div>
-      </div>
-    </div>
-  );
-};
 
 export default MoneyWeaponCard;
