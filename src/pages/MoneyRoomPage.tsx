@@ -19,9 +19,9 @@ interface MonthlyBudgetLike { year: number; month: number; variableBudget: numbe
 const MoneyRoomPage: React.FC = () => {
   const today = useMemo(() => new Date(), []);
   
-  // 🔹 탭 상태 ('adventure'를 기본으로)
+  // 🔹 탭 상태
   const [activeTab, setActiveTab] = useState<'record' | 'adventure'>('adventure');
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false); // 달력 접기/펴기
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const [monthlyBudget, setMonthlyBudget] = useState<MonthlyBudgetLike>({
     year: today.getFullYear(), month: today.getMonth() + 1, variableBudget: 500_000, noSpendTarget: 10,
@@ -31,12 +31,12 @@ const MoneyRoomPage: React.FC = () => {
   const [installments, setInstallments] = useState<InstallmentLike[]>([]);
   const [dayStatuses, setDayStatuses] = useState<DayStatusLike[]>([]);
 
-  // ---- 입력 폼 상태들 ----
+  // ---- 입력 폼 상태 ----
   const [budgetInput, setBudgetInput] = useState({ variableBudget: String(monthlyBudget.variableBudget), noSpendTarget: String(monthlyBudget.noSpendTarget) });
   const [txForm, setTxForm] = useState({ date: today.toISOString().slice(0, 10), type: 'expense' as TxType, category: '', amount: '', isEssential: false });
   const [instForm, setInstForm] = useState({ name: '', totalAmount: '', paidAmount: '' });
 
-  // ---- 핸들러 함수들 ----
+  // ---- 핸들러 ----
   const handleSaveBudget = () => {
     const vb = Number(budgetInput.variableBudget.replace(/,/g, ''));
     const nt = Number(budgetInput.noSpendTarget);
@@ -47,9 +47,7 @@ const MoneyRoomPage: React.FC = () => {
 
   const handleAddTx = () => {
     const amountNum = Number(txForm.amount.replace(/,/g, ''));
-    if (!txForm.category) return alert('카테고리를 입력해주세요.');
-    if (!amountNum) return alert('금액을 입력해주세요.');
-
+    if (!txForm.category || !amountNum) return alert('내용을 입력해주세요.');
     const newTx: TransactionLike = {
       id: `${Date.now()}`, date: txForm.date, type: txForm.type, category: txForm.category.trim(), amount: amountNum, isEssential: txForm.isEssential,
     };
@@ -80,24 +78,24 @@ const MoneyRoomPage: React.FC = () => {
   const formatMoney = (n: number) => n.toLocaleString('ko-KR');
   const monthLabel = `${monthlyBudget.year}. ${String(monthlyBudget.month).padStart(2, '0')}`;
   
-  // 🎨 스타일: 가로 스크롤 컨테이너 (이게 있어야 옆으로 넘어감!)
+  // 🎨 스타일
   const scrollContainerStyle: React.CSSProperties = {
     display: 'flex',
     overflowX: 'auto',
     gap: '12px',
-    padding: '4px 12px 24px', // 양옆 여백 + 하단 스크롤바 공간
+    padding: '4px 12px 24px', 
     scrollSnapType: 'x mandatory',
     WebkitOverflowScrolling: 'touch',
+    alignItems: 'flex-start', // 카드 높이가 달라도 위쪽 정렬
   };
 
   const scrollItemStyle: React.CSSProperties = {
-    minWidth: '90%', // 화면의 90% 차지
+    minWidth: '90%', 
     scrollSnapAlign: 'center',
     flexShrink: 0,
   };
 
   return (
-    // ✨ 배경: 모험 지도 느낌 적용 완료
     <div style={{ 
       padding: '12px 0 60px',
       backgroundColor: '#f4f1ea', 
@@ -121,7 +119,6 @@ const MoneyRoomPage: React.FC = () => {
           dayStatuses={dayStatuses}
           installments={installments}
         />
-        {/* 컬렉션 바 */}
         <div style={{ marginTop: -12 }}>
           <CollectionBar
             transactions={transactions}
@@ -150,7 +147,6 @@ const MoneyRoomPage: React.FC = () => {
       {/* 🔹 탭 1: 기록 */}
       {activeTab === 'record' && (
         <div className="fade-in" style={{ padding: '0 12px' }}>
-          {/* 가계부 입력 */}
           <div style={{ padding: '16px', borderRadius: 16, border: '1px solid #e5e5e5', backgroundColor: '#fff', marginBottom: 16 }}>
             <div style={{ fontSize: 11, letterSpacing: '0.14em', color: '#b59a7a', marginBottom: 8 }}>QUICK LEDGER</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -168,7 +164,6 @@ const MoneyRoomPage: React.FC = () => {
               </div>
             </div>
           </div>
-          {/* 설정 폼 등은 생략하거나 필요하면 여기에 추가 */}
         </div>
       )}
 
@@ -176,36 +171,49 @@ const MoneyRoomPage: React.FC = () => {
       {activeTab === 'adventure' && (
         <div className="fade-in">
 
-          {/* 👇 가로 스크롤 컨테이너 시작 👇 */}
+          {/* 👇 가로 스크롤 컨테이너 👇 */}
           <div style={scrollContainerStyle}>
             
-            {/* 카드 1: 내 캐릭터 (Hero) */}
+            {/* 카드 1: [내 캐릭터 + 장비 합성] 합체! */}
             <div style={scrollItemStyle}>
-              <div style={{
-                height: '320px',
-                borderRadius: '20px',
-                backgroundColor: '#fff',
-                border: '1px solid #ddd',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-              }}>
-                <div style={{ fontSize: 12, color: '#b59a7a', letterSpacing: '2px', marginBottom: 10 }}>MY CHARACTER</div>
-                <div style={{ width: '100px', height: '100px', borderRadius: '50%', backgroundColor: '#f4f1ea', fontSize: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, border: '4px solid #e5e5e5' }}>
-                  🧙‍♀️
-                </div>
-                <div style={{ fontSize: 20, fontWeight: 'bold', color: '#333' }}>알뜰한 모험가</div>
-                <div style={{ fontSize: 13, color: '#777', marginBottom: 20 }}>Lv. 1 (초심자)</div>
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>{dayStatuses.filter(d => d.isNoSpend).length}</div>
-                    <div style={{ fontSize: 10, color: '#999' }}>무지출</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                
+                {/* (1) 내 캐릭터 */}
+                <div style={{
+                  padding: '24px',
+                  borderRadius: '20px',
+                  backgroundColor: '#fff',
+                  border: '1px solid #ddd',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+                }}>
+                  <div style={{ fontSize: 12, color: '#b59a7a', letterSpacing: '2px', marginBottom: 10 }}>MY CHARACTER</div>
+                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#f4f1ea', fontSize: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, border: '4px solid #e5e5e5' }}>
+                    🧙‍♀️
                   </div>
-                  <div style={{ width: 1, height: 30, backgroundColor: '#eee' }}></div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>{transactions.length}</div>
-                    <div style={{ fontSize: 10, color: '#999' }}>기록</div>
+                  <div style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>알뜰한 모험가</div>
+                  <div style={{ fontSize: 12, color: '#777', marginBottom: 16 }}>Lv. 1 (초심자)</div>
+                  
+                  {/* 미니 스탯 */}
+                  <div style={{ display: 'flex', width: '100%', justifyContent: 'space-around', backgroundColor: '#f9f9f9', padding: '10px', borderRadius: '12px' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{dayStatuses.filter(d => d.isNoSpend).length}</div>
+                      <div style={{ fontSize: 10, color: '#999' }}>무지출</div>
+                    </div>
+                    <div style={{ width: 1, height: '100%', backgroundColor: '#eee' }}></div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{transactions.length}</div>
+                      <div style={{ fontSize: 10, color: '#999' }}>기록</div>
+                    </div>
                   </div>
                 </div>
+
+                {/* (2) 장비 합성 (바로 아래에 붙임) */}
+                <MoneyWeaponCard 
+                  transactions={transactions} 
+                  dayStatuses={dayStatuses} 
+                  installments={installments} 
+                />
               </div>
             </div>
 
@@ -218,17 +226,11 @@ const MoneyRoomPage: React.FC = () => {
             <div style={scrollItemStyle}>
               <MoneyQuestCard />
             </div>
-            
-            {/* 카드 4: 무기 합성 */}
-            <div style={scrollItemStyle}>
-              <MoneyWeaponCard transactions={transactions} dayStatuses={dayStatuses} installments={installments} />
-            </div>
 
           </div> 
           {/* 👆 가로 스크롤 끝 👆 */}
 
-
-          {/* 무지출 달력 (접이식으로 하단 배치) */}
+          {/* 무지출 달력 (접이식) */}
           <div style={{ padding: '0 12px' }}>
              <div 
               onClick={() => setIsCalendarOpen(!isCalendarOpen)}
