@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { PenTool, Swords, ChevronDown, ChevronUp, Sprout } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { calcAdvancedXP, calcRPGStats } from '../money/moneyGameLogic'; // 👈 추가
 
 // 컴포넌트들
 import MoneyStats from '../components/money/MoneyStats';
@@ -24,6 +25,123 @@ interface MonthlyBudgetLike { year: number; month: number; variableBudget: numbe
 
 const MoneyRoomPage: React.FC = () => {
   const today = useMemo(() => new Date(), []);
+
+  const MoneyRoomPage: React.FC = () => {
+  // ... 기존 상태들 ...
+  const [spentLeaf, setSpentLeaf] = useState(0);
+  
+  // 💰 [NEW] 저축액 상태 (파밍하거나 아껴서 모은 돈)
+  // 실제로는 'budget - expense' 남은 돈을 저축으로 칠 수도 있고, 
+  // 파밍으로 얻은 골드를 누적할 수도 있음. 여기선 파밍 골드 + 가상 저축이라 가정.
+  const [savedAmount, setSavedAmount] = useState(0); 
+
+  // ...
+
+  // 🧮 [NEW] RPG 스탯 & 경험치 계산
+  const rpgStats = useMemo(() => calcRPGStats(transactions, dayStatuses, savedAmount), [transactions, dayStatuses, savedAmount]);
+  const { currentExp, level, maxExp } = useMemo(() => calcAdvancedXP(rpgStats, installments), [rpgStats, installments]);
+  const expRatio = (currentExp / maxExp) * 100;
+
+  // 칭호 로직도 레벨 기반으로 유지
+  const userTitle = useMemo(() => {
+    if (level >= 10) return '전설의 용사';
+    if (level >= 5) return '베테랑 모험가';
+    return '초심자 모험가';
+  }, [level]);
+
+  // 🌱 파밍 시스템 업데이트 (돈도 줌!)
+  const handleFarming = () => {
+    if (farmMessage) return;
+    const rewards = [
+      { text: '🌿 약초 발견 (+10원)', gold: 10 },
+      { text: '✨ 반짝이는 동전 (+100원)', gold: 100 },
+      { text: '📦 보물상자 발견! (+500원)', gold: 500 },
+      { text: '🐛 꽝... 아무것도 없었다.', gold: 0 },
+    ];
+    const pick = rewards[Math.floor(Math.random() * rewards.length)];
+    
+    setFarmMessage(pick.text);
+    setSavedAmount(prev => prev + pick.gold); // 저축액 증가 -> DEX 증가 -> 장비 업글!
+    
+    if (pick.gold > 0) {
+      confetti({ particleCount: 30, spread: 40, origin: { y: 0.5 }, colors: ['#ffd700'] });
+    }
+    setTimeout(() => setFarmMessage(null), 2000);
+  };
+
+  // ... (나머지 코드 동일) ...
+
+  return (
+    // ...
+            {/* 1. [내 구역] 캐릭터 + 장비 */}
+            <div style={scrollItemStyle}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                
+                {/* 🛡️ 캐릭터 카드 */}
+                <div style={{
+                  padding: '16px', borderRadius: '20px', backgroundColor: '#fff', border: '1px solid #ddd',
+                  display: 'flex', flexDirection: 'column', gap: 12,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden'
+                }}>
+                  {/* 상단: 아바타 & 레벨 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <div style={{ position: 'relative' }}>
+                      <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#f4f1ea', fontSize: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #e5e5e5' }}>
+                        🧙‍♀️
+                      </div>
+                      <div style={{ position: 'absolute', bottom: -4, right: -4, backgroundColor: '#333', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '10px', border: '2px solid #fff' }}>
+                        Lv.{level}
+                      </div>
+                    </div>
+                    
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 10, color: '#b59a7a', fontWeight: 'bold' }}>{userClass.name}</div>
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{userTitle}</div>
+                      
+                      {/* EXP bar */}
+                      <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:4 }}>
+                        <div style={{ flex:1, height: '6px', backgroundColor: '#eee', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ width: `${expRatio}%`, height: '100%', backgroundColor: '#ffd700', transition: 'width 0.5s ease' }} />
+                        </div>
+                        <div style={{ fontSize: 9, color: '#aaa' }}>{Math.floor(expRatio)}%</div>
+                      </div>
+                    </div>
+
+                    <button onClick={handleFarming} style={{ /* ...스타일... */ }}>
+                      <Sprout size={16} color="#4caf50" />
+                      <span style={{ fontSize: 10, color: '#2e7d32', marginTop: 2 }}>수확</span>
+                    </button>
+                  </div>
+
+                  {/* 📊 RPG 스탯 표시 (NEW!) */}
+                  <div style={{ display: 'flex', justifyContent: 'space-around', backgroundColor: '#f8f8f8', padding: '8px', borderRadius: '12px' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: '#ff6b6b', fontWeight:'bold' }}>STR (힘)</div>
+                      <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>{rpgStats.str}</div>
+                      <div style={{ fontSize: 9, color: '#999' }}>무지출</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: '#4da6ff', fontWeight:'bold' }}>INT (지능)</div>
+                      <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>{rpgStats.int}</div>
+                      <div style={{ fontSize: 9, color: '#999' }}>기록</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: '#ffd700', fontWeight:'bold' }}>DEX (민첩)</div>
+                      <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>{rpgStats.dex}</div>
+                      <div style={{ fontSize: 9, color: '#999' }}>저축</div>
+                    </div>
+                  </div>
+
+                  {/* 장비창 (스탯에 따라 자동 변경됨) */}
+                  <MoneyWeaponCard 
+                    transactions={transactions} 
+                    dayStatuses={dayStatuses} 
+                    savedAmount={savedAmount} // 👈 저축액 전달
+                  />
+                  
+                </div>
+              </div>
+            </div>
   
   // 🔹 탭 & UI 상태
   const [activeTab, setActiveTab] = useState<'record' | 'adventure'>('adventure');
