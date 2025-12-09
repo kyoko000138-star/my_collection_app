@@ -1,55 +1,39 @@
 // src/money/moneyGameLogic.ts
 
-
+// 타입 정의 (임시) - 실제로는 인터페이스 파일에서 가져와도 됩니다.
 type AnyTransaction = any;
 type AnyDayStatus = any;
 type AnyInstallment = any;
 type AnyMonthlyBudget = any;
 
-// ----- 타입 정의 (충돌 방지를 위해 여기서 간단히 정의) -----
-type AnyTransaction = any;
-type AnyDayStatus = any;
-type AnyInstallment = any;
-type AnyMonthlyBudget = any;
-
-// src/money/moneyGameLogic.ts
-
-// [추가] Luna 실드가 적용된 무지출 콤보 계산
-// dayStatuses: 최신 날짜가 배열의 뒤쪽인지 앞쪽인지 확인 필요. 
-// 보통 달력 데이터는 1일~30일 순서대로 들어오므로, 역순(오늘부터 과거로)으로 돌며 체크합니다.
+// ------------------------------------------------------------------
+// 🛡️ [핵심 기능 1] Luna 실드 & 콤보 계산
+// ------------------------------------------------------------------
 export function calcNoSpendComboWithShield(
-  dayStatuses: any[], // [{ date: '...', isNoSpend: true/false }, ...]
+  dayStatuses: AnyDayStatus[] = [], // 👈 기본값 [] 추가 (오류 방지)
   lunaMode: 'normal' | 'pms' | 'rest' = 'normal',
 ): { combo: number; shieldUsed: boolean } {
+  // 방어 코드: 데이터가 없으면 0 리턴
   if (!dayStatuses || dayStatuses.length === 0) return { combo: 0, shieldUsed: false };
 
-  // PMS나 REST 모드일 때만 실드 활성화
   const shieldAvailable = lunaMode === 'pms' || lunaMode === 'rest';
-  
   let shieldUsed = false;
   let combo = 0;
 
-  // 배열의 마지막(오늘/최신)부터 역순으로 탐색
+  // 최신 날짜부터 역순 탐색
   for (let i = dayStatuses.length - 1; i >= 0; i--) {
     const day = dayStatuses[i];
-    
-    // 아직 미래 날짜라 데이터가 없으면 패스 (혹은 로직에 따라 처리)
     if (!day) continue; 
 
     if (day.isNoSpend) {
       combo += 1;
     } else {
-      // 지출한 날(실패)인데
+      // 실패한 날인데, 실드가 있고 아직 안 썼다면?
       if (shieldAvailable && !shieldUsed) {
-        // 실드가 있고 아직 안 썼으면 -> 한 번 봐줌! (콤보는 안 늘어나지만 끊기지도 않음)
-        shieldUsed = true;
-        // continue를 하면 "실패한 날은 콤보 수에 포함 X, 건너뛰고 계속 연결"
-        // 만약 실패한 날도 콤보로 쳐주고 싶으면 combo += 1 하시면 됩니다.
-        // 여기선 "끊기지만 않게(다리 역할)"로 continue 처리합니다.
-        continue; 
+        shieldUsed = true; // 실드 사용 처리
+        continue; // 콤보는 안 오르지만, 끊기지 않고 넘어감 (다리 역할)
       } else {
-        // 실드 없거나 이미 썼으면 -> 여기서 콤보 끝
-        break;
+        break; // 콤보 끊김
       }
     }
   }
@@ -57,53 +41,48 @@ export function calcNoSpendComboWithShield(
   return { combo, shieldUsed };
 }
 
-// 1. 📊 RPG 스탯 계산기
+// ------------------------------------------------------------------
+// 📊 [핵심 기능 2] RPG 스탯 & 레벨
+// ------------------------------------------------------------------
 export interface RPGStats {
-  str: number; // 무지출 힘
-  int: number; // 기록 지능
-  dex: number; // 저축/파밍 민첩
-  totalPower: number; // 전투력
+  str: number;
+  int: number;
+  dex: number;
+  totalPower: number;
 }
 
 export function calcRPGStats(
-  transactions: AnyTransaction[],
-  dayStatuses: AnyDayStatus[],
-  savedAmount: number // 이번 달 저축액 (가상의 값 or 파밍으로 획득한 돈)
+  transactions: AnyTransaction[] = [], // 👈 기본값 []
+  dayStatuses: AnyDayStatus[] = [],    // 👈 기본값 []
+  savedAmount: number = 0
 ): RPGStats {
+  const safeDays = dayStatuses || [];
+  const safeTxs = transactions || [];
+
   // STR: 무지출 1일 = 10점
-  const str = dayStatuses.filter(d => d.isNoSpend).length * 10;
-
+  const str = safeDays.filter(d => d.isNoSpend).length * 10;
   // INT: 기록 1건 = 5점
-  const int = transactions.length * 5;
-
-  // DEX: 저축 1,000원당 1점 (예시) + 파밍 횟수(나중에 추가 가능)
+  const int = safeTxs.length * 5;
+  // DEX: 저축액 기반
   const dex = Math.floor(savedAmount / 1000);
 
-  return { 
-    str, 
-    int, 
-    dex, 
-    totalPower: str + int + dex 
-  };
+  return { str, int, dex, totalPower: str + int + dex };
 }
 
-// 2. 🆙 경험치(XP) 시스템 강화
-// 행동 하나하나가 전부 경험치가 됨
 export function calcAdvancedXP(
-  stats: RPGStats,
-  installments: AnyInstallment[]
+  stats: RPGStats | undefined, // undefined 들어올 수 있음
+  installments: AnyInstallment[] = []
 ): { currentExp: number; level: number; maxExp: number } {
+  // 방어 코드
+  if (!stats) return { currentExp: 0, level: 1, maxExp: 100 };
   
-  // 기본 XP = 전투력(스탯 총합)
   let rawExp = stats.totalPower;
+  const safeInstalls = installments || [];
 
-  // 보너스 XP: 할부 완납 1건당 100XP
-  const clearedInstallments = installments.filter(i => i.paidAmount >= i.totalAmount).length;
+  // 보너스 XP: 할부 완납
+  const clearedInstallments = safeInstalls.filter(i => i.paidAmount >= i.totalAmount).length;
   rawExp += (clearedInstallments * 100);
 
-  // 레벨 계산 (누적 방식: 레벨 * 100이 필요 경험치라고 가정)
-  // 예: Lv.1 -> 100xp 필요, Lv.2 -> 200xp 필요...
-  // 간단하게 100 단위로 레벨 나눔
   const level = Math.floor(rawExp / 100) + 1;
   const currentExp = rawExp % 100;
   const maxExp = 100;
@@ -111,73 +90,91 @@ export function calcAdvancedXP(
   return { currentExp, level, maxExp };
 }
 
-// 3. ⚔️ 장비 진화 로직 (스탯에 따라 장비가 바뀜!)
-export function getEquippedItems(stats: RPGStats) {
+// ------------------------------------------------------------------
+// ⚔️ [핵심 기능 3] 장비 진화
+// ------------------------------------------------------------------
+export function getEquippedItems(stats: RPGStats | undefined) {
+  // 기본 장비
   let weapon = { name: '녹슨 검', icon: '🗡️', grade: 'C' };
   let armor = { name: '천 옷', icon: '👕', grade: 'C' };
   let accessory = { name: '실 반지', icon: '💍', grade: 'C' };
 
-  // STR(무지출)이 높으면 갑옷 업그레이드
+  if (!stats) return { weapon, armor, accessory };
+
+  // STR -> 갑옷
   if (stats.str >= 30) armor = { name: '강철 갑옷', icon: '🛡️', grade: 'B' };
   if (stats.str >= 70) armor = { name: '용의 판금', icon: '🐉', grade: 'A' };
 
-  // INT(기록)가 높으면 무기 업그레이드 (지능캐 컨셉)
+  // INT -> 무기
   if (stats.int >= 30) weapon = { name: '마법 깃펜', icon: '✒️', grade: 'B' };
   if (stats.int >= 70) weapon = { name: '현자의 지팡이', icon: '🪄', grade: 'A' };
 
-  // DEX(저축)가 높으면 악세서리 업그레이드
+  // DEX -> 악세서리
   if (stats.dex >= 30) accessory = { name: '금화 주머니', icon: '💰', grade: 'B' };
   if (stats.dex >= 70) accessory = { name: '다이아 목걸이', icon: '💎', grade: 'A' };
 
   return { weapon, armor, accessory };
 }
 
-// 1. 이번 달 지출 총합
-export function calcMonthlyExpense(transactions: AnyTransaction[]): number {
-  return transactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0);
-}
+// ------------------------------------------------------------------
+// 💰 [기본 기능] HP / MP / DEF 계산 (안전장치 추가됨)
+// ------------------------------------------------------------------
 
-// 2. HP: 생활비 체력 (0~100)
-export function calcHP(monthlyBudget: AnyMonthlyBudget | null, transactions: AnyTransaction[]): number {
+// 1. HP 계산 (PMS 회복 간식 로직 포함)
+export function calcHP(monthlyBudget: AnyMonthlyBudget | null, transactions: AnyTransaction[] = []): number {
   if (!monthlyBudget || monthlyBudget.variableBudget <= 0) return 0;
-  const used = calcMonthlyExpense(transactions);
-  const remain = Math.max(monthlyBudget.variableBudget - used, 0);
+  
+  const safeTxs = transactions || [];
+
+  // 지출 합계 (회복 간식은 데미지 제외!)
+  const totalUsed = safeTxs
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => {
+      if (t.isRecoverySnack) return sum; // 회복 간식은 0원 처리
+      return sum + t.amount;
+    }, 0);
+
+  const remain = Math.max(monthlyBudget.variableBudget - totalUsed, 0);
   return Math.round((remain / monthlyBudget.variableBudget) * 100);
 }
 
-// 3. MP: 무지출 포인트
-export function calcMP(monthlyBudget: AnyMonthlyBudget | null, dayStatuses: AnyDayStatus[]): number {
+// 2. MP 계산
+export function calcMP(monthlyBudget: AnyMonthlyBudget | null, dayStatuses: AnyDayStatus[] = []): number {
   if (!monthlyBudget || monthlyBudget.noSpendTarget <= 0) return 0;
+  const safeDays = dayStatuses || [];
 
-  const noSpendDays = dayStatuses.filter(d => d.isNoSpend).length;
+  const noSpendDays = safeDays.filter(d => d.isNoSpend).length;
   const raw = (noSpendDays / monthlyBudget.noSpendTarget) * 10; 
   return Math.min(10, Math.round(raw));
 }
 
-// 4. DEF: 할부 방어도
-export function calcDEF(installments: AnyInstallment[]): number {
-  const total = installments.reduce((sum, ins) => sum + ins.totalAmount, 0);
+// 3. DEF 계산
+export function calcDEF(installments: AnyInstallment[] = []): number {
+  const safeInstalls = installments || [];
+  const total = safeInstalls.reduce((sum, ins) => sum + ins.totalAmount, 0);
   if (total <= 0) return 0;
-  const paid = installments.reduce((sum, ins) => sum + ins.paidAmount, 0);
+  const paid = safeInstalls.reduce((sum, ins) => sum + ins.paidAmount, 0);
   return Math.round((paid / total) * 100);
 }
 
-// 5. Leaf 포인트 (누적 점수)
+// 4. Leaf 포인트 (컬렉션용)
 export function calcLeafPoints(
-  transactions: AnyTransaction[],
-  dayStatuses: AnyDayStatus[],
-  installments: AnyInstallment[],
+  transactions: AnyTransaction[] = [],
+  dayStatuses: AnyDayStatus[] = [],
+  installments: AnyInstallment[] = [],
 ): number {
-  const txPoints = transactions.length * 1; // 기록 1건당 1점
-  const noSpendSuccess = dayStatuses.filter(d => d.isNoSpend).length * 2; // 무지출 1일당 2점
-  const paidInstallments = installments.filter(ins => ins.paidAmount >= ins.totalAmount && ins.totalAmount > 0).length * 3; // 완납 1건당 3점
+  const safeTxs = transactions || [];
+  const safeDays = dayStatuses || [];
+  const safeInstalls = installments || [];
+
+  const txPoints = safeTxs.length * 1; 
+  const noSpendSuccess = safeDays.filter(d => d.isNoSpend).length * 2; 
+  const paidInstallments = safeInstalls.filter(ins => ins.paidAmount >= ins.totalAmount && ins.totalAmount > 0).length * 3;
 
   return txPoints + noSpendSuccess + paidInstallments;
 }
 
-// 6. 아이콘 컬렉션 계산
+// 5. 컬렉션 아이템 개수 변환
 export function deriveCollection(leafPoints: number) {
   const incense = Math.floor(leafPoints / 30);
   const afterIncense = leafPoints % 30;
@@ -188,40 +185,41 @@ export function deriveCollection(leafPoints: number) {
   return { leaves, tea, incense };
 }
 
-// 7. [RPG] 상태 이상(Status Effect) 계산 로직
+// ------------------------------------------------------------------
+// 🎭 [RPG] 상태 이상 & 직업 (안전장치 추가됨)
+// ------------------------------------------------------------------
 export interface StatusEffect {
-  id: string;
-  name: string;
-  icon: string;
-  color: string;
-  desc?: string;
+  id: string; name: string; icon: string; color: string; desc?: string;
 }
 
-export function calcStatusEffects(transactions: AnyTransaction[], dayStatuses: AnyDayStatus[]): StatusEffect[] {
+export function calcStatusEffects(
+  transactions: AnyTransaction[] = [], 
+  dayStatuses: AnyDayStatus[] = []
+): StatusEffect[] {
   const effects: StatusEffect[] = [];
+  const safeDays = dayStatuses || [];
+  const safeTxs = transactions || [];
   
   // (1) 철벽: 최근 3일간 무지출 성공 여부
-  const recentDays = dayStatuses.slice(-3); // 배열 끝에서 3개
+  const recentDays = safeDays.slice(-3);
   if (recentDays.some(d => d.isNoSpend)) {
     effects.push({ id: 'shield', name: '철벽 방어', icon: '🛡️', color: '#4caf50', desc: '지출 유혹을 1회 방어합니다.' });
   }
 
-  // (2) 식곤증: 식비/배달 비중이 50% 이상
-  const expenseTx = transactions.filter(t => t.type === 'expense');
+  // (2) 식곤증: 식비 50% 이상
+  const expenseTx = safeTxs.filter(t => t.type === 'expense');
   const totalSpend = expenseTx.reduce((acc, t) => acc + t.amount, 0);
-  
   const foodSpend = expenseTx
-    .filter(t => t.category.includes('식비') || t.category.includes('배달') || t.category.includes('카페') || t.category.includes('간식'))
+    .filter(t => t.category && (t.category.includes('식비') || t.category.includes('배달') || t.category.includes('카페')))
     .reduce((acc, t) => acc + t.amount, 0);
   
   if (totalSpend > 0 && (foodSpend / totalSpend) > 0.5) {
     effects.push({ id: 'full', name: '식곤증', icon: '😪', color: '#ff9800', desc: '배달 음식 과다로 몸이 무겁습니다.' });
   }
 
-  // (3) 출혈: 최근 3건 연속 지출 (같은 날짜 등)
-  if (transactions.length >= 3) {
-     const last3 = transactions.slice(0, 3);
-     // 간단히 최근 3건의 날짜가 같다면 출혈로 간주 (데모용)
+  // (3) 출혈: 최근 3건 연속 같은 날짜 지출
+  if (safeTxs.length >= 3) {
+     const last3 = safeTxs.slice(0, 3);
      if (last3.length === 3 && last3[0].date === last3[2].date) {
         effects.push({ id: 'bleeding', name: '지갑 출혈', icon: '🩸', color: '#f44336', desc: '돈이 줄줄 새고 있습니다!' });
      }
@@ -230,22 +228,22 @@ export function calcStatusEffects(transactions: AnyTransaction[], dayStatuses: A
   return effects;
 }
 
-// 8. [RPG] 직업(Class) 결정 로직
-export function calcUserClass(transactions: AnyTransaction[]): { name: string; icon: string } {
-  const totalIncome = transactions.filter(t => t.type === 'income').length;
-  const totalExpense = transactions.filter(t => t.type === 'expense').length;
+export function calcUserClass(transactions: AnyTransaction[] = []): { name: string; icon: string } {
+  const safeTxs = transactions || [];
   
-  if (transactions.length === 0) return { name: '모험가 지망생', icon: '🌱' };
+  if (safeTxs.length === 0) return { name: '모험가 지망생', icon: '🌱' };
+
+  const totalIncome = safeTxs.filter(t => t.type === 'income').length;
+  const totalExpense = safeTxs.filter(t => t.type === 'expense').length;
   
-  // 수입 기록이 더 많으면 상인
-  if (totalIncome > totalExpense) return { name: '대상인 (Merchant)', icon: '💰' };
+  // 수입이 더 많으면 상인
+  if (totalIncome > totalExpense) return { name: '대상인', icon: '💰' };
   
-  // 모든 지출이 10000원 이하면 수도승
-  const expenses = transactions.filter(t => t.type === 'expense');
+  // 소액 지출만 있으면 수도승
+  const expenses = safeTxs.filter(t => t.type === 'expense');
   if (expenses.length > 0 && expenses.every(t => t.amount <= 10000)) {
-      return { name: '절약의 수도승', icon: '🙏' };
+       return { name: '절약의 수도승', icon: '🙏' };
   }
   
-  // 기본
   return { name: '방랑 검사', icon: '⚔️' };
 }
