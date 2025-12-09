@@ -1,7 +1,7 @@
 // src/pages/MoneyRoomPage.tsx
-import React, { useMemo, useState, useEffect } from 'react';
-import { PenTool, Swords, ChevronDown, ChevronUp } from 'lucide-react';
-import confetti from 'canvas-confetti'; // 🎉 폭죽 라이브러리
+import React, { useMemo, useState } from 'react';
+import { PenTool, Swords, ChevronDown, ChevronUp, Sprout } from 'lucide-react';
+import confetti from 'canvas-confetti';
 
 import MoneyStats from '../components/money/MoneyStats';
 import CollectionBar from '../components/money/CollectionBar';
@@ -10,9 +10,8 @@ import MoneyQuestCard from '../components/money/MoneyQuestCard';
 import MoneyMonsterCard from '../components/money/MoneyMonsterCard';
 import MoneyWeaponCard from '../components/money/MoneyWeaponCard';
 
-// 로직 함수 가져오기 (레벨 계산용)
-import { calcLeafPoints } from '../money/moneyGameLogic';
-import { calcHP } from '../money/moneyGameLogic'; // HP 계산용
+// 로직 import
+import { calcLeafPoints, calcHP } from '../money/moneyGameLogic';
 
 // ---- 타입 정의 ----
 type TxType = 'expense' | 'income';
@@ -25,6 +24,7 @@ const MoneyRoomPage: React.FC = () => {
   const today = useMemo(() => new Date(), []);
   const [activeTab, setActiveTab] = useState<'record' | 'adventure'>('adventure');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [farmMessage, setFarmMessage] = useState<string | null>(null); // 파밍 메시지
 
   // 데이터 상태
   const [monthlyBudget, setMonthlyBudget] = useState<MonthlyBudgetLike>({
@@ -39,15 +39,14 @@ const MoneyRoomPage: React.FC = () => {
   const [txForm, setTxForm] = useState({ date: today.toISOString().slice(0, 10), type: 'expense' as TxType, category: '', amount: '', isEssential: false });
   const [instForm, setInstForm] = useState({ name: '', totalAmount: '', paidAmount: '' });
 
-  // 🧮 실시간 스탯 계산 (레벨업/HP연출용)
+  // 🧮 계산
   const leafPoints = useMemo(() => calcLeafPoints(transactions, dayStatuses, installments), [transactions, dayStatuses, installments]);
   const currentHP = useMemo(() => calcHP(monthlyBudget, transactions), [monthlyBudget, transactions]);
-
-  // 🆙 레벨 & 칭호 시스템
+  
+  // 🆙 레벨 & 칭호
   const level = Math.floor(leafPoints / 10) + 1;
-  const currentExp = leafPoints % 10; // 10점마다 레벨업
+  const currentExp = leafPoints % 10;
   const expRatio = (currentExp / 10) * 100;
-
   const userTitle = useMemo(() => {
     if (level >= 10) return '💰 재정의 마스터';
     if (level >= 5) return '🛡️ 노련한 관리자';
@@ -55,13 +54,13 @@ const MoneyRoomPage: React.FC = () => {
     return '🌱 초심자';
   }, [level]);
 
-  // 핸들러들
+  // ---- 핸들러 ----
   const handleSaveBudget = () => {
     const vb = Number(budgetInput.variableBudget.replace(/,/g, ''));
     const nt = Number(budgetInput.noSpendTarget);
     if (!Number.isFinite(vb) || vb < 0) return alert('숫자만 입력해주세요.');
     setMonthlyBudget((prev) => ({ ...prev, variableBudget: vb, noSpendTarget: nt }));
-    alert('예산이 저장되었습니다.');
+    alert('예산 저장!');
   };
 
   const handleAddTx = () => {
@@ -81,27 +80,38 @@ const MoneyRoomPage: React.FC = () => {
     setInstForm({ name: '', totalAmount: '', paidAmount: '' });
   };
 
-  // 🎉 무지출 토글 시 폭죽 효과
   const toggleTodayNoSpend = () => {
     const day = today.getDate();
-    
     setDayStatuses((prev) => {
       const existing = prev.find((d) => d.day === day);
-      const isSuccess = !existing || !existing.isNoSpend; // 이번에 성공으로 바뀌는가?
-
-      if (isSuccess) {
-        // ✨ 폭죽 팡!
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 },
-          colors: ['#26ccff', '#a25afd', '#ff5e7e', '#88ff5a', '#fcff42', '#ffa62d', '#ff36ff']
-        });
+      if (!existing || !existing.isNoSpend) {
+        confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 }, colors: ['#ffdb4d', '#4dff88', '#4da6ff'] });
       }
-
       if (!existing) return [...prev, { day, isNoSpend: true, completedQuests: 0 }];
       return prev.map((d) => (d.day === day ? { ...d, isNoSpend: !d.isNoSpend } : d));
     });
+  };
+
+  // 🌱 파밍 시스템 (단순 재미용)
+  const handleFarming = () => {
+    // 이미 캤으면 메시지 유지
+    if (farmMessage) return;
+
+    const rewards = [
+      '🌿 작은 풀잎을 발견했다!',
+      '✨ 반짝이는 유리조각을 주웠다.',
+      '🪙 1 골드를 주운 것 같다.',
+      '🪵 쓸만한 나뭇가지를 얻었다.',
+      '🐛 벌레...를 발견했다 (으악!)',
+    ];
+    const pick = rewards[Math.floor(Math.random() * rewards.length)];
+    setFarmMessage(pick);
+    
+    // 폭죽 살짝
+    confetti({ particleCount: 30, spread: 40, origin: { y: 0.5 }, shapes: ['circle'], colors: ['#88ff5a'] });
+
+    // 3초 뒤 메시지 사라짐
+    setTimeout(() => setFarmMessage(null), 3000);
   };
 
   const formatMoney = (n: number) => n.toLocaleString('ko-KR');
@@ -109,24 +119,23 @@ const MoneyRoomPage: React.FC = () => {
   
   // 스타일
   const scrollContainerStyle: React.CSSProperties = {
-    display: 'flex', overflowX: 'auto', gap: '12px', padding: '4px 12px 24px', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', alignItems: 'flex-start',
+    display: 'flex', overflowX: 'auto', gap: '12px', padding: '4px 12px 24px', 
+    scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', alignItems: 'flex-start',
   };
   const scrollItemStyle: React.CSSProperties = { minWidth: '90%', scrollSnapAlign: 'center', flexShrink: 0 };
 
-  // 🩸 HP 위기 상태 스타일 (화면 테두리 붉게)
   const isDanger = currentHP <= 30 && currentHP > 0;
-  const containerStyle: React.CSSProperties = {
-    padding: '12px 0 60px',
-    backgroundColor: '#f4f1ea',
-    backgroundImage: `radial-gradient(#dcd1bf 1px, transparent 1px)`,
-    backgroundSize: '20px 20px',
-    minHeight: '100vh',
-    transition: 'box-shadow 0.5s ease',
-    boxShadow: isDanger ? 'inset 0 0 50px rgba(255, 0, 0, 0.15)' : 'none', // 위기일 때 붉은 기운
-  };
 
   return (
-    <div style={containerStyle}>
+    <div style={{ 
+      padding: '12px 0 60px',
+      backgroundColor: '#f4f1ea', 
+      backgroundImage: `radial-gradient(#dcd1bf 1px, transparent 1px)`, 
+      backgroundSize: '20px 20px',
+      minHeight: '100vh',
+      transition: 'box-shadow 0.5s ease',
+      boxShadow: isDanger ? 'inset 0 0 50px rgba(255, 0, 0, 0.15)' : 'none',
+    }}>
       
       {/* 헤더 */}
       <div style={{ marginBottom: 16, padding: '0 12px' }}>
@@ -135,7 +144,7 @@ const MoneyRoomPage: React.FC = () => {
         <div style={{ fontSize: 12, color: '#777' }}>{monthLabel}의 모험 기록</div>
       </div>
 
-      {/* 🔹 HUD */}
+      {/* 🔹 HUD: 스탯창 */}
       <div style={{ margin: '0 12px 20px' }}>
         <MoneyStats monthlyBudget={monthlyBudget as any} transactions={transactions} dayStatuses={dayStatuses} installments={installments} />
         <div style={{ marginTop: -12 }}><CollectionBar transactions={transactions} dayStatuses={dayStatuses} installments={installments} /></div>
@@ -174,51 +183,71 @@ const MoneyRoomPage: React.FC = () => {
         </div>
       )}
 
-      {/* 🔹 탭 2: 모험 */}
+      {/* 🔹 탭 2: 모험 (구조 변경됨!) */}
       {activeTab === 'adventure' && (
         <div className="fade-in">
           <div style={scrollContainerStyle}>
             
-            {/* 1. 내 캐릭터 (업그레이드 버전!) */}
+            {/* 1. [본진] 캐릭터 + 파밍 + 장비 */}
             <div style={scrollItemStyle}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                
+                {/* 캐릭터 카드 (압축됨) */}
                 <div style={{
-                  padding: '20px', borderRadius: '20px', backgroundColor: '#fff', border: '1px solid #ddd',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+                  padding: '16px', borderRadius: '20px', backgroundColor: '#fff', border: '1px solid #ddd',
+                  display: 'flex', alignItems: 'center', gap: 16,
                   boxShadow: '0 4px 12px rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden'
                 }}>
-                  {/* EXP 게이지 바 (배경에 깔기) */}
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, height: '6px', width: `${expRatio}%`, backgroundColor: '#ffd700', transition: 'width 0.5s ease' }} />
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, height: '4px', width: `${expRatio}%`, backgroundColor: '#ffd700', transition: 'width 0.5s ease' }} />
                   
-                  <div style={{ fontSize: 12, color: '#b59a7a', letterSpacing: '2px', marginBottom: 10 }}>MY CHARACTER</div>
-                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#f4f1ea', fontSize: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10, border: '4px solid #e5e5e5' }}>🧙‍♀️</div>
+                  <div style={{ 
+                    width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#f4f1ea', 
+                    fontSize: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #e5e5e5', flexShrink: 0
+                  }}>🧙‍♀️</div>
                   
-                  {/* 레벨 & 칭호 표시 */}
-                  <div style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>{userTitle}</div>
-                  <div style={{ fontSize: 12, color: '#777', marginBottom: 16 }}>Lv. {level} <span style={{color:'#ccc'}}>|</span> EXP {currentExp}/10</div>
-                  
-                  <div style={{ display: 'flex', width: '100%', justifyContent: 'space-around', backgroundColor: '#f9f9f9', padding: '10px', borderRadius: '12px' }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{leafPoints}</div>
-                      <div style={{ fontSize: 10, color: '#999' }}>Leaf</div>
-                    </div>
-                    <div style={{ width: 1, height: '100%', backgroundColor: '#eee' }}></div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{transactions.length}</div>
-                      <div style={{ fontSize: 10, color: '#999' }}>기록</div>
-                    </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 10, color: '#b59a7a', letterSpacing: '1px' }}>MY CHARACTER</div>
+                    <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{userTitle}</div>
+                    <div style={{ fontSize: 11, color: '#777' }}>Lv.{level} ({currentExp}/10)</div>
                   </div>
+
+                  {/* 🌱 파밍 버튼 (오른쪽에 배치) */}
+                  <button onClick={handleFarming} style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    padding: '8px 12px', borderRadius: '12px', border: '1px solid #88ff5a', backgroundColor: '#f0ffe5',
+                    cursor: 'pointer', flexShrink: 0
+                  }}>
+                    <Sprout size={18} color="#4caf50" />
+                    <span style={{ fontSize: 10, color: '#2e7d32', marginTop: 2 }}>수확</span>
+                  </button>
                 </div>
+
+                {/* 파밍 메시지 (말풍선처럼 뜸) */}
+                {farmMessage && (
+                  <div className="fade-in" style={{
+                    textAlign: 'center', padding: '8px', backgroundColor: '#333', color: '#fff', borderRadius: '8px', fontSize: '12px'
+                  }}>
+                    {farmMessage}
+                  </div>
+                )}
+
+                {/* 장비 합성 (바로 아래) */}
                 <MoneyWeaponCard transactions={transactions} dayStatuses={dayStatuses} installments={installments} />
               </div>
             </div>
 
-            {/* 나머지 카드들 */}
-            <div style={scrollItemStyle}><MoneyMonsterCard transactions={transactions} dayStatuses={dayStatuses} /></div>
-            <div style={scrollItemStyle}><MoneyQuestCard /></div>
+            {/* 2. [전장] 몬스터 + 퀘스트 */}
+            <div style={scrollItemStyle}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <MoneyMonsterCard transactions={transactions} dayStatuses={dayStatuses} />
+                {/* 몬스터 아래에 퀘스트 배치 */}
+                <MoneyQuestCard />
+              </div>
+            </div>
+
           </div> 
 
-          {/* 무지출 달력 */}
+          {/* 무지출 달력 (접이식) */}
           <div style={{ padding: '0 12px' }}>
              <div onClick={() => setIsCalendarOpen(!isCalendarOpen)} style={{ padding: '12px 16px', backgroundColor: '#fff', borderRadius: 12, border: '1px solid #ccc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 'bold', color: '#555' }}>📅 무지출 캘린더</span>
