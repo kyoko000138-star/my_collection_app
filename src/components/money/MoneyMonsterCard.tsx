@@ -10,7 +10,7 @@ import {
 
 interface MoneyMonsterCardProps {
   transactions?: any[];
-  dayStatuses?: any[]; // { day: number; isNoSpend: boolean }[]
+  dayStatuses?: any[]; 
 }
 
 const MoneyMonsterCard: React.FC<MoneyMonsterCardProps> = ({
@@ -39,40 +39,32 @@ const MoneyMonsterCard: React.FC<MoneyMonsterCardProps> = ({
 
   const ratio = monster.maxHp ? currentHp / monster.maxHp : 1;
 
+  // 🩸 몬스터 상태 (건강함 / 빈사 / 토벌) 계산
+  const status = useMemo(() => {
+    if (currentHp === 0) return { color: '#999', text: '토벌 완료!', bg: '#eeeeee', isDead: true };
+    if (monster.maxHp > 0 && currentHp / monster.maxHp <= 0.3) {
+      return { color: '#d9534f', text: '빈사 상태! (마지막 일격 필요)', bg: '#fbe9e9', isDead: false }; // 빨강 위기
+    }
+    return { color: '#3f3428', text: '아직 쌩쌩함', bg: '#f5efe2', isDead: false }; // 평소
+  }, [currentHp, monster.maxHp]);
+
   const monsterIcon = (() => {
     switch (monster.id) {
       case 'delivery-dragon':
-        return <Pizza size={20} />;
+        return <Pizza size={20} color={status.isDead ? '#999' : '#000'} />;
       case 'shopping-slime':
-        return <ShoppingBag size={20} />;
+        return <ShoppingBag size={20} color={status.isDead ? '#999' : '#000'} />;
       case 'cafe-ghost':
-        return <Coffee size={20} />;
+        return <Coffee size={20} color={status.isDead ? '#999' : '#000'} />;
       case 'idle-slime':
       default:
-        return <Moon size={20} />;
+        return <Moon size={20} color={status.isDead ? '#999' : '#000'} />;
     }
   })();
 
   const subtitle = topCategory
-    ? `이번 달 가장 많이 쓴 비필수 지출: “${topCategory}”`
-    : '아직 눈에 띄는 소비 패턴이 없어요.';
-  // 몬스터 HP 비율에 따른 색상/상태 변화
-  const getMonsterStatus = (current: number, max: number) => {
-    if (current === 0) return { color: '#bbb', text: '토벌 완료!', bg: '#eee' };
-    if (current / max <= 0.3) return { color: '#d9534f', text: '빈사 상태', bg: '#fzdwdw' }; // 빨강
-    return { color: '#5a4633', text: '건강함', bg: '#f5efe2' }; // 평소
-  };
-  
-  // ... 렌더링 부분에서
-  const status = getMonsterStatus(currentHp, monster.maxHp);
-  
-  
-  // 아이콘 쪽에 스타일 적용
-  <div style={{ ..., backgroundColor: status.bg, opacity: currentHp === 0 ? 0.5 : 1 }}>
-    {/* 토벌 완료면 아이콘 위에 'CLEAR' 텍스트 덮기 */}
-    {currentHp === 0 && <span className="absolute-clear-badge">CLEAR</span>}
-    {monsterIcon}
-  </div>
+    ? `주요 출몰 지역: “${topCategory}”`
+    : '아직 눈에 띄는 녀석이 없어요.';
 
   return (
     <div
@@ -110,22 +102,57 @@ const MoneyMonsterCard: React.FC<MoneyMonsterCardProps> = ({
           marginBottom: 8,
         }}
       >
+        {/* 몬스터 아이콘 영역 (상태에 따라 배경색/투명도 변화) */}
         <div
           style={{
-            width: 40,
-            height: 40,
+            width: 44,
+            height: 44,
             borderRadius: 999,
-            backgroundColor: '#f5efe2',
+            backgroundColor: status.bg,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            position: 'relative', // CLEAR 뱃지 위치 잡기용
+            transition: 'all 0.3s ease',
+            opacity: status.isDead ? 0.7 : 1,
           }}
         >
+          {status.isDead && (
+            <span
+              style={{
+                position: 'absolute',
+                top: -4,
+                right: -6,
+                backgroundColor: '#d9534f',
+                color: 'white',
+                fontSize: 9,
+                fontWeight: 'bold',
+                padding: '2px 4px',
+                borderRadius: 4,
+                transform: 'rotate(15deg)',
+                zIndex: 10,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              }}
+            >
+              CLEAR
+            </span>
+          )}
           {monsterIcon}
         </div>
+
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 15, color: '#3f3428', marginBottom: 2 }}>
+          <div style={{ fontSize: 15, color: '#3f3428', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
             {monster.name}
+            {/* 상태 텍스트 뱃지 */}
+            <span style={{ 
+              fontSize: 10, 
+              color: status.isDead ? '#999' : status.color,
+              backgroundColor: status.isDead ? '#eee' : 'transparent',
+              padding: status.isDead ? '1px 4px' : 0,
+              borderRadius: 4
+            }}>
+              [{status.text}]
+            </span>
           </div>
           <div style={{ fontSize: 11, color: '#8b7760' }}>{subtitle}</div>
         </div>
@@ -161,8 +188,8 @@ const MoneyMonsterCard: React.FC<MoneyMonsterCardProps> = ({
           style={{
             width: `${Math.max(0, Math.min(1, ratio)) * 100}%`,
             height: '100%',
-            background: '#c76b5a',
-            transition: 'width 0.3s ease',
+            background: status.isDead ? '#ccc' : (ratio <= 0.3 ? '#d9534f' : '#c76b5a'), // 위기일 때 빨간색
+            transition: 'width 0.3s ease, background 0.3s ease',
           }}
         />
       </div>
@@ -172,28 +199,22 @@ const MoneyMonsterCard: React.FC<MoneyMonsterCardProps> = ({
           fontSize: 11,
           color: '#8b7760',
           marginBottom: 6,
+          lineHeight: 1.4,
         }}
       >
-        {monster.description}
+        {status.isDead ? "훌륭합니다! 몬스터가 도망쳤습니다. 이대로 유지하세요!" : monster.description}
       </div>
-      <div
-        style={{
-          fontSize: 11,
-          color: '#a08a6a',
-        }}
-      >
-        {monster.tip}
-      </div>
-
-      <div
-        style={{
-          marginTop: 10,
-          fontSize: 11,
-          color: '#999',
-        }}
-      >
-        이번 달 무지출 성공일이 늘어날수록, 머니 몬스터의 HP가 조금씩 줄어듭니다.
-      </div>
+      
+      {!status.isDead && (
+        <div
+          style={{
+            fontSize: 11,
+            color: '#a08a6a',
+          }}
+        >
+          Tip: {monster.tip}
+        </div>
+      )}
     </div>
   );
 };
