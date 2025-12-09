@@ -1,4 +1,77 @@
 // src/components/money/NoSpendBoard.tsx
+
+// src/components/money/NoSpendBoard.tsx
+import React, { useMemo } from 'react';
+import { calcNoSpendComboWithShield } from '../../money/moneyGameLogic';
+import type { LunaMode } from '../../money/moneyLuna';
+
+interface NoSpendBoardProps {
+  dayStatuses: any[]; // 구체적인 타입이 있다면 그걸 쓰세요
+  lunaMode: LunaMode;
+}
+
+const NoSpendBoard: React.FC<NoSpendBoardProps> = ({ dayStatuses, lunaMode }) => {
+  const { combo, shieldUsed } = useMemo(
+    () => calcNoSpendComboWithShield(dayStatuses, lunaMode),
+    [dayStatuses, lunaMode]
+  );
+
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        padding: '12px 14px',
+        borderRadius: 16,
+        border: '1px solid #e5e5e5',
+        backgroundColor: '#ffffff',
+        // 그림자 살짝 줘서 카드 느낌
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 4,
+        }}
+      >
+        <span style={{ fontSize: 11, color: '#7a6a55', fontWeight: 600 }}>
+          무지출 연속 달성
+        </span>
+        <span style={{ fontSize: 18, color: '#3f3428', fontWeight: 'bold' }}>
+          {combo}<span style={{fontSize:12, fontWeight:'normal'}}>일</span>
+        </span>
+      </div>
+
+      {/* 실드 사용 알림 메시지 */}
+      {shieldUsed && (
+        <div
+          style={{
+            marginTop: 6,
+            padding: '6px 8px',
+            borderRadius: 8,
+            backgroundColor: '#f3f4f6',
+            color: '#6b7280',
+            fontSize: 10,
+            lineHeight: 1.4,
+          }}
+        >
+          🛡️ <strong>Luna 실드 발동!</strong><br/>
+          몸이 힘든 시기라 한 번의 지출은 콤보를 끊지 않았어요.
+        </div>
+      )}
+      
+      {!shieldUsed && combo > 0 && (
+         <div style={{ fontSize: 10, color: '#d1d5db', marginTop: 4 }}>
+            꾸준히 잘 하고 있어요!
+         </div>
+      )}
+    </div>
+  );
+};
+
+export default NoSpendBoard;
 import React, { useMemo } from 'react';
 
 interface DayStatus {
