@@ -279,6 +279,54 @@ const MoneyRoomPage: React.FC = () => {
       {/* 🔹 탭 2: 모험의 방 (게임 요소 위주) */}
       {activeTab === 'adventure' && (
         <div className="fade-in" style={{ margin: '0 8px' }}>
+
+          {/* 🛡️ 플레이어 카드 (간단 버전) */}
+<div style={{ minWidth: '90%', scrollSnapAlign: 'center', flexShrink: 0 }}>
+  <div style={{
+    height: '320px',
+    borderRadius: '20px',
+    backgroundColor: '#fff',
+    border: '1px solid #ddd',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    textAlign: 'center',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+  }}>
+    <div style={{ fontSize: 12, color: '#b59a7a', letterSpacing: '2px', marginBottom: 10 }}>MY CHARACTER</div>
+    
+    {/* 아바타 (이모지로 대체 가능) */}
+    <div style={{ 
+      width: '100px', height: '100px', 
+      borderRadius: '50%', 
+      backgroundColor: '#f4f1ea', 
+      fontSize: '50px', 
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      marginBottom: 16,
+      border: '4px solid #e5e5e5'
+    }}>
+      🧙‍♀️
+    </div>
+
+    <div style={{ fontSize: 20, fontWeight: 'bold', color: '#333' }}>알뜰한 모험가</div>
+    <div style={{ fontSize: 13, color: '#777', marginBottom: 20 }}>Lv. 1 (초심자)</div>
+
+    {/* 스탯 요약 */}
+    <div style={{ display: 'flex', gap: 16 }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>{dayStatuses.filter(d => d.isNoSpend).length}</div>
+        <div style={{ fontSize: 10, color: '#999' }}>무지출</div>
+      </div>
+      <div style={{ width: 1, height: 30, backgroundColor: '#eee' }}></div>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>{transactions.length}</div>
+        <div style={{ fontSize: 10, color: '#999' }}>기록</div>
+      </div>
+    </div>
+  </div>
+</div>
+          
           <MoneyMonsterCard
             transactions={transactions}
             dayStatuses={dayStatuses}
