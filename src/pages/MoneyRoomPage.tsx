@@ -144,6 +144,21 @@ const MoneyRoomPage: React.FC = () => {
     });
   };
 
+  // 간단한 문장 생성기
+  const getAdventureText = (t: TransactionLike) => {
+    if (t.type === 'income') return `어딘가에서 ${t.amount}골드를 획득했다!`;
+    if (t.category.includes('식비')) return `허기를 채우느라 ${t.amount}골드를 썼다.`;
+    if (t.category.includes('쇼핑')) return `반짝이는 물건에 홀려 ${t.amount}골드를 잃었다.`;
+    return `${t.category} 때문에 ${t.amount}골드가 주머니에서 빠져나갔다.`;
+  };
+  
+  // 렌더링
+  {transactions.slice(0, 5).map((t) => (
+    <li key={t.id} style={{ fontFamily: 'Gowun Batang', fontSize: 12, color: '#555' }}>
+      ⚔️ {t.date}: {getAdventureText(t)}
+    </li>
+  ))}
+
   // ---- 보조 계산 ----
   const monthLabel = `${monthlyBudget.year}. ${String(
     monthlyBudget.month,
