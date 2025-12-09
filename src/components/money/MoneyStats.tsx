@@ -1,8 +1,7 @@
 // src/components/money/MoneyStats.tsx
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Activity, Brain, Shield } from 'lucide-react';
 
-// 타입은 일단 느슨하게 any로 잡아둘게 (나중에 실제 타입으로 교체 가능)
 interface MoneyStatsProps {
   monthlyBudget?: any;
   transactions?: any[];
@@ -10,53 +9,11 @@ interface MoneyStatsProps {
   installments?: any[];
 }
 
-// --- 계산용 헬퍼 함수들 (이 파일 안에서 전부 정의) ---
-
-function calcMonthlyExpense(transactions: any[] = []): number {
-  return transactions
-    .filter((t) => t?.type === 'expense')
-    .reduce((sum, t) => sum + (t.amount || 0), 0);
-}
-
-// HP: 생활비 체력 (0~100)
-function calcHP(monthlyBudget: any, transactions: any[] = []): number {
-  if (!monthlyBudget || !monthlyBudget.variableBudget || monthlyBudget.variableBudget <= 0) return 0;
-  const used = calcMonthlyExpense(transactions);
-  const remain = Math.max(monthlyBudget.variableBudget - used, 0);
-  return Math.round((remain / monthlyBudget.variableBudget) * 100);
-}
-
-// MP: 무지출/퀘스트 포인트 (0~10 기준, 일단 단순 버전)
-function calcMP(monthlyBudget: any, dayStatuses: any[] = []): number {
-  if (!monthlyBudget || !monthlyBudget.noSpendTarget || monthlyBudget.noSpendTarget <= 0) return 0;
-  const noSpendDays = dayStatuses.filter((d) => d?.isNoSpend).length;
-  const raw = (noSpendDays / monthlyBudget.noSpendTarget) * 10;
-  return Math.max(0, Math.min(10, Math.round(raw)));
-}
-
-// DEF: 할부 방어도 (0~100)
-function calcDEF(installments: any[] = []): number {
-  if (!installments.length) return 0;
-  const total = installments.reduce((sum, ins) => sum + (ins.totalAmount || 0), 0);
-  if (total <= 0) return 0;
-  const paid = installments.reduce((sum, ins) => sum + (ins.paidAmount || 0), 0);
-  return Math.round((paid / total) * 100);
-}
-
-// --- 실제 컴포넌트 ---
-
-const MoneyStats: React.FC<MoneyStatsProps> = ({
-  monthlyBudget,
-  transactions = [],
-  dayStatuses = [],
-  installments = [],
-}) => {
-  const { hp, mp, def } = useMemo(() => {
-    const hp = calcHP(monthlyBudget, transactions);
-    const mp = calcMP(monthlyBudget, dayStatuses);
-    const def = calcDEF(installments);
-    return { hp, mp, def };
-  }, [monthlyBudget, transactions, dayStatuses, installments]);
+const MoneyStats: React.FC<MoneyStatsProps> = () => {
+  // 🔹 아직은 계산 안 넣고, 고정값 0으로만 표시
+  const hp = 0;
+  const mp = 0;
+  const def = 0;
 
   return (
     <div
@@ -100,7 +57,7 @@ interface StatRowProps {
 }
 
 const StatRow: React.FC<StatRowProps> = ({ icon, label, value, max }) => {
-  const ratio = Math.max(0, Math.min(1, value / max || 0));
+  const ratio = Math.max(0, Math.min(1, max ? value / max : 0));
 
   return (
     <div style={{ marginBottom: 10 }}>
