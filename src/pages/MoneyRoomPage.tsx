@@ -1,4 +1,67 @@
 // src/pages/MoneyRoomPage.tsx
+
+
+// src/pages/MoneyRoomPage.tsx 내부
+
+// ... imports
+import { createJourney, evaluateJourney, RouteMode } from '../money/moneyJourney';
+
+// ... Main Component
+
+  // 1. [갈림길] 월드맵 상태 (초기값 'calm')
+  const [routeMode, setRouteMode] = useState<RouteMode>('calm');
+  
+  // 2. 월드맵 데이터 생성 (routeMode 의존)
+  const [journey, setJourney] = useState(() => createJourney('calm'));
+
+  // 3. 루트 변경 핸들러
+  const handleRouteChange = (newMode: RouteMode) => {
+    setRouteMode(newMode);
+    // 모드를 바꾸면 맵을 새로 만듦 (현재 진행도가 맵 길이를 넘지 않게 조정)
+    setJourney(prev => {
+      const newMap = createJourney(newMode);
+      const safeNodeId = Math.min(prev.currentNodeId, newMap.nodes.length - 1);
+      return { ...newMap, currentNodeId: safeNodeId };
+    });
+  };
+
+  // 4. 진행도 업데이트 (useEffect)
+  useEffect(() => {
+    // evaluateJourney 호출 시 필요한 데이터 모음
+    const ctx = {
+      variableBudget: monthlyBudget.variableBudget,
+      totalExpense: /* 지출 합계 계산 로직 */,
+      noSpendDays: /* 무지출 일수 계산 로직 */,
+      dayOfMonth: today.getDate(),
+    };
+    
+    setJourney(prev => evaluateJourney(prev, ctx));
+  }, [monthlyBudget, transactions, today]); // 의존성 배열
+
+  // ... (중략)
+
+  return (
+    <div className="...">
+      {/* ... 상단 헤더 ... */}
+
+      {/* 🗺️ 월드맵 (갈림길 기능 포함) */}
+      <JourneyMap 
+        journey={journey} 
+        onChangeRoute={handleRouteChange} 
+      />
+
+      {/* 🌙 Luna 모드 패널 (기존 코드 유지) */}
+      {/* ... */}
+
+      {/* 🛡️ 무지출 보드 (Luna 실드 기능 포함) */}
+      <NoSpendBoard 
+        dayStatuses={dayStatuses} 
+        lunaMode={lunaMode} // <-- Luna 모드 전달 필수
+      />
+
+      {/* ... 나머지 컴포넌트들 ... */}
+    </div>
+  );
 import React, { useMemo, useState } from 'react';
 import { PenTool, Swords, ChevronDown, ChevronUp, Sprout, Search, Zap, PiggyBank, Coffee, Car, ShoppingBag } from 'lucide-react';
 import confetti from 'canvas-confetti';
