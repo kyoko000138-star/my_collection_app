@@ -135,7 +135,15 @@ const MoneyRoomPage: React.FC = () => {
 
 
   return (
-    <div style={{ padding: '12px 4px 60px' }}>
+    // MoneyRoomPage.tsx의 최상위 div 스타일 변경
+    <div style={{ 
+      padding: '12px 0 60px',
+      // 👇 여기부터 추가
+      backgroundColor: '#f4f1ea', // 누런 종이 색
+      backgroundImage: `radial-gradient(#dcd1bf 1px, transparent 1px)`, // 모눈종이 패턴
+      backgroundSize: '20px 20px',
+      minHeight: '100vh'
+    }}>
       
       {/* 헤더 */}
       <div style={{ marginBottom: 16, padding: '0 8px' }}>
