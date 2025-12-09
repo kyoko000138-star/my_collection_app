@@ -16,6 +16,7 @@ import {
   Archive,
   Activity,
   Moon,
+  Wallet,
 } from 'lucide-react';
 
 // 👉 페이지들
@@ -26,6 +27,7 @@ import JournalPage from './pages/JournalPage';
 import TripsPage from './pages/TripsPage';
 import WakaArchivePage from './pages/WakaArchivePage';
 import BoredomPage from './pages/BoredomPage';
+import MoneyRoomPage from './pages/MoneyRoomPage';
 
 // --- 🎨 Design System: Art Museum (Black & White) ---
 const theme = {
@@ -324,18 +326,26 @@ const HomePage: React.FC = () => {
           icon={Leaf}
           path="/journal"
         />
+        <MinimalCard
+          roomNo="06"
+          title="이번 달 머니룸"
+          desc="예산 · 무지출 · 작은 게임"
+          icon={Wallet}
+          path="/money-room"
+          />
       </CategorySection>
+  
 
       <CategorySection title="Healing" icon={Moon}>
         <MinimalCard
-          roomNo="06"
+          roomNo="07"
           title="라운지"
           desc="다도 · 영상 · 작은 휴식"
           icon={Sparkles}
           path="/boredom"
         />
         <MinimalCard
-          roomNo="07"
+          roomNo="08"
           title="오늘의 와카"
           desc="하루 한 편, 오래된 노래"
           icon={Quote}
@@ -478,6 +488,7 @@ const App: React.FC = () => {
         <Route path="/tea" element={<TeaPage />} />
         <Route path="/journal" element={<JournalPage />} />
         <Route path="/trips" element={<TripsPage />} />
+        <Route path="/money-room" element={<MoneyRoomPage />} />
         <Route path="/waka" element={<WakaArchivePage />} />
         <Route path="/boredom" element={<BoredomPage />} />
       </Routes>
