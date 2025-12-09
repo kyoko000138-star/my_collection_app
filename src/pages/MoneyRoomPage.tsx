@@ -2,6 +2,7 @@
 import React from 'react';
 import MoneyStats from '../components/money/MoneyStats';
 import CollectionBar from '../components/money/CollectionBar';
+import NoSpendBoard from '../components/money/NoSpendBoard';
 
 const MoneyRoomPage: React.FC = () => {
   // TODO: 여기 나중에 Firestore에서 진짜 데이터 가져오기
@@ -59,6 +60,12 @@ const MoneyRoomPage: React.FC = () => {
         dayStatuses={dummyDayStatuses}
         installments={dummyInstallments}
       />
+      
+      <NoSpendBoard
+        year={dummyMonthlyBudget.year}
+        month={dummyMonthlyBudget.month}
+        dayStatuses={dummyDayStatuses as any}
+        />
 
       {/* 나중에 여기에
           <MoneyMonsterCard />
