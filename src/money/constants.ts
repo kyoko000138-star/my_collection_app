@@ -1,12 +1,3 @@
-// src/money/constants.ts
-// src/money/constants.ts (추가)
-
-export const CLASS_CONSTANTS = {
-  GUARDIAN_DEFENSE_THRESHOLD: 3000, // 이 금액 이하 지출은 '방어됨' 판정
-  DRUID_REST_HEAL: 5,               // 드루이드가 REST 기간에 얻는 추가 MP
-  ALCHEMIST_GOLD_PER_JUNK: 100,     // 연금술사가 정크 판매 시 얻는 가상 골드(혹은 예산 환급)
-};
-
 export const GAME_CONSTANTS = {
   MAX_MP: 30,
   HP_WARNING_THRESHOLD: 30, // 30% 미만 시 경고
@@ -26,10 +17,16 @@ export const GAME_CONSTANTS = {
 };
 
 export const CLASS_TYPES = {
-  GUARDIAN: 'GUARDIAN', // 수호자
-  SAGE: 'SAGE',         // 현자
+  GUARDIAN: 'GUARDIAN',   // 수호자
+  SAGE: 'SAGE',           // 현자
   ALCHEMIST: 'ALCHEMIST', // 연금술사
-  DRUID: 'DRUID',       // 드루이드
+  DRUID: 'DRUID',         // 드루이드
 } as const;
 
 export type ClassType = typeof CLASS_TYPES[keyof typeof CLASS_TYPES];
+
+export const CLASS_CONSTANTS = {
+  GUARDIAN_DEFENSE_THRESHOLD: 3000, // 이 금액 이하 지출은 '방어됨' 판정
+  DRUID_REST_HEAL: 5,               // 드루이드가 REST 기간에 얻는 추가 MP
+  ALCHEMIST_GOLD_PER_JUNK: 100,     // 연금술사가 정크 판매 시 얻는 가상 골드
+};
