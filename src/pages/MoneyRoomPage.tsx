@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserState } from '../money/types';
-import { GAME_CONSTANTS, CLASS_TYPES, ClassType } from '../money/constants';
+import { GAME_CONSTANTS, CLASS_TYPES } from '../money/constants';
+import type { ClassType } from '../money/constants';
 import { getHp, applySpend, applyDefense, checkDailyReset } from '../money/moneyGameLogic';
 import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
 
