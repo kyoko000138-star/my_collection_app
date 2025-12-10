@@ -1,5 +1,5 @@
 // src/money/types.ts
-import { ClassType } from './constants';
+import type { ClassType } from './constants';
 
 export type LunaMode = 'NORMAL' | 'PMS' | 'REST';
 
@@ -8,7 +8,7 @@ export interface Transaction {
   id: string;
   amount: number;
   category: string;
-  date: string; // "YYYY-MM-DD"
+  date: string;        // "YYYY-MM-DD"
   note: string;
   tags: string[];
   isFixedCost: boolean;
@@ -17,19 +17,28 @@ export interface Transaction {
 // 나중에 입력 리스트
 export interface PendingTransaction {
   id: string;
-  amount?: number;
+  amount?: number;     // 금액이 확정되지 않은 메모도 허용
   note: string;
-  createdAt: string; // ISO string
+  createdAt: string;   // ISO string
 }
 
 // 인벤토리 구조
 export interface Inventory {
   junk: number;
   salt: number;
-  shards: Record<string, number>;    // 예: { naturalDust: 3 }
-  materials: Record<string, number>; // 예: { pureEssence: 2 }
-  equipment: string[];               // 예: ['잔잔한 장부검']
-  collection: string[];              // 향/골동품 등 컬렉션 태그
+  shards: Record<string, number>;     // 예: { naturalDust: 3 }
+  materials: Record<string, number>;  // 예: { pureEssence: 2 }
+  equipment: string[];                // 장비 이름 리스트
+  collection: string[];               // (추후) 소장품 연동용
+}
+
+// 자산의 왕국 – 각 건물 타입별 카운트
+export interface Assets {
+  fortress: number;   // 요새
+  airfield: number;   // 비행장
+  mansion: number;    // 저택
+  tower: number;      // 마법탑
+  warehouse: number;  // 창고
 }
 
 // 📌 단일 진실 공급원 (Single Source of Truth)
@@ -44,36 +53,37 @@ export interface UserState {
   // 2. 루나 시스템 (신체 주기)
   luna: {
     nextPeriodDate: string; // "YYYY-MM-DD"
-    averageCycle: number;   // 평균 생리 주기 (일)
-    isTracking: boolean;    // 추적 여부
+    averageCycle: number;   // 평균 주기 일수
+    isTracking: boolean;    // 생리 주기 추적 여부
   };
 
   // 3. 예산 & HP
   budget: {
-    total: number;      // 이번 달 전체 예산
-    current: number;    // 현재 남은 예산
-    fixedCost: number;  // 고정비 총합
-    startDate: string;  // 예산 시작일 (YYYY-MM-DD)
+    total: number;     // 이번 달 총 예산
+    current: number;   // 현재 남은 예산
+    fixedCost: number; // 고정비 합계
+    startDate: string; // 예산 시작일 (대부분 1일)
   };
 
   // 4. 파이낸셜 스탯
   stats: {
-    def: number;         // 방어력(부채 상환율 등)
-    creditScore: number; // 신용 점수 (Phase 3용)
+    def: number;        // 방어 & 상환력 (0~100)
+    creditScore: number; // (추후) 신용 점수
   };
 
-  // 5. 일일/주간 카운터
+  // 5. 일일/주간/월간 카운터
   counters: {
-    defenseActionsToday: number;   // 오늘 방어 행동 횟수
-    junkObtainedToday: number;     // 오늘 획득한 Junk 개수
+    defenseActionsToday: number;  // 오늘 방어 버튼 사용 횟수
+    junkObtainedToday: number;    // 오늘 획득한 Junk 개수
 
-    lastAccessDate: string | null;     // 마지막 접속 날짜
-    lastDailyResetDate: string | null; // 일일 리셋 처리 날짜
-    lastDayEndDate: string | null;     // "오늘 마감하기" 실행 날짜
+    lastAccessDate: string | null;      // 마지막 접속 날짜 (YYYY-MM-DD)
+    lastDailyResetDate: string | null;  // 일일 초기화가 마지막으로 수행된 날짜
+    lastDayEndDate: string | null;      // "오늘 마감하기"를 마지막으로 누른 날짜
 
-    guardPromptShownToday: boolean; // Guard 프롬프트 노출 여부
-    noSpendStreak: number;          // 연속 무지출 일수
-    lunaShieldsUsedThisMonth: number; // 루나 실드 사용 횟수 (월 단위)
+    guardPromptShownToday: boolean;     // Guard Prompt 오늘 노출 여부
+
+    noSpendStreak: number;              // 연속 무지출 일수
+    lunaShieldsUsedThisMonth: number;   // 이번 달 사용한 Luna Shield 횟수
   };
 
   // 6. 런타임 스탯 (MP)
@@ -85,6 +95,9 @@ export interface UserState {
   inventory: Inventory;
   pending: PendingTransaction[];
 
-  // 8. 거래 기록 (이번 달)
+  // 8. 거래 로그
   transactions: Transaction[];
+
+  // 9. 자산의 왕국
+  assets: Assets;
 }
