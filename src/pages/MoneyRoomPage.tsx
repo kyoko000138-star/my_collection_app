@@ -2,19 +2,22 @@
 import React from 'react';
 import { GAME_CONSTANTS } from '../constants';
 
-<InventoryModal
-  open={isInventoryModalOpen}
-  onClose={() => setIsInventoryModalOpen(false)}
-  junk={junk}
-  salt={salt}
-  dust={dust}
-  pureEssence={pureEssence}
-  equipment={equipment}
-  canPurify={canPurify}
-  canCraft={canCraftSword}
-  onPurify={handlePurify}
-  onCraft={handleCraftSword}
-/>
+interface InventoryModalProps {
+  open: boolean;
+  onClose: () => void;
+
+  junk: number;
+  salt: number;
+  dust: number;
+  pureEssence: number;
+  equipment: string[];
+
+  canPurify: boolean;
+  canCraft: boolean;
+
+  onPurify: () => void;
+  onCraft: () => void;
+}
 
 const InventoryModal: React.FC<InventoryModalProps> = ({
   open,
