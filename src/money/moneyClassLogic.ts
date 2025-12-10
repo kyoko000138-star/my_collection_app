@@ -1,5 +1,4 @@
 // src/money/moneyClassLogic.ts
-
 import type { UserState, LunaMode } from './types';
 import { CLASS_TYPES, CLASS_CONSTANTS } from './constants';
 
@@ -7,7 +6,10 @@ import { CLASS_TYPES, CLASS_CONSTANTS } from './constants';
  * 수호자(Guardian) 패시브: 철벽 방어
  * 소액 지출(예: 3000원 이하)은 스트릭을 깨지 않고 방어한 것으로 간주합니다.
  */
-export const checkGuardianShield = (state: UserState, amount: number): boolean => {
+export const checkGuardianShield = (
+  state: UserState,
+  amount: number
+): boolean => {
   if (state.profile.classType !== CLASS_TYPES.GUARDIAN) return false;
   return amount <= CLASS_CONSTANTS.GUARDIAN_DEFENSE_THRESHOLD;
 };
