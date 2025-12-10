@@ -219,3 +219,73 @@ export const applyDefense = (state: UserState): UserState => {
     },
   };
 };
+
+/**
+ * 오늘 마감하기 (Day End)
+ * - 하루에 한 번만 동작 (lastDayEndDate로 체크)
+ * - 오늘 비고정비 지출이 없으면 → 무지출 데이
+ *   - Salt 1개, noSpendStreak +1
+ * - 항상 Natural Dust 1개 지급
+ */
+export const applyDayEnd = (
+  state: UserState
+): { newState: UserState; message: string } => {
+  const todayStr = getTodayString();
+
+  // 이미 오늘 마감했으면 재실행 금지
+  if (state.counters.lastDayEndDate === todayStr) {
+    return {
+      newState: state,
+      message: '이미 오늘은 마감 처리되었습니다.',
+    };
+  }
+
+  // 오늘 비고정비 지출 여부 확인
+  const hadVariableSpendToday = state.transactions.some(
+    (tx) =>
+      tx.date === todayStr &&
+      !tx.isFixedCost &&
+      tx.amount > 0
+  );
+
+  const isNoSpendDay = !hadVariableSpendToday;
+
+  const prevSalt = state.inventory.salt;
+  const prevDust = state.inventory.shards['naturalDust'] ?? 0;
+
+  const nextSalt = isNoSpendDay ? prevSalt + 1 : prevSalt;
+  const nextDust = prevDust + 1;
+
+  const nextNoSpendStreak = isNoSpendDay
+    ? state.counters.noSpendStreak + 1
+    : state.counters.noSpendStreak;
+
+  const newState: UserState = {
+    ...state,
+    inventory: {
+      ...state.inventory,
+      salt: nextSalt,
+      shards: {
+        ...state.inventory.shards,
+        naturalDust: nextDust,
+      },
+    },
+    counters: {
+      ...state.counters,
+      noSpendStreak: nextNoSpendStreak,
+      lastDayEndDate: todayStr,
+    },
+  };
+
+  if (isNoSpendDay) {
+    return {
+      newState,
+      message: `방어 데이를 기록했습니다. Salt 1개와 Natural Dust 1개를 획득했습니다. (연속 ${nextNoSpendStreak}일)`,
+    };
+  }
+
+  return {
+    newState,
+    message: '오늘은 지출이 있었습니다. Natural Dust 1개를 획득했습니다.',
+  };
+};
