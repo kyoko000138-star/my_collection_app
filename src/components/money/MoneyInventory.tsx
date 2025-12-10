@@ -1,4 +1,6 @@
 // src/components/money/MoneyInventory.tsx
+// 상단 import 추가
+import MoneyInventory from '../components/money/MoneyInventory';
 import React, { useState } from 'react';
 import { Package, Sparkles, Beaker, Scroll, Shield, Gem } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -153,5 +155,43 @@ const TabButton = ({ active, onClick, icon, label }: any) => (
     {icon} {label}
   </button>
 );
+
+// return 문 내부 수정
+  return (
+    <div style={{ minHeight: '100vh', backgroundColor: bgColor, padding: '20px', paddingBottom: '100px', transition: 'background 0.5s' }}>
+      
+      {/* 1. 배틀 화면 (기존 HUD + 몬스터 + 컨트롤러) */}
+      {currentTab === 'battle' && (
+        <>
+          {/* ... 기존의 <header> ... */}
+          {/* ... 기존의 몬스터 카드 <div> ... */}
+          {/* ... 기존의 전투 컨트롤러 <div> ... */}
+          
+          {/* (원래 있던 HUD부터 컨트롤러까지의 코드를 여기 안에 둠) */}
+          {/* 팁: 코드가 너무 길면 나중에 MoneyBattleView.tsx로 분리해도 됨 */}
+        </>
+      )}
+
+      {/* 2. 인벤토리 화면 */}
+      {currentTab === 'inventory' && (
+        <MoneyInventory user={user} setUser={setUser} />
+      )}
+
+      {/* 3. 월드맵/왕국 화면 (아직 빈 화면) */}
+      {currentTab === 'map' && <div style={{textAlign:'center', marginTop:50}}>🗺️ 월드맵 준비중...</div>}
+      {currentTab === 'kingdom' && <div style={{textAlign:'center', marginTop:50}}>🏰 왕국 건설 준비중...</div>}
+
+
+      {/* --- 하단 메뉴 (네비게이션) 수정 --- */}
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #eee', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', zIndex: 100 }}>
+        {/* 클릭 시 setCurrentTab 호출 */}
+        <div onClick={() => setCurrentTab('battle')}><NavButton icon={<Swords size={20}/>} label="전투" active={currentTab==='battle'} /></div>
+        <div onClick={() => setCurrentTab('inventory')}><NavButton icon={<ShoppingBag size={20}/>} label="인벤토리" active={currentTab==='inventory'} /></div>
+        <div onClick={() => setCurrentTab('map')}><NavButton icon={<MapIcon size={20}/>} label="월드맵" active={currentTab==='map'} /></div>
+        <div onClick={() => setCurrentTab('kingdom')}><NavButton icon={<Crown size={20}/>} label="왕국" active={currentTab==='kingdom'} /></div>
+      </div>
+
+    </div>
+  );
 
 export default MoneyInventory;
