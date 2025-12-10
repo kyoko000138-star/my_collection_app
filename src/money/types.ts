@@ -1,193 +1,80 @@
 // src/money/types.ts
+import { ClassType } from './constants';
 
-// ==========================================
-// 1. 기본 정의 (Primitive Types)
-// ==========================================
-export type TxType = 'expense' | 'income' | 'transfer'; 
-export type LunaMode = 'normal' | 'pms' | 'rest';
-export type RouteMode = 'calm' | 'adventure';
-export type NodeType = 'town' | 'field' | 'dungeon' | 'crossroad' | 'boss' | 'shop';
-
-// ==========================================
-// 2. 아이템 카테고리 (Item Categories)
-// ==========================================
-
-// 🗑️ 잔해 (Junk): 맵/시간/카테고리별 드랍
-export type ResidueType = 
-  | 'sticky_slime' | 'tangled_thread' | 'rusty_gear' | 'unknown_stone' | 'fog_dust' // 기존
-  | 'wet_moss' | 'torn_receipt' // 숲
-  | 'broken_glass' | 'soaked_box' // 항구
-  | 'dried_syrup' | 'crushed_can' // 사막
-  | 'expired_coupon' | 'crumpled_paper' // 학회
-  | 'fake_gem' | 'faded_ribbon'; // VIP
-
-// 💎 재료 (Material): 정화 및 특수 조건 획득
-export type MaterialType = 
-  | 'sugar_crystal' | 'fine_silk' | 'iron_plate' | 'mana_powder' | 'purifying_salt' // 정화 기본
-  | 'tea_essence' | 'leaf_fragment' | 'forest_dew' // 숲
-  | 'polished_scrap' | 'timber_plank' | 'sea_glass' // 항구
-  | 'salt_crystal' | 'dried_date' // 사막
-  | 'knowledge_shard' | 'contract_ink' // 학회
-  | 'gold_leaf' | 'porcelain_chip' | 'aged_wood' // VIP
-  | 'dawn_crystal' | 'dusk_crystal' // 시간 (새벽/황혼)
-  | 'spider_silk' | 'rainbow_cloth' // 패턴 (장기미사용/다양성)
-  | 'cactus_sap' | 'refined_water'; // 지역 특수
-
-// 🧪 소비 (Consumable): 효과 정의
-export type ConsumableEffect = 
-  | 'heal_hp' | 'restore_mp' | 'buff_drop' | 'defense_boost' 
-  | 'luna_shield_up' | 'time_extend'; // 모래시계 등
-
-// ⚔️ 장비 (Equipment): 슬롯 정의
-export type EquipSlot = 'weapon' | 'armor' | 'accessory';
-
-// 🏺 수집품 (Relic): 세트 정의
-export type RelicSet = 'none' | 'lost_civilization' | 'four_seasons' | 'tea_time';
-
-// 📦 통합 아이템 인터페이스
-export interface ItemData {
+// 거래 기록 (지출/수입/메모)
+export interface Transaction {
   id: string;
-  name: string;
-  category: 'residue' | 'material' | 'consumable' | 'equipment' | 'relic';
-  tier: 'D' | 'C' | 'B' | 'A' | 'S';
-  description: string; // Lore 텍스트
-  icon: string;        // 이모지
-  
-  // 상세 속성 (Optional)
-  effect?: { type: ConsumableEffect; value: number; duration?: number }; // 소비템용
-  stats?: { atk?: number; def?: number; mpRegen?: number; special?: string }; // 장비용
-  relicSet?: RelicSet; // 수집품용
-}
-
-// ==========================================
-// 3. 핵심 데이터 모델 (Core Models)
-// ==========================================
-
-export interface TransactionLike {
-  id: string;
-  date: string; // YYYY-MM-DD
-  time?: string; // HH:mm (새벽/황혼 체크용)
-  type: TxType;
+  amount: number; // 지출은 양수, 수입은 음수 or 별도 처리
   category: string;
-  amount: number;
-  isEssential?: boolean;
-  isRecoverySnack?: boolean; 
-  memo?: string; 
+  date: string; // ISO String or 'YYYY-MM-DD'
+  note: string;
+  tags: string[]; // ['defended', 'pms_buy', etc.]
+  isFixedCost: boolean; // 고정비 여부
 }
 
-export interface DayStatusLike {
-  day: number;
-  isNoSpend: boolean;
-  completedQuests: number;
-  lunaShieldUsed?: boolean;
-}
-
-export interface MonthlyBudgetLike {
-  year: number;
-  month: number;
-  variableBudget: number;     
-  noSpendTarget: number;
-  snackRecoveryBudget?: number; 
-}
-
-export interface InstallmentLike {
+// 나중에 입력 리스트
+export interface PendingTransaction {
   id: string;
-  name: string;
-  totalAmount: number;
-  paidAmount: number;
+  amount?: number; // 금액을 모를 수도 있음
+  note: string;
+  createdAt: string;
 }
 
-export interface CycleSettings {
-  lastPeriodStart: string;
-  cycleLength: number;
+// 인벤토리 구조
+export interface Inventory {
+  junk: number;
+  salt: number;
+  // 확장성을 위해 Record 타입 사용 (예: 'tea_essence': 5)
+  shards: Record<string, number>; 
+  materials: Record<string, number>;
+  equipment: string[]; // 장착 중인 장비 ID 목록
+  collection: string[]; // 도감/골동품 수집 목록
 }
 
-// ==========================================
-// 4. 자산의 왕국 (Asset Kingdom)
-// ==========================================
-export interface Building {
-  id: string;
-  name: string;        // "비상금 창고" 등
-  type: 'warehouse' | 'tower' | 'dock' | 'house'; // 건물 외형 타입
-  level: number;       
-  currentExp: number;  
-  totalSavings: number;
-  monthStreak: number; // 월간 연속 달성 횟수
-}
-
-// ==========================================
-// 5. 직업 & 전직 (Job System)
-// ==========================================
-export type JobType = 'novice' | 'guardian' | 'sage' | 'alchemist' | 'druid';
-export type JobTier = 0 | 1 | 2 | 3; 
-
-export interface JobState {
-  currentJob: JobType;
-  tier: JobTier;
-  exp: number; 
-  unlockedSkills: string[];
-}
-
-// ==========================================
-// 6. 인벤토리 & 통합 상태 (Root State)
-// ==========================================
-
-export interface InventoryState {
-  gold: number; 
-  leaf: number; 
-  
-  // 3대 조각
-  shards: {
-    record: number;     
-    discipline: number; 
-    freedom: number;    
-  };
-
-  // 아이템 수량 (ID: 개수)
-  items: Record<string, number>; 
-  
-  // 도감 해금 목록 (ID 리스트)
-  collection: string[]; 
-  
-  // 장착 중인 아이템 ID
-  equipped: {
-    weapon?: string;
-    armor?: string;
-    accessory?: string;
-  };
-}
-
-// 최종 유저 데이터 (LocalStorage 저장 대상)
+// 📌 핵심: 단일 진실 공급원 (Single Source of Truth)
 export interface UserState {
-  meta: {
-    lastLoginDate: string;
-    lastLoginTime: string; // HH:mm (시간 체크용)
-    currentYear: number;
-    currentMonth: number;
+  // 1. 기본 프로필 & 직업
+  profile: {
+    name: string;
+    classType: ClassType | null;
+    level: number;
   };
 
-  status: {
-    hp: number;    
-    mp: number;    
-    credit: number; // 신용도
+  // 2. 예산 & HP (HP는 budget 기반 파생값이나, 편의상 UI용 state로 들고 있어도 됨)
+  budget: {
+    total: number;      // 월 총 예산
+    current: number;    // 현재 잔액
+    fixedCost: number;  // 고정비
+    startDate: string;  // 월 시작일
   };
 
-  // 일시적 버프 상태 (향초 등)
-  buffs: {
-    mpRegenMultiplier?: number; // MP 회복 배율
-    nextDropDouble?: boolean;   // 다음 드랍 2배
+  // 3. 파이낸셜 스탯
+  stats: {
+    def: number;        // Phase 1: 상환율, Phase 2: 100
+    creditScore: number; // Phase 3: 신용 점수
   };
 
-  budget: MonthlyBudgetLike;
-  cycle: CycleSettings;
-  
-  buildings: Building[]; 
-  job: JobState;         
-  inventory: InventoryState;
-  
-  journey: {
-    nodes: any[]; 
-    currentNodeId: number;
-    routeTheme: string; 
+  // 4. 일일/주간 카운터 (로직용 변수)
+  counters: {
+    // 리셋 대상
+    defenseActionsToday: number; // 오늘 방어(참기) 횟수
+    junkObtainedToday: number;   // 오늘 획득한 Junk 개수
+    lastAccessDate: string | null; // 마지막 접속 시간 (ISO)
+    lastDailyResetDate: string | null; // 마지막으로 일일 리셋된 날짜 (YYYY-MM-DD)
+    
+    // 누적/스트릭
+    noSpendStreak: number;
+    lunaShieldsUsedThisMonth: number; // 월간 Luna 방어 횟수
   };
+
+  // 5. 런타임 스탯 (MP)
+  runtime: {
+    mp: number; // Max 30
+  };
+
+  // 6. 인벤토리
+  inventory: Inventory;
+
+  // 7. 대기열
+  pending: PendingTransaction[];
 }
