@@ -1,108 +1,76 @@
-import { UserState } from './types';
-import { GAME_CONSTANTS } from './constants';
-import { checkGuardianShield, getDruidRecoveryBonus } from './moneyClassLogic';
-import { getLunaMode } from './moneyLuna';
+// moneyGameLogic.ts
 
-const getTodayString = () => new Date().toISOString().split('T')[0];
-
-export const getHp = (current: number, total: number): number => {
-  if (total === 0) return 0;
-  const percentage = (current / total) * 100;
-  return Math.max(0, Math.min(100, Math.floor(percentage)));
-};
-
-export const checkDailyReset = (state: UserState): UserState => {
-  const today = getTodayString();
-  
-  if (state.counters.lastDailyResetDate === today) {
-    return state;
-  }
-
-  // 루나 모드 확인
-  const currentMode = getLunaMode(today, state.luna.nextPeriodDate);
-
-  // 드루이드 보너스
-  const druidBonus = getDruidRecoveryBonus(state, currentMode);
-  
-  // MP 회복 (기본 X, 드루이드만 O)
-  const newMp = Math.min(
-    GAME_CONSTANTS.MAX_MP, 
-    state.runtime.mp + druidBonus
-  );
-
-  return {
-    ...state,
-    runtime: {
-      ...state.runtime,
-      mp: newMp
-    },
-    counters: {
-      ...state.counters,
-      defenseActionsToday: 0,
-      junkObtainedToday: 0,
-      lastDailyResetDate: today,
-    },
-  };
-};
-
-// 리턴값이 { newState, message } 객체임에 유의하세요.
 export const applySpend = (
-  state: UserState, 
-  amount: number, 
+  state: UserState,
+  amount: number,
   isFixedCost: boolean
-): { newState: UserState, message: string } => {
-  
-  const newState = { ...state };
-  let message = '';
-
-  // 1. 예산 차감
-  newState.budget.current -= amount;
-
-  // 2. 수호자 패시브 체크
+): { newState: UserState; message: string } => {
+  // 1. 먼저 수호자 패시브 판정 (state는 그대로 사용)
   const isGuarded = checkGuardianShield(state, amount);
 
+  // 2. 예산 계산 (음수 허용/불허는 정책에 따라 조정 가능)
+  const nextBudgetCurrent = state.budget.current - amount;
+
+  // 공통으로 들어가는 예산 업데이트
+  const baseState: UserState = {
+    ...state,
+    budget: {
+      ...state.budget,
+      current: nextBudgetCurrent,
+    },
+  };
+
+  // 3. 수호자에게 방어된 경우
   if (isGuarded) {
-    message = `🛡️ [수호자] ${amount.toLocaleString()}원 지출을 방어했습니다! (스트릭 유지)`;
-  } else {
-    // 일반 피격
-    newState.counters.noSpendStreak = 0;
-    
-    // Junk 획득 로직
-    if (
-      !isFixedCost && 
-      amount >= GAME_CONSTANTS.JUNK_THRESHOLD && 
-      newState.counters.junkObtainedToday < GAME_CONSTANTS.DAILY_JUNK_LIMIT
-    ) {
-      newState.inventory.junk += 1;
-      newState.counters.junkObtainedToday += 1;
-      message = `💥 피격(Hit)! Junk 1개를 획득했습니다.`;
-    } else {
-      message = `💥 피격(Hit)! 예산이 차감되었습니다.`;
-    }
+    const guardedState: UserState = {
+      ...baseState,
+      // 수호자는 스트릭 유지, 다른 카운터 변화 없음
+    };
+
+    return {
+      newState: guardedState,
+      message: `🛡️ [수호자] ${amount.toLocaleString()}원 지출이 방어되었습니다. (스트릭 유지)`,
+    };
   }
 
-  return { newState, message };
-};
+  // 4. 방어되지 않은 일반 피격
+  const resetCounters = {
+    ...state.counters,
+    noSpendStreak: 0,
+  };
 
-export const applyDefense = (state: UserState): UserState => {
-  if (state.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) {
-    return state;
+  const canGainJunk =
+    !isFixedCost &&
+    amount >= GAME_CONSTANTS.JUNK_THRESHOLD &&
+    state.counters.junkObtainedToday < GAME_CONSTANTS.DAILY_JUNK_LIMIT;
+
+  if (canGainJunk) {
+    const updatedState: UserState = {
+      ...baseState,
+      counters: {
+        ...resetCounters,
+        junkObtainedToday: state.counters.junkObtainedToday + 1,
+      },
+      inventory: {
+        ...state.inventory,
+        junk: state.inventory.junk + 1,
+      },
+    };
+
+    return {
+      newState: updatedState,
+      message: `💥 피격(Hit) 발생. Junk 1개를 획득했습니다.`,
+    };
   }
 
-  const newMp = Math.min(
-    GAME_CONSTANTS.MAX_MP, 
-    state.runtime.mp + GAME_CONSTANTS.MP_RECOVERY_DEFENSE
-  );
+  // 5. 피격이지만 Junk는 안 생기는 경우
+  const hitState: UserState = {
+    ...baseState,
+    counters: resetCounters,
+  };
 
   return {
-    ...state,
-    runtime: {
-      ...state.runtime,
-      mp: newMp
-    },
-    counters: {
-      ...state.counters,
-      defenseActionsToday: state.counters.defenseActionsToday + 1
-    }
+    newState: hitState,
+    message: `💥 피격(Hit) 발생. 예산이 차감되었습니다.`,
   };
 };
