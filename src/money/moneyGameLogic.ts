@@ -1,1163 +1,478 @@
-// src/pages/MoneyRoomPage.tsx
-import React, { useEffect, useState } from 'react';
-import { GAME_CONSTANTS, CLASS_TYPES, type ClassType } from '../money/constants';
-import type { UserState, Transaction } from '../money/types';
-import {
-  getHp,
-  applySpend,
-  applyDefense,
-  checkDailyReset,
-  getGuardPromptInfo,
-  type GuardPromptInfo,
-  applyDayEnd,
-  applyPurify,
-  applyCraftEquipment,
-  getAssetBuildingsView,
-  type AssetBuildingView,
-  changeClass,
-} from '../money/moneyGameLogic';
-import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
+// src/money/moneyGameLogic.ts
+import type { UserState } from './types';
+import { GAME_CONSTANTS, CLASS_TYPES, type ClassType } from './constants';
+import { checkGuardianShield, getDruidRecoveryBonus } from './moneyClassLogic';
+import { getLunaMode } from './moneyLuna';
 
-// 간단한 ID 생성기
-const generateId = () =>
-  `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+// 공통 유틸
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
-// 직업 선택 옵션 정의 (UI용)
-const CLASS_OPTIONS: { id: ClassType; title: string; subtitle: string; detail: string }[] = [
-  {
-    id: CLASS_TYPES.GUARDIAN,
-    title: '🛡️ 수호자',
-    subtitle: '소액 방어 & 스트릭 유지',
-    detail: '3,000원 이하 지출을 방어해 스트릭을 지켜주는 방어 특화 타입입니다.',
-  },
-  {
-    id: CLASS_TYPES.SAGE,
-    title: '🔮 현자',
-    subtitle: '기록 & 패턴 분석',
-    detail: '기록과 패턴 분석에 특화된 타입입니다. 리포트/분석 화면에서 힘을 발휘하도록 확장 예정입니다.',
-  },
-  {
-    id: CLASS_TYPES.ALCHEMIST,
-    title: '💰 연금술사',
-    subtitle: '정크 → 자산 변환',
-    detail: 'Junk를 자산으로 바꾸는 경제 타입입니다. 추후 골드/자산 화면과 연동됩니다.',
-  },
-  {
-    id: CLASS_TYPES.DRUID,
-    title: '🌿 드루이드',
-    subtitle: 'REST 기간 회복 버프',
-    detail: 'REST 기간에 MP 추가 회복을 받는 타입입니다. 멘탈 & 회복에 초점을 둡니다.',
-  },
-];
+const getTodayString = () => new Date().toISOString().split('T')[0];
 
-// [MOCK DATA] 초기 상태
-const INITIAL_STATE: UserState = {
-  profile: { name: 'Player 1', classType: CLASS_TYPES.GUARDIAN, level: 1 },
-  luna: {
-    nextPeriodDate: '2025-12-15', // 테스트용
-    averageCycle: 28,
-    isTracking: true,
-  },
-  budget: {
-    total: 1_000_000,
-    current: 850_000,
-    fixedCost: 300_000,
-    startDate: '2025-12-01',
-  },
-  stats: { def: 50, creditScore: 0 },
-  counters: {
-    defenseActionsToday: 0,
-    junkObtainedToday: 0,
-    lastAccessDate: null,
-    lastDailyResetDate: null,
-    lastDayEndDate: null,
-    guardPromptShownToday: false,
-    noSpendStreak: 3,
-    lunaShieldsUsedThisMonth: 0,
-  },
-  runtime: { mp: 15 },
-  inventory: {
-    junk: 0,
-    salt: 0,
-    shards: {},
-    materials: {},
-    equipment: [],
-    collection: [],
-  },
-  pending: [],
-  transactions: [],
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
+
+const calcDaysLeftInBudget = (startDateStr: string, todayStr: string): number => {
+  const start = new Date(startDateStr);
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + 1); // 다음 달
+  end.setDate(0);                   // 이번 달 마지막 날
+
+  const today = new Date(todayStr);
+  const diffMs = end.getTime() - today.getTime();
+  if (diffMs <= 0) return 1;
+  return Math.max(1, Math.ceil(diffMs / MS_PER_DAY));
 };
 
-export const MoneyRoomPage: React.FC = () => {
-  const [gameState, setGameState] = useState<UserState>(INITIAL_STATE);
-  const [feedbackMsg, setFeedbackMsg] = useState<string>('던전에 입장했습니다.');
+// HP 계산 (파생값)
+export const getHp = (current: number, total: number): number => {
+  if (total === 0) return 0;
+  const percentage = (current / total) * 100;
+  return clamp(Math.floor(percentage), 0, 100);
+};
 
-  // 지출 입력 모달 상태
-  const [isSpendModalOpen, setIsSpendModalOpen] = useState(false);
-  const [spendAmountInput, setSpendAmountInput] = useState<string>('');
-  const [isFixedCostInput, setIsFixedCostInput] = useState<boolean>(false);
-  const [spendNoteInput, setSpendNoteInput] = useState<string>('');
+// Guard Prompt 정보 타입
+export interface GuardPromptInfo {
+  shouldShow: boolean;
+  hpBefore: number;
+  hpAfter: number;
+  avgAvailablePerDay: number;
+}
 
-  // Guard Prompt 상태
-  const [isGuardPromptOpen, setIsGuardPromptOpen] = useState(false);
-  const [guardInfo, setGuardInfo] = useState<GuardPromptInfo | null>(null);
-  const [pendingSpendAmount, setPendingSpendAmount] = useState<number | null>(null);
-  const [pendingIsFixedCost, setPendingIsFixedCost] = useState<boolean>(false);
+// 자산의 왕국 뷰 타입
+export interface AssetBuildingView {
+  id: string;
+  label: string;
+  count: number;
+  level: number;
+  nextTarget: number | null;
+}
 
-  // 직업 선택 모달 상태
-  const [isClassModalOpen, setIsClassModalOpen] = useState(false);
+// 📅 일일 리셋 + 접속 보상 (Dust) + 드루이드 회복
+export const checkDailyReset = (state: UserState): UserState => {
+  const today = getTodayString();
 
-  // 파생 값들
-  const hp = getHp(gameState.budget.current, gameState.budget.total);
-  const todayStr = new Date().toISOString().split('T')[0];
-  const currentMode = getLunaMode(todayStr, gameState.luna.nextPeriodDate);
-  const theme = getLunaTheme(currentMode);
+  if (state.counters.lastDailyResetDate === today) {
+    return state;
+  }
 
-  const junk = gameState.inventory.junk;
-  const salt = gameState.inventory.salt;
-  const dust = gameState.inventory.shards['naturalDust'] ?? 0;
-  const pureEssence = gameState.inventory.materials['pureEssence'] ?? 0;
-  const equipment = gameState.inventory.equipment;
+  const currentMode = getLunaMode(today, state.luna.nextPeriodDate);
+  const druidBonus = getDruidRecoveryBonus(state, currentMode);
 
-  const canPurify = junk > 0 && salt > 0 && gameState.runtime.mp > 0;
-  const canCraftSword = pureEssence >= GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE;
+  const newMp = clamp(
+    state.runtime.mp + druidBonus, // 접속 MP 회복은 추후 별도 구현
+    0,
+    GAME_CONSTANTS.MAX_MP
+  );
 
-  const assetBuildings: AssetBuildingView[] = getAssetBuildingsView(gameState);
+  const currentDust = state.inventory.shards['naturalDust'] ?? 0;
 
-  // 마운트 시 일일 리셋
-  useEffect(() => {
-    setGameState((prev) => checkDailyReset(prev));
-  }, []);
+  return {
+    ...state,
+    runtime: {
+      ...state.runtime,
+      mp: newMp,
+    },
+    inventory: {
+      ...state.inventory,
+      shards: {
+        ...state.inventory.shards,
+        naturalDust: currentDust + GAME_CONSTANTS.DUST_REWARD_PER_DAY,
+      },
+    },
+    counters: {
+      ...state.counters,
+      defenseActionsToday: 0,
+      junkObtainedToday: 0,
+      guardPromptShownToday: false,
+      lastDailyResetDate: today,
+      lastAccessDate: today,
+    },
+  };
+};
 
-  // UI 헬퍼
-  const getHpColor = (hpValue: number) => {
-    if (hpValue > 50) return '#4ade80'; // Green
-    if (hpValue > 30) return '#facc15'; // Yellow
-    return '#ef4444';                   // Red
+// 🧠 Guard Prompt에 필요한 정보 계산
+export const getGuardPromptInfo = (
+  state: UserState,
+  amount: number,
+  isFixedCost: boolean
+): GuardPromptInfo => {
+  const today = getTodayString();
+  const hpBefore = getHp(state.budget.current, state.budget.total);
+
+  const afterBudget = Math.max(0, state.budget.current - amount);
+  const hpAfter = getHp(afterBudget, state.budget.total);
+
+  const daysLeft = calcDaysLeftInBudget(state.budget.startDate, today);
+  const avgAvailablePerDay =
+    daysLeft > 0 ? Math.floor(afterBudget / daysLeft) : 0;
+
+  // 기본적으로 "보여줄 필요 없음" 상태로 시작
+  const base: GuardPromptInfo = {
+    shouldShow: false,
+    hpBefore,
+    hpAfter,
+    avgAvailablePerDay,
   };
 
-  const getClassBadge = (classType: ClassType | null) => {
-    switch (classType) {
-      case CLASS_TYPES.GUARDIAN:
-        return '🛡️ 수호자 Lv.1';
-      case CLASS_TYPES.SAGE:
-        return '🔮 현자 Lv.1';
-      case CLASS_TYPES.ALCHEMIST:
-        return '💰 연금술사 Lv.1';
-      case CLASS_TYPES.DRUID:
-        return '🌿 드루이드 Lv.1';
-      default:
-        return '👶 모험가';
-    }
+  // 조건: 이미 오늘 한 번 보여줬으면 X
+  if (state.counters.guardPromptShownToday) return base;
+
+  // 조건: 고정비는 Guard Prompt 대상에서 제외
+  if (isFixedCost) return base;
+
+  // 조건: 금액이 너무 작고, HP도 충분하면 X
+  const isHighAmount = amount >= GAME_CONSTANTS.GUARD_PROMPT_MIN_AMOUNT;
+  const isHpDanger = hpAfter < GAME_CONSTANTS.HP_WARNING_THRESHOLD;
+
+  if (!isHighAmount && !isHpDanger) {
+    return base;
+  }
+
+  return {
+    ...base,
+    shouldShow: true,
+  };
+};
+
+// 💸 지출 처리 (Hit) + 수호자 + Luna Shield
+export const applySpend = (
+  state: UserState,
+  amount: number,
+  isFixedCost: boolean
+): { newState: UserState; message: string } => {
+  const today = getTodayString();
+
+  const prevBudgetCurrent = state.budget.current;
+  const nextBudgetCurrent = Math.max(0, prevBudgetCurrent - amount);
+
+  let newState: UserState = {
+    ...state,
+    budget: {
+      ...state.budget,
+      current: nextBudgetCurrent,
+    },
   };
 
-  // --- 지출 입력 모달 열기/닫기 ---
-  const handleOpenSpendModal = () => {
-    setSpendAmountInput('');
-    setIsFixedCostInput(false);
-    setSpendNoteInput('');
-    setIsSpendModalOpen(true);
-  };
+  let message = '';
 
-  const handleCloseSpendModal = () => {
-    setIsSpendModalOpen(false);
-  };
+  // 1) 수호자 패시브 체크
+  const isGuardedByClass = checkGuardianShield(state, amount);
+  if (isGuardedByClass) {
+    message = `🛡️ [수호자] ${amount.toLocaleString()}원 지출을 방어했습니다. (스트릭 유지)`;
+    // 수호자 방어 시 noSpendStreak는 유지, Junk 없음
+    return { newState, message };
+  }
 
-  // --- Guard Prompt 플로우 포함한 지출 제출 ---
-  const handleSpendNext = () => {
-    const raw = spendAmountInput.replace(/,/g, '');
-    const amount = Number(raw);
+  // 2) PMS 기간 Luna Shield 자동 방어 (월 3회까지)
+  const currentMode = getLunaMode(today, state.luna.nextPeriodDate);
+  const canUseLunaShield =
+    currentMode === 'PMS' &&
+    state.counters.lunaShieldsUsedThisMonth < GAME_CONSTANTS.LUNA_SHIELD_MONTHLY_LIMIT;
 
-    if (!amount || amount <= 0 || Number.isNaN(amount)) {
-      setFeedbackMsg('지출 금액을 입력해주세요.');
-      return;
-    }
-
-    const info = getGuardPromptInfo(gameState, amount, isFixedCostInput);
-    setPendingSpendAmount(amount);
-    setPendingIsFixedCost(isFixedCostInput);
-    setIsSpendModalOpen(false);
-
-    if (info.shouldShow) {
-      setGuardInfo(info);
-      setIsGuardPromptOpen(true);
-      setGameState((prev) => ({
-        ...prev,
-        counters: {
-          ...prev.counters,
-          guardPromptShownToday: true,
-        },
-      }));
-    } else {
-      const tx: Transaction = {
-        id: generateId(),
-        amount,
-        category: isFixedCostInput ? '고정비' : '기타',
-        date: todayStr,
-        note: spendNoteInput,
-        tags: [],
-        isFixedCost: isFixedCostInput,
-      };
-
-      const { newState, message } = applySpend(gameState, amount, isFixedCostInput);
-
-      const nextTransactions = [...gameState.transactions, tx];
-
-      setGameState({
-        ...newState,
-        transactions: nextTransactions,
-      });
-      setFeedbackMsg(message);
-      setGuardInfo(null);
-      setIsGuardPromptOpen(false);
-      setPendingSpendAmount(null);
-    }
-  };
-
-  // --- Guard Prompt: Hit 진행 ---
-  const handleConfirmHit = () => {
-    if (!pendingSpendAmount) {
-      setIsGuardPromptOpen(false);
-      setGuardInfo(null);
-      return;
-    }
-
-    const amount = pendingSpendAmount;
-
-    const tx: Transaction = {
-      id: generateId(),
-      amount,
-      category: pendingIsFixedCost ? '고정비' : '기타',
-      date: todayStr,
-      note: spendNoteInput,
-      tags: [],
-      isFixedCost: pendingIsFixedCost,
+  if (canUseLunaShield) {
+    newState = {
+      ...newState,
+      counters: {
+        ...newState.counters,
+        lunaShieldsUsedThisMonth: newState.counters.lunaShieldsUsedThisMonth + 1,
+      },
     };
 
-    const { newState, message } = applySpend(
-      gameState,
-      amount,
-      pendingIsFixedCost
-    );
+    message = `🌙 [Luna Shield]가 발동하여 ${amount.toLocaleString()}원 지출을 한 번 막아주었습니다. (스트릭 유지)`;
+    return { newState, message };
+  }
 
-    const nextTransactions = [...gameState.transactions, tx];
+  // 3) 실제 피격 처리
+  // 무지출 스트릭 리셋
+  newState = {
+    ...newState,
+    counters: {
+      ...newState.counters,
+      noSpendStreak: 0,
+    },
+  };
 
-    setGameState({
+  // Junk 획득 로직
+  if (
+    !isFixedCost &&
+    amount >= GAME_CONSTANTS.JUNK_THRESHOLD &&
+    newState.counters.junkObtainedToday < GAME_CONSTANTS.DAILY_JUNK_LIMIT
+  ) {
+    newState = {
       ...newState,
-      transactions: nextTransactions,
-    });
-    setFeedbackMsg(message);
-    setIsGuardPromptOpen(false);
-    setGuardInfo(null);
-    setPendingSpendAmount(null);
-  };
+      inventory: {
+        ...newState.inventory,
+        junk: newState.inventory.junk + 1,
+      },
+      counters: {
+        ...newState.counters,
+        junkObtainedToday: newState.counters.junkObtainedToday + 1,
+      },
+      // 자산: 비고정비 Hit → 창고에 적재한다고 가정
+      assets: {
+        ...newState.assets,
+        warehouse: newState.assets.warehouse + 1,
+      },
+    };
 
-  // --- Guard Prompt: 취소 후 방어 ---
-  const handleCancelAndGuard = () => {
-    if (gameState.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) {
-      setFeedbackMsg('오늘의 방어 태세가 이미 한계에 도달했습니다.');
-    } else {
-      const nextState = applyDefense(gameState);
-      setGameState(nextState);
-      setFeedbackMsg(
-        `지출을 취소했습니다. 방어 성공. MP가 회복되었습니다. (${nextState.counters.defenseActionsToday}/${GAME_CONSTANTS.DAILY_DEFENSE_LIMIT})`
-      );
-    }
-    setIsGuardPromptOpen(false);
-    setGuardInfo(null);
-    setPendingSpendAmount(null);
-  };
+    message = `💥 피격(Hit)! Junk 1개를 획득했습니다.`;
+  } else {
+    message = `💥 피격(Hit)! 예산이 차감되었습니다.`;
+  }
 
-  // --- 일반 방어 버튼 (No-Spend Guard) ---
-  const handleDefenseClick = () => {
-    if (gameState.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) {
-      setFeedbackMsg('오늘의 방어 태세가 이미 한계에 도달했습니다.');
-      return;
-    }
-    const nextState = applyDefense(gameState);
-    setGameState(nextState);
-    setFeedbackMsg(
-      `방어 성공. MP가 회복되었습니다. (${nextState.counters.defenseActionsToday}/${GAME_CONSTANTS.DAILY_DEFENSE_LIMIT})`
-    );
-  };
+  // 자산: 고정비는 "저택" 쌓기는 느낌으로
+  if (isFixedCost) {
+    newState = {
+      ...newState,
+      assets: {
+        ...newState.assets,
+        mansion: newState.assets.mansion + 1,
+      },
+    };
+  }
 
-  // --- 오늘 마감하기 ---
-  const handleDayEnd = () => {
-    const { newState, message } = applyDayEnd(gameState);
-    setGameState(newState);
-    setFeedbackMsg(message);
-  };
+  return { newState, message };
+};
 
-  // --- 정화(Purify) ---
-  const handlePurify = () => {
-    const { newState, message } = applyPurify(gameState);
-    setGameState(newState);
-    setFeedbackMsg(message);
-  };
+// 🛡 No-Spend 방어 버튼
+export const applyDefense = (state: UserState): UserState => {
+  if (state.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) {
+    return state;
+  }
 
-  // --- 장비 제작 (Craft) ---
-  const handleCraftSword = () => {
-    const { newState, message } = applyCraftEquipment(gameState);
-    setGameState(newState);
-    setFeedbackMsg(message);
-  };
-
-  // --- 직업 모달 열기/닫기 & 선택 ---
-  const handleOpenClassModal = () => {
-    setIsClassModalOpen(true);
-  };
-
-  const handleCloseClassModal = () => {
-    setIsClassModalOpen(false);
-  };
-
-  const handleSelectClass = (classType: ClassType) => {
-    const { newState, message } = changeClass(gameState, classType);
-    setGameState(newState);
-    setFeedbackMsg(message);
-    setIsClassModalOpen(false);
-  };
-
-  // 최근 N개 지출
-  const recentTransactions = [...gameState.transactions]
-    .slice(-5)
-    .reverse();
-
-  return (
-    <div style={{ ...styles.container, backgroundColor: theme.bgColor }}>
-      {/* --- HEADER --- */}
-      <header style={styles.header}>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={styles.date}>{todayStr}</span>
-          <button
-            type="button"
-            onClick={handleOpenClassModal}
-            style={styles.classButton}
-          >
-            {getClassBadge(gameState.profile.classType)}
-          </button>
-        </div>
-        <span
-          style={{
-            ...styles.modeBadge,
-            color: theme.color,
-            border: `1px solid ${theme.color}`,
-          }}
-        >
-          {theme.label}
-        </span>
-      </header>
-
-      {/* --- HERO: HP BAR --- */}
-      <section style={styles.heroSection}>
-        <div style={styles.hpLabel}>
-          <span>HP (생존력)</span>
-          <span>{hp}%</span>
-        </div>
-        <div style={styles.hpBarBg}>
-          <div
-            style={{
-              ...styles.hpBarFill,
-              width: `${hp}%`,
-              backgroundColor: getHpColor(hp),
-            }}
-          />
-        </div>
-        <div style={styles.budgetDetail}>
-          {gameState.budget.current.toLocaleString()} /{' '}
-          {gameState.budget.total.toLocaleString()}
-        </div>
-      </section>
-
-      {/* --- STATS GRID --- */}
-      <section style={styles.statsGrid}>
-        <div style={styles.statBox}>
-          <div style={styles.statLabel}>MP</div>
-          <div style={styles.statValue}>
-            <span style={{ color: '#60a5fa' }}>{gameState.runtime.mp}</span>
-            <span style={styles.statMax}> / {GAME_CONSTANTS.MAX_MP}</span>
-          </div>
-        </div>
-        <div style={styles.statBox}>
-          <div style={styles.statLabel}>DEF</div>
-          <div style={styles.statValue}>{gameState.stats.def}</div>
-        </div>
-        <div style={styles.statBox}>
-          <div style={styles.statLabel}>Junk</div>
-          <div style={styles.statValue}>{gameState.inventory.junk}</div>
-        </div>
-      </section>
-
-      {/* --- PURIFY SECTION --- */}
-      <section style={styles.purifySection}>
-        <div style={styles.purifyHeader}>
-          <span style={styles.purifyTitle}>정화 루프</span>
-          <span style={styles.purifySubtitle}>Junk + Salt + MP → Material</span>
-        </div>
-        <div style={styles.purifyStatsRow}>
-          <span>Junk: {junk}</span>
-          <span>Salt: {salt}</span>
-          <span>Dust: {dust}</span>
-          <span>Essence: {pureEssence}</span>
-        </div>
-        <button
-          onClick={handlePurify}
-          disabled={!canPurify}
-          style={{
-            ...styles.btnPurify,
-            opacity: canPurify ? 1 : 0.5,
-            cursor: canPurify ? 'pointer' : 'not-allowed',
-          }}
-        >
-          🔄 정화 1회 (Junk 1 + Salt 1 + MP 1)
-        </button>
-      </section>
-
-      {/* --- EQUIPMENT SECTION --- */}
-      <section style={styles.eqSection}>
-        <div style={styles.eqHeader}>
-          <span style={styles.eqTitle}>장비 & 인벤토리</span>
-          <span style={styles.eqSubtitle}>
-            pureEssence {GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE}개 → 잔잔한 장부검
-          </span>
-        </div>
-        <div style={styles.eqStatsRow}>
-          <span>보유 Essence: {pureEssence}</span>
-          <span>장비 개수: {equipment.length}</span>
-        </div>
-        <div style={styles.eqList}>
-          {equipment.length === 0 ? (
-            <div style={styles.eqEmpty}>아직 제작된 장비가 없습니다.</div>
-          ) : (
-            equipment.map((name, idx) => (
-              <div key={`${name}-${idx}`} style={styles.eqItem}>
-                <span style={styles.eqItemName}>{name}</span>
-              </div>
-            ))
-          )}
-        </div>
-        <button
-          onClick={handleCraftSword}
-          disabled={!canCraftSword}
-          style={{
-            ...styles.btnCraft,
-            opacity: canCraftSword ? 1 : 0.5,
-            cursor: canCraftSword ? 'pointer' : 'not-allowed',
-          }}
-        >
-          ⚒ 장비 제작 (잔잔한 장부검)
-        </button>
-      </section>
-
-      {/* --- ASSET KINGDOM SECTION --- */}
-      <section style={styles.assetSection}>
-        <div style={styles.assetHeader}>
-          <span style={styles.assetTitle}>자산의 왕국</span>
-          <span style={styles.assetSubtitle}>
-            금액이 아니라 “횟수”로 성장하는 작은 왕국들
-          </span>
-        </div>
-        <div style={styles.assetList}>
-          {assetBuildings.map((b) => {
-            const ratio =
-              b.nextTarget === null || b.nextTarget === 0
-                ? 1
-                : Math.max(0, Math.min(1, b.count / b.nextTarget));
-            const nextDiff =
-              b.nextTarget === null ? null : Math.max(b.nextTarget - b.count, 0);
-
-            return (
-              <div key={b.id} style={styles.assetCard}>
-                <div style={styles.assetCardHeader}>
-                  <span style={styles.assetLabel}>{b.label}</span>
-                  <span style={styles.assetLevelBadge}>Lv.{b.level}</span>
-                </div>
-                <div style={styles.assetInfoRow}>
-                  <span>누적 횟수: {b.count}회</span>
-                  {nextDiff === null ? (
-                    <span style={styles.assetDoneText}>최대 레벨 달성</span>
-                  ) : (
-                    <span>다음 레벨까지 {nextDiff}회</span>
-                  )}
-                </div>
-                <div style={styles.assetProgressBg}>
-                  <div
-                    style={{
-                      ...styles.assetProgressFill,
-                      width: `${ratio * 100}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* --- TRANSACTION LOG --- */}
-      <section style={styles.txSection}>
-        <div style={styles.txHeaderRow}>
-          <span style={styles.txTitle}>최근 지출 로그</span>
-          <span style={styles.txCount}>{gameState.transactions.length}건</span>
-        </div>
-        {gameState.transactions.length === 0 ? (
-          <div style={styles.txEmpty}>아직 기록된 지출이 없습니다.</div>
-        ) : (
-          <div>
-            {recentTransactions.map((tx) => (
-              <div key={tx.id} style={styles.txRow}>
-                <div style={styles.txRowMain}>
-                  <span style={styles.txAmount}>
-                    {tx.amount.toLocaleString()}원
-                  </span>
-                  <span style={styles.txCategory}>
-                    {tx.isFixedCost ? '고정비' : '비고정비'}
-                  </span>
-                </div>
-                <div style={styles.txRowSub}>
-                  <span>{tx.date}</span>
-                  {tx.note && <span> · {tx.note}</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* --- FEEDBACK AREA --- */}
-      <div style={{ ...styles.feedbackArea, borderColor: theme.color }}>
-        {feedbackMsg === '던전에 입장했습니다.' ? theme.message : feedbackMsg}
-      </div>
-
-      {/* --- ACTIONS --- */}
-      <footer style={styles.actionArea}>
-        <button onClick={handleOpenSpendModal} style={styles.btnHit}>
-          🔥 지출 입력
-        </button>
-        <button onClick={handleDefenseClick} style={styles.btnGuard}>
-          🛡️ 방어 (No Spend)
-        </button>
-        <button onClick={handleDayEnd} style={styles.btnDayEnd}>
-          🌙 오늘 마감하기
-        </button>
-      </footer>
-
-      {/* --- 지출 입력 모달 --- */}
-      {isSpendModalOpen && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalCard}>
-            <h2 style={styles.modalTitle}>지출 입력</h2>
-
-            <div style={styles.modalRow}>
-              <label style={styles.modalLabel}>금액</label>
-              <input
-                style={styles.modalInput}
-                type="number"
-                inputMode="numeric"
-                placeholder="0"
-                value={spendAmountInput}
-                onChange={(e) => setSpendAmountInput(e.target.value)}
-              />
-            </div>
-
-            <div style={styles.modalRow}>
-              <label style={styles.modalLabel}>고정비 여부</label>
-              <div style={styles.modalCheckboxRow}>
-                <input
-                  id="fixedCostCheckbox"
-                  type="checkbox"
-                  checked={isFixedCostInput}
-                  onChange={(e) => setIsFixedCostInput(e.target.checked)}
-                />
-                <label htmlFor="fixedCostCheckbox" style={{ marginLeft: '8px' }}>
-                  고정비로 처리
-                </label>
-              </div>
-            </div>
-
-            <div style={styles.modalRow}>
-              <label style={styles.modalLabel}>메모 (선택)</label>
-              <input
-                style={styles.modalInput}
-                type="text"
-                placeholder="메모를 남겨둘 수 있습니다."
-                value={spendNoteInput}
-                onChange={(e) => setSpendNoteInput(e.target.value)}
-              />
-            </div>
-
-            <div style={styles.modalButtonRow}>
-              <button onClick={handleCloseSpendModal} style={styles.btnSecondary}>
-                취소
-              </button>
-              <button onClick={handleSpendNext} style={styles.btnPrimary}>
-                다음 →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- Guard Prompt 모달 --- */}
-      {isGuardPromptOpen && guardInfo && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalCard}>
-            <h2 style={styles.modalTitle}>Guard 체크</h2>
-            <p style={{ fontSize: '14px', marginBottom: '12px', lineHeight: 1.6 }}>
-              이 지출을 진행하면 HP와 일일 사용 가능 금액이 다음과 같이 변합니다.
-            </p>
-            <div style={{ marginBottom: '12px', fontSize: '14px' }}>
-              <div>
-                <strong>HP</strong> : {guardInfo.hpBefore}% →{' '}
-                {guardInfo.hpAfter}%
-              </div>
-              <div style={{ marginTop: '6px' }}>
-                <strong>남은 기간 일평균</strong> :{' '}
-                {guardInfo.avgAvailablePerDay.toLocaleString()}원 사용 가능
-              </div>
-            </div>
-            <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '16px' }}>
-              숫자와 상태만 알려드립니다. 진행 여부는 사용자가 결정합니다.
-            </p>
-
-            <div style={styles.modalButtonRow}>
-              <button onClick={handleCancelAndGuard} style={styles.btnSecondary}>
-                지출 취소 & 방어
-              </button>
-              <button onClick={handleConfirmHit} style={styles.btnPrimary}>
-                Hit 진행
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- 직업 선택 모달 --- */}
-      {isClassModalOpen && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalCard}>
-            <h2 style={styles.modalTitle}>직업 선택</h2>
-            <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '12px' }}>
-              이번 달 머니룸에서 사용할 직업을 선택합니다.
-              직업을 변경하면 레벨은 1로 초기화됩니다.
-            </p>
-
-            <div style={styles.classOptionsList}>
-              {CLASS_OPTIONS.map((opt) => {
-                const isCurrent = gameState.profile.classType === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => handleSelectClass(opt.id)}
-                    style={{
-                      ...styles.classOptionCard,
-                      borderColor: isCurrent ? '#60a5fa' : '#1f2937',
-                      opacity: isCurrent ? 0.9 : 1,
-                    }}
-                  >
-                    <div style={styles.classOptionHeader}>
-                      <span style={styles.classOptionTitle}>{opt.title}</span>
-                      {isCurrent && (
-                        <span style={styles.classOptionCurrent}>현재</span>
-                      )}
-                    </div>
-                    <div style={styles.classOptionSubtitle}>{opt.subtitle}</div>
-                    <div style={styles.classOptionDetail}>{opt.detail}</div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div style={styles.modalButtonRow}>
-              <button onClick={handleCloseClassModal} style={styles.btnSecondary}>
-                닫기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+  const newMp = clamp(
+    state.runtime.mp + GAME_CONSTANTS.MP_RECOVERY_DEFENSE,
+    0,
+    GAME_CONSTANTS.MAX_MP
   );
+
+  return {
+    ...state,
+    runtime: {
+      ...state.runtime,
+      mp: newMp,
+    },
+    counters: {
+      ...state.counters,
+      defenseActionsToday: state.counters.defenseActionsToday + 1,
+    },
+    // 자산: 방어 행동 → 요새 강화 느낌
+    assets: {
+      ...state.assets,
+      fortress: state.assets.fortress + 1,
+    },
+  };
 };
 
-// 스타일
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    maxWidth: '420px',
-    margin: '0 auto',
-    color: '#f3f4f6',
-    minHeight: '100vh',
-    padding: '20px',
-    fontFamily: 'sans-serif',
-    display: 'flex',
-    flexDirection: 'column',
-    transition: 'background-color 0.5s',
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '30px',
-  },
-  date: {
-    fontSize: '18px',
-    fontWeight: 'bold',
-  },
-  classButton: {
-    marginTop: '4px',
-    padding: '4px 8px',
-    borderRadius: '999px',
-    border: '1px solid #1f2937',
-    backgroundColor: 'rgba(15,23,42,0.85)',
-    color: '#60a5fa',
-    fontSize: '12px',
-    cursor: 'pointer',
-  },
-  modeBadge: {
-    padding: '4px 8px',
-    borderRadius: '4px',
-    fontSize: '12px',
-  },
-  heroSection: {
-    marginBottom: '30px',
-  },
-  hpLabel: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    marginBottom: '8px',
-    fontWeight: 'bold',
-    fontSize: '20px',
-  },
-  hpBarBg: {
-    width: '100%',
-    height: '24px',
-    backgroundColor: '#374151',
-    borderRadius: '12px',
-    overflow: 'hidden',
-  },
-  hpBarFill: {
-    height: '100%',
-    transition: 'width 0.5s ease-in-out, background-color 0.5s',
-  },
-  budgetDetail: {
-    marginTop: '8px',
-    textAlign: 'right',
-    fontSize: '12px',
-    color: '#9ca3af',
-  },
-  statsGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr 1fr',
-    gap: '10px',
-    marginBottom: '16px',
-  },
-  statBox: {
-    backgroundColor: '#1f2937',
-    padding: '15px',
-    borderRadius: '10px',
-    textAlign: 'center',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
-  },
-  statLabel: {
-    fontSize: '12px',
-    color: '#9ca3af',
-    marginBottom: '4px',
-  },
-  statValue: {
-    fontSize: '20px',
-    fontWeight: 'bold',
-  },
-  statMax: {
-    fontSize: '12px',
-    color: '#6b7280',
-  },
+// 🌙 오늘 마감하기
+export const applyDayEnd = (
+  state: UserState
+): { newState: UserState; message: string } => {
+  const today = getTodayString();
 
-  // --- PURIFY ---
-  purifySection: {
-    marginBottom: '16px',
-    padding: '12px',
-    borderRadius: '12px',
-    backgroundColor: '#020617',
-    border: '1px solid #374151',
-  },
-  purifyHeader: {
-    marginBottom: '6px',
-  },
-  purifyTitle: {
-    fontSize: '13px',
-    fontWeight: 600,
-  },
-  purifySubtitle: {
-    fontSize: '11px',
-    color: '#9ca3af',
-  },
-  purifyStatsRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontSize: '11px',
-    color: '#e5e7eb',
-    marginTop: '6px',
-    marginBottom: '10px',
-  },
-  btnPurify: {
-    width: '100%',
-    padding: '10px',
-    borderRadius: '10px',
-    border: '1px solid #4b5563',
-    backgroundColor: '#020617',
-    color: '#e5e7eb',
-    fontSize: '13px',
-  },
+  if (state.counters.lastDayEndDate === today) {
+    return {
+      newState: state,
+      message: '이미 오늘을 마감했습니다.',
+    };
+  }
 
-  // --- EQUIPMENT ---
-  eqSection: {
-    marginBottom: '16px',
-    padding: '12px',
-    borderRadius: '12px',
-    backgroundColor: '#020617',
-    border: '1px solid #374151',
-  },
-  eqHeader: {
-    marginBottom: '6px',
-  },
-  eqTitle: {
-    fontSize: '13px',
-    fontWeight: 600,
-  },
-  eqSubtitle: {
-    fontSize: '11px',
-    color: '#9ca3af',
-  },
-  eqStatsRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontSize: '11px',
-    color: '#e5e7eb',
-    marginTop: '4px',
-    marginBottom: '8px',
-  },
-  eqList: {
-    maxHeight: '80px',
-    overflowY: 'auto',
-    marginBottom: '8px',
-  },
-  eqEmpty: {
-    fontSize: '11px',
-    color: '#6b7280',
-  },
-  eqItem: {
-    padding: '4px 0',
-    borderTop: '1px solid #111827',
-    fontSize: '12px',
-  },
-  eqItemName: {
-    color: '#e5e7eb',
-  },
-  btnCraft: {
-    width: '100%',
-    padding: '10px',
-    borderRadius: '10px',
-    border: '1px solid #4b5563',
-    backgroundColor: '#020617',
-    color: '#e5e7eb',
-    fontSize: '13px',
-  },
+  const hadSpendToday = state.transactions.some((tx) => tx.date === today);
 
-  // --- ASSET KINGDOM ---
-  assetSection: {
-    marginBottom: '20px',
-    padding: '12px',
-    borderRadius: '12px',
-    backgroundColor: '#020617',
-    border: '1px solid #374151',
-  },
-  assetHeader: {
-    marginBottom: '6px',
-  },
-  assetTitle: {
-    fontSize: '13px',
-    fontWeight: 600,
-  },
-  assetSubtitle: {
-    fontSize: '11px',
-    color: '#9ca3af',
-  },
-  assetList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    marginTop: '6px',
-  },
-  assetCard: {
-    padding: '8px 10px',
-    borderRadius: '10px',
-    border: '1px solid #111827',
-    backgroundColor: '#020617',
-  },
-  assetCardHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '4px',
-  },
-  assetLabel: {
-    fontSize: '12px',
-    color: '#e5e7eb',
-  },
-  assetLevelBadge: {
-    fontSize: '11px',
-    padding: '2px 6px',
-    borderRadius: '999px',
-    border: '1px solid #4b5563',
-    color: '#e5e7eb',
-  },
-  assetInfoRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontSize: '11px',
-    color: '#9ca3af',
-    marginBottom: '4px',
-  },
-  assetDoneText: {
-    color: '#facc15',
-  },
-  assetProgressBg: {
-    width: '100%',
-    height: '6px',
-    borderRadius: '999px',
-    backgroundColor: '#111827',
-    overflow: 'hidden',
-  },
-  assetProgressFill: {
-    height: '100%',
-    borderRadius: '999px',
-    backgroundColor: '#22c55e',
-    transition: 'width 0.4s ease-out',
-  },
+  let newState: UserState = {
+    ...state,
+    counters: {
+      ...state.counters,
+      lastDayEndDate: today,
+    },
+  };
 
-  // --- Transaction Log ---
-  txSection: {
-    marginBottom: '20px',
-    padding: '12px',
-    borderRadius: '12px',
-    backgroundColor: '#111827',
-    border: '1px solid #374151',
-  },
-  txHeaderRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '8px',
-  },
-  txTitle: {
-    fontSize: '13px',
-    fontWeight: 600,
-    color: '#e5e7eb',
-  },
-  txCount: {
-    fontSize: '11px',
-    color: '#9ca3af',
-  },
-  txEmpty: {
-    fontSize: '12px',
-    color: '#6b7280',
-    padding: '4px 0',
-  },
-  txRow: {
-    padding: '6px 0',
-    borderTop: '1px solid #1f2937',
-  },
-  txRowMain: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-  },
-  txAmount: {
-    fontSize: '13px',
-    fontWeight: 600,
-    color: '#f9fafb',
-  },
-  txCategory: {
-    fontSize: '11px',
-    color: '#9ca3af',
-  },
-  txRowSub: {
-    marginTop: '2px',
-    fontSize: '11px',
-    color: '#6b7280',
-  },
+  if (!hadSpendToday) {
+    // 무지출 Day → Salt +1, 스트릭 +1
+    const nextSalt =
+      newState.inventory.salt + GAME_CONSTANTS.SALT_REWARD_PER_NOSPEND_DAY;
+    const nextStreak = newState.counters.noSpendStreak + 1;
 
-  feedbackArea: {
-    flexGrow: 1,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    textAlign: 'center',
-    fontStyle: 'italic',
-    color: '#d1d5db',
-    marginBottom: '20px',
-    border: '1px dashed #374151',
-    borderRadius: '8px',
-    padding: '20px',
-  },
-  actionArea: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '10px',
-    marginTop: '4px',
-  },
-  btnHit: {
-    padding: '15px',
-    border: 'none',
-    borderRadius: '12px',
-    backgroundColor: '#ef4444',
-    color: 'white',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    boxShadow: '0 4px 0 #b91c1c',
-  },
-  btnGuard: {
-    padding: '15px',
-    border: 'none',
-    borderRadius: '12px',
-    backgroundColor: '#3b82f6',
-    color: 'white',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    boxShadow: '0 4px 0 #1d4ed8',
-  },
-  btnDayEnd: {
-    gridColumn: '1 / span 2',
-    padding: '12px',
-    border: 'none',
-    borderRadius: '10px',
-    backgroundColor: '#111827',
-    color: '#e5e7eb',
-    fontSize: '14px',
-    cursor: 'pointer',
-    marginTop: '4px',
-    borderTop: '1px solid #374151',
-  },
+    newState = {
+      ...newState,
+      inventory: {
+        ...newState.inventory,
+        salt: nextSalt,
+      },
+      counters: {
+        ...newState.counters,
+        noSpendStreak: nextStreak,
+      },
+      // 자산: 무지출 일수 → 비행장(기동성 확보) 카운트
+      assets: {
+        ...newState.assets,
+        airfield: newState.assets.airfield + 1,
+      },
+    };
 
-  // --- 모달 스타일 ---
-  modalOverlay: {
-    position: 'fixed',
-    inset: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 50,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: '360px',
-    backgroundColor: '#020617',
-    borderRadius: '16px',
-    padding: '20px',
-    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-    border: '1px solid #1f2937',
-    color: '#e5e7eb',
-  },
-  modalTitle: {
-    fontSize: '18px',
-    marginBottom: '16px',
-  },
-  modalRow: {
-    marginBottom: '12px',
-  },
-  modalLabel: {
-    display: 'block',
-    fontSize: '12px',
-    color: '#9ca3af',
-    marginBottom: '4px',
-  },
-  modalInput: {
-    width: '100%',
-    padding: '8px 10px',
-    borderRadius: '8px',
-    border: '1px solid #4b5563',
-    backgroundColor: '#020617',
-    color: '#e5e7eb',
-    fontSize: '14px',
-  },
-  modalCheckboxRow: {
-    display: 'flex',
-    alignItems: 'center',
-    fontSize: '13px',
-  },
-  modalButtonRow: {
-    marginTop: '16px',
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: '8px',
-  },
-  btnSecondary: {
-    padding: '8px 12px',
-    borderRadius: '10px',
-    border: '1px solid #4b5563',
-    backgroundColor: '#020617',
-    color: '#e5e7eb',
-    fontSize: '13px',
-    cursor: 'pointer',
-  },
-  btnPrimary: {
-    padding: '8px 12px',
-    borderRadius: '10px',
-    border: 'none',
-    backgroundColor: '#3b82f6',
-    color: 'white',
-    fontSize: '13px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    boxShadow: '0 3px 0 #1d4ed8',
-  },
+    return {
+      newState,
+      message: `무지출 DAY 완료. Salt +1, 무지출 스트릭 ${nextStreak}일차.`,
+    };
+  }
 
-  // 직업 선택 모달용
-  classOptionsList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    marginBottom: '12px',
-  },
-  classOptionCard: {
-    width: '100%',
-    textAlign: 'left',
-    padding: '10px 12px',
-    borderRadius: '10px',
-    border: '1px solid #1f2937',
-    backgroundColor: '#020617',
-    cursor: 'pointer',
-  },
-  classOptionHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '4px',
-  },
-  classOptionTitle: {
-    fontSize: '14px',
-    fontWeight: 600,
-  },
-  classOptionCurrent: {
-    fontSize: '11px',
-    padding: '2px 6px',
-    borderRadius: '999px',
-    border: '1px solid #60a5fa',
-    color: '#bfdbfe',
-  },
-  classOptionSubtitle: {
-    fontSize: '12px',
-    color: '#9ca3af',
-    marginBottom: '2px',
-  },
-  classOptionDetail: {
-    fontSize: '11px',
-    color: '#6b7280',
-  },
+  return {
+    newState,
+    message: '오늘을 마감했습니다. (무지출 Day는 아니었습니다.)',
+  };
 };
 
-export default MoneyRoomPage;
+// 🔄 정화 (Purify): Junk + Salt + MP → Material (pureEssence)
+export const applyPurify = (
+  state: UserState
+): { newState: UserState; message: string } => {
+  if (
+    state.inventory.junk <= 0 ||
+    state.inventory.salt <= 0 ||
+    state.runtime.mp <= 0
+  ) {
+    return {
+      newState: state,
+      message: '정화 조건이 충족되지 않습니다. (Junk, Salt, MP를 확인하세요.)',
+    };
+  }
+
+  const currentEssence = state.inventory.materials['pureEssence'] ?? 0;
+
+  const newState: UserState = {
+    ...state,
+    inventory: {
+      ...state.inventory,
+      junk: state.inventory.junk - 1,
+      salt: state.inventory.salt - 1,
+      materials: {
+        ...state.inventory.materials,
+        pureEssence: currentEssence + 1,
+      },
+    },
+    runtime: {
+      ...state.runtime,
+      mp: state.runtime.mp - 1,
+    },
+    // 자산: 정화 루프 → 마법탑 카운트 증가
+    assets: {
+      ...state.assets,
+      tower: state.assets.tower + 1,
+    },
+  };
+
+  return {
+    newState,
+    message: '정화 완료. pureEssence 1개를 획득했습니다.',
+  };
+};
+
+// ⚒ 장비 제작: pureEssence → 잔잔한 장부검
+export const applyCraftEquipment = (
+  state: UserState
+): { newState: UserState; message: string } => {
+  const cost = GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE;
+  const currentEssence = state.inventory.materials['pureEssence'] ?? 0;
+
+  if (currentEssence < cost) {
+    return {
+      newState: state,
+      message: `장비 제작에 필요한 pureEssence가 부족합니다. (필요: ${cost}개)`,
+    };
+  }
+
+  const newEssence = currentEssence - cost;
+
+  const newState: UserState = {
+    ...state,
+    inventory: {
+      ...state.inventory,
+      materials: {
+        ...state.inventory.materials,
+        pureEssence: newEssence,
+      },
+      equipment: [...state.inventory.equipment, '잔잔한 장부검'],
+    },
+    // 자산: 장비 제작 → 창고 강화
+    assets: {
+      ...state.assets,
+      warehouse: state.assets.warehouse + 1,
+    },
+  };
+
+  return {
+    newState,
+    message: `⚒ 장비 제작 완료! '잔잔한 장부검'을 획득했습니다.`,
+  };
+};
+
+// 🏰 자산의 왕국 뷰 생성
+export const getAssetBuildingsView = (state: UserState): AssetBuildingView[] => {
+  const src = state.assets;
+
+  const calcLevel = (count: number): { level: number; nextTarget: number | null } => {
+    if (count >= 100) return { level: 4, nextTarget: null };
+    if (count >= 30) return { level: 3, nextTarget: 100 };
+    if (count >= 10) return { level: 2, nextTarget: 30 };
+    return { level: 1, nextTarget: 10 };
+  };
+
+  const defs: { id: keyof typeof src; label: string }[] = [
+    { id: 'fortress',  label: '요새' },
+    { id: 'airfield',  label: '비행장' },
+    { id: 'mansion',   label: '저택' },
+    { id: 'tower',     label: '마법탑' },
+    { id: 'warehouse', label: '창고' },
+  ];
+
+  return defs.map(({ id, label }) => {
+    const count = src[id];
+    const { level, nextTarget } = calcLevel(count);
+    return {
+      id,
+      label,
+      count,
+      level,
+      nextTarget,
+    };
+  });
+};
+
+// 🎭 직업 변경 (전직)
+export const changeClass = (
+  state: UserState,
+  classType: ClassType
+): { newState: UserState; message: string } => {
+  if (state.profile.classType === classType) {
+    return {
+      newState: state,
+      message: '이미 선택된 직업입니다.',
+    };
+  }
+
+  const newState: UserState = {
+    ...state,
+    profile: {
+      ...state.profile,
+      classType,
+      level: 1,
+    },
+  };
+
+  const label =
+    classType === CLASS_TYPES.GUARDIAN
+      ? '수호자'
+      : classType === CLASS_TYPES.SAGE
+      ? '현자'
+      : classType === CLASS_TYPES.ALCHEMIST
+      ? '연금술사'
+      : classType === CLASS_TYPES.DRUID
+      ? '드루이드'
+      : '모험가';
+
+  return {
+    newState,
+    message: `직업이 [${label}]로 변경되었습니다. 레벨이 1로 초기화됩니다.`,
+  };
+};
