@@ -65,13 +65,14 @@ export interface UserState {
 
   // 5. 일일/주간 카운터
   counters: {
-    defenseActionsToday: number;     // 오늘 방어 행동 횟수
-    junkObtainedToday: number;       // 오늘 획득한 Junk 개수
-    lastAccessDate: string | null;   // 마지막 접속일 ("YYYY-MM-DD")
+    defenseActionsToday: number;       // 오늘 방어 행동 횟수
+    junkObtainedToday: number;         // 오늘 획득한 Junk 개수
+    lastAccessDate: string | null;     // 마지막 접속일 ("YYYY-MM-DD")
     lastDailyResetDate: string | null; // 마지막 일일 리셋 처리일
 
-    noSpendStreak: number;           // 연속 무지출 일수
-    lunaShieldsUsedThisMonth: number;// 월간 루나 실드 사용 횟수
+    noSpendStreak: number;             // 연속 무지출 일수
+    lunaShieldsUsedThisMonth: number;  // 월간 루나 실드 사용 횟수
+    guardPromptShownToday: boolean;    // 오늘 Guard Prompt 노출 여부
   };
 
   // 6. 런타임 스탯 (MP)
