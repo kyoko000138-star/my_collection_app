@@ -13,6 +13,7 @@ import InventoryModal from '../money/components/InventoryModal';
 import KingdomModal, {
   KingdomBuilding,
 } from '../money/components/KingdomModal';
+import DailyLogModal from '../money/components/DailyLogModal';
 
 // [MOCK DATA] 초기 상태
 const INITIAL_STATE: UserState = {
@@ -55,6 +56,7 @@ export const MoneyRoomPage: React.FC = () => {
     useState<string>('던전에 입장했습니다.');
   const [isInventoryModalOpen, setIsInventoryModalOpen] = useState(false);
   const [isKingdomModalOpen, setIsKingdomModalOpen] = useState(false);
+  const [isDailyLogModalOpen, setIsDailyLogModalOpen] = useState(false);
 
   // 1. HP 및 모드 계산
   const hp = getHp(gameState.budget.current, gameState.budget.total);
@@ -274,9 +276,13 @@ export const MoneyRoomPage: React.FC = () => {
           </div>
         </section>
 
-        {/* --- FEEDBACK AREA --- */}
+        {/* --- FEEDBACK AREA (탭하면 오늘 로그 상세) --- */}
         <div
-          style={{ ...styles.feedbackArea, borderColor: theme.color }}
+          style={{
+            ...styles.feedbackArea,
+            borderColor: theme.color,
+          }}
+          onClick={() => setIsDailyLogModalOpen(true)}
         >
           {feedbackMsg === '던전에 입장했습니다.'
             ? theme.message
@@ -299,7 +305,7 @@ export const MoneyRoomPage: React.FC = () => {
           </button>
           <button
             onClick={() => setIsKingdomModalOpen(true)}
-            style={styles.btnGuard}
+            style={styles.btnGuardAlt}
           >
             🏰 자산의 왕국
           </button>
@@ -326,6 +332,20 @@ export const MoneyRoomPage: React.FC = () => {
         open={isKingdomModalOpen}
         onClose={() => setIsKingdomModalOpen(false)}
         buildings={buildings}
+      />
+
+      {/* 오늘 로그 / Pending 모달 */}
+      <DailyLogModal
+        open={isDailyLogModalOpen}
+        onClose={() => setIsDailyLogModalOpen(false)}
+        today={todayStr}
+        hp={hp}
+        mp={gameState.runtime.mp}
+        def={gameState.stats.def}
+        junkToday={gameState.counters.junkObtainedToday}
+        defenseActionsToday={gameState.counters.defenseActionsToday}
+        noSpendStreak={gameState.counters.noSpendStreak}
+        pending={gameState.pending}
       />
     </>
   );
@@ -413,10 +433,11 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px dashed #374151',
     borderRadius: '8px',
     padding: '20px',
+    cursor: 'pointer',
   },
   actionArea: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr 1fr',
+    gridTemplateColumns: '1fr 1fr',
     gap: '10px',
   },
   btnHit: {
@@ -451,6 +472,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'bold',
     cursor: 'pointer',
     boxShadow: '0 4px 0 #15803d',
+  },
+  btnGuardAlt: {
+    padding: '15px',
+    border: 'none',
+    borderRadius: '12px',
+    backgroundColor: '#6366f1',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 4px 0 #4338ca',
   },
 };
 
