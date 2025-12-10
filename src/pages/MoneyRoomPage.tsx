@@ -26,7 +26,7 @@ import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
 const generateId = () =>
   `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-// 직업 선택 카드 정의
+// 직업 카드 정의
 const CLASS_OPTIONS: {
   id: ClassType;
   title: string;
@@ -63,11 +63,14 @@ const CLASS_OPTIONS: {
   },
 ];
 
+// 로컬 스토리지 키 (원하면 나중에 붙여쓰면 됨)
+const STORAGE_KEY = 'money-room-state-v1';
+
 // [MOCK] 초기 상태
 const INITIAL_STATE: UserState = {
   profile: { name: 'Player 1', classType: CLASS_TYPES.GUARDIAN, level: 1 },
   luna: {
-    nextPeriodDate: '2025-12-15', // 테스트용
+    nextPeriodDate: '2025-12-15',
     averageCycle: 28,
     isTracking: true,
   },
@@ -129,6 +132,11 @@ export const MoneyRoomPage: React.FC = () => {
   // 직업 선택 모달
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
 
+  // 👉 인벤토리 / 왕국 / 기록 탭용 모달
+  const [isInventoryModalOpen, setIsInventoryModalOpen] = useState(false);
+  const [isKingdomModalOpen, setIsKingdomModalOpen] = useState(false);
+  const [isRecordsModalOpen, setIsRecordsModalOpen] = useState(false);
+
   // 파생 값
   const hp = getHp(gameState.budget.current, gameState.budget.total);
   const todayStr = new Date().toISOString().split('T')[0];
@@ -146,18 +154,25 @@ export const MoneyRoomPage: React.FC = () => {
     pureEssence >= GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE;
 
   const assetBuildings: AssetBuildingView[] = getAssetBuildingsView(gameState);
-
   const pendingList: PendingTransaction[] = gameState.pending;
   const pendingCount = pendingList.length;
   const isPendingHeavy = pendingCount >= 5;
-
-  // 최근 지출 5건
   const recentTransactions = [...gameState.transactions].slice(-5).reverse();
 
-  // 마운트 시 일일 리셋
+  // 마운트 시: (원하면 here에 localStorage 복구 + checkDailyReset 붙이기)
   useEffect(() => {
     setGameState((prev) => checkDailyReset(prev));
   }, []);
+
+  // (선택) 상태 변경 시 localStorage 저장 – 나중에 붙일 수 있음
+  // useEffect(() => {
+  //   if (typeof window === 'undefined') return;
+  //   try {
+  //     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
+  //   } catch (e) {
+  //     console.error('MoneyRoom state 저장 실패:', e);
+  //   }
+  // }, [gameState]);
 
   // UI 헬퍼
   const getHpColor = (hpValue: number) => {
@@ -337,7 +352,7 @@ export const MoneyRoomPage: React.FC = () => {
     setPendingSpendAmount(null);
   };
 
-  // --- 방어 버튼 (No Spend) ---
+  // --- 방어 버튼 ---
   const handleDefenseClick = () => {
     if (
       gameState.counters.defenseActionsToday >=
@@ -471,200 +486,29 @@ export const MoneyRoomPage: React.FC = () => {
         </div>
       </section>
 
-      {/* PURIFY */}
-      <section style={styles.purifySection}>
-        <div style={styles.purifyHeader}>
-          <span style={styles.purifyTitle}>정화 루프</span>
-          <span style={styles.purifySubtitle}>
-            Junk + Salt + MP → pureEssence
-          </span>
-        </div>
-        <div style={styles.purifyStatsRow}>
-          <span>Junk: {junk}</span>
-          <span>Salt: {salt}</span>
-          <span>Dust: {dust}</span>
-          <span>Essence: {pureEssence}</span>
-        </div>
+      {/* 🔻 아래 고정 탭: 인벤토리 / 왕국 / 기록 */}
+      <section style={styles.quickNavRow}>
         <button
-          onClick={handlePurify}
-          disabled={!canPurify}
-          style={{
-            ...styles.btnPurify,
-            opacity: canPurify ? 1 : 0.5,
-            cursor: canPurify ? 'pointer' : 'not-allowed',
-          }}
+          type="button"
+          style={styles.quickNavBtn}
+          onClick={() => setIsInventoryModalOpen(true)}
         >
-          🔄 정화 1회 (Junk 1 + Salt 1 + MP 1)
+          🎒 인벤토리 · 정화
         </button>
-      </section>
-
-      {/* EQUIPMENT */}
-      <section style={styles.eqSection}>
-        <div style={styles.eqHeader}>
-          <span style={styles.eqTitle}>장비 & 인벤토리</span>
-          <span style={styles.eqSubtitle}>
-            pureEssence {GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE}개 → 잔잔한
-            장부검
-          </span>
-        </div>
-        <div style={styles.eqStatsRow}>
-          <span>보유 Essence: {pureEssence}</span>
-          <span>장비 개수: {equipment.length}</span>
-        </div>
-        <div style={styles.eqList}>
-          {equipment.length === 0 ? (
-            <div style={styles.eqEmpty}>아직 제작된 장비가 없습니다.</div>
-          ) : (
-            equipment.map((name, idx) => (
-              <div key={`${name}-${idx}`} style={styles.eqItem}>
-                <span style={styles.eqItemName}>{name}</span>
-              </div>
-            ))
-          )}
-        </div>
         <button
-          onClick={handleCraftSword}
-          disabled={!canCraftSword}
-          style={{
-            ...styles.btnCraft,
-            opacity: canCraftSword ? 1 : 0.5,
-            cursor: canCraftSword ? 'pointer' : 'not-allowed',
-          }}
+          type="button"
+          style={styles.quickNavBtn}
+          onClick={() => setIsKingdomModalOpen(true)}
         >
-          ⚒ 장비 제작 (잔잔한 장부검)
+          🏰 자산의 왕국
         </button>
-      </section>
-
-      {/* 자산의 왕국 */}
-      <section style={styles.assetSection}>
-        <div style={styles.assetHeader}>
-          <span style={styles.assetTitle}>자산의 왕국</span>
-          <span style={styles.assetSubtitle}>
-            금액이 아니라 “횟수”로 성장하는 작은 왕국들
-          </span>
-        </div>
-        <div style={styles.assetList}>
-          {assetBuildings.map((b) => {
-            const ratio =
-              b.nextTarget === null || b.nextTarget === 0
-                ? 1
-                : Math.max(0, Math.min(1, b.count / b.nextTarget));
-            const nextDiff =
-              b.nextTarget === null ? null : Math.max(b.nextTarget - b.count, 0);
-
-            return (
-              <div key={b.id} style={styles.assetCard}>
-                <div style={styles.assetCardHeader}>
-                  <span style={styles.assetLabel}>{b.label}</span>
-                  <span style={styles.assetLevelBadge}>Lv.{b.level}</span>
-                </div>
-                <div style={styles.assetInfoRow}>
-                  <span>누적 횟수: {b.count}회</span>
-                  {nextDiff === null ? (
-                    <span style={styles.assetDoneText}>최대 레벨 달성</span>
-                  ) : (
-                    <span>다음 레벨까지 {nextDiff}회</span>
-                  )}
-                </div>
-                <div style={styles.assetProgressBg}>
-                  <div
-                    style={{
-                      ...styles.assetProgressFill,
-                      width: `${ratio * 100}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* 나중에 입력 리스트 */}
-      <section style={styles.pendingSection}>
-        <div style={styles.pendingHeaderRow}>
-          <span style={styles.pendingTitle}>나중에 입력 리스트</span>
-          <span style={styles.pendingCount}>{pendingCount}건</span>
-        </div>
-
-        {pendingCount === 0 ? (
-          <div style={styles.pendingEmpty}>
-            보류 중인 항목이 없습니다. 필요할 때 지출 입력 화면에서
-            &quot;나중에 입력&quot;을 눌러보세요.
-          </div>
-        ) : (
-          <>
-            {isPendingHeavy && (
-              <div style={styles.pendingWarn}>
-                ⚠️ 나중에 입력이 {pendingCount}건 쌓였습니다. 주말에 한 번 정리해
-                보세요.
-              </div>
-            )}
-            <div style={styles.pendingList}>
-              {pendingList.map((p) => (
-                <div key={p.id} style={styles.pendingRow}>
-                  <div style={styles.pendingMain}>
-                    <span style={styles.pendingNote}>{p.note}</span>
-                    {p.amount !== undefined && (
-                      <span style={styles.pendingAmount}>
-                        {p.amount.toLocaleString()}원
-                      </span>
-                    )}
-                  </div>
-                  <div style={styles.pendingSub}>
-                    <span>{p.createdAt.slice(0, 10)}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePending(p.id)}
-                      style={styles.pendingDeleteBtn}
-                    >
-                      삭제
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={handleClearPending}
-              style={styles.pendingClearBtn}
-            >
-              리스트 전체 비우기
-            </button>
-          </>
-        )}
-      </section>
-
-      {/* 최근 지출 로그 */}
-      <section style={styles.txSection}>
-        <div style={styles.txHeaderRow}>
-          <span style={styles.txTitle}>최근 지출 로그</span>
-          <span style={styles.txCount}>
-            {gameState.transactions.length}건
-          </span>
-        </div>
-        {gameState.transactions.length === 0 ? (
-          <div style={styles.txEmpty}>아직 기록된 지출이 없습니다.</div>
-        ) : (
-          <div>
-            {recentTransactions.map((tx) => (
-              <div key={tx.id} style={styles.txRow}>
-                <div style={styles.txRowMain}>
-                  <span style={styles.txAmount}>
-                    {tx.amount.toLocaleString()}원
-                  </span>
-                  <span style={styles.txCategory}>
-                    {tx.isFixedCost ? '고정비' : '비고정비'}
-                  </span>
-                </div>
-                <div style={styles.txRowSub}>
-                  <span>{tx.date}</span>
-                  {tx.note && <span> · {tx.note}</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <button
+          type="button"
+          style={styles.quickNavBtn}
+          onClick={() => setIsRecordsModalOpen(true)}
+        >
+          📜 기록 · 나중입력
+        </button>
       </section>
 
       {/* 피드백 영역 */}
@@ -672,7 +516,7 @@ export const MoneyRoomPage: React.FC = () => {
         {feedbackMsg === '던전에 입장했습니다.' ? theme.message : feedbackMsg}
       </div>
 
-      {/* 액션 버튼 */}
+      {/* 메인 액션 버튼 */}
       <footer style={styles.actionArea}>
         <button onClick={handleOpenSpendModal} style={styles.btnHit}>
           🔥 지출 입력
@@ -684,6 +528,264 @@ export const MoneyRoomPage: React.FC = () => {
           🌙 오늘 마감하기
         </button>
       </footer>
+
+      {/* 🎒 인벤토리 · 정화 모달 (정화 루프 + 장비) */}
+      {isInventoryModalOpen && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCardLarge}>
+            <h2 style={styles.modalTitle}>인벤토리 · 정화</h2>
+            <div style={styles.modalScrollArea}>
+              <section style={styles.purifySection}>
+                <div style={styles.purifyHeader}>
+                  <span style={styles.purifyTitle}>정화 루프</span>
+                  <span style={styles.purifySubtitle}>
+                    Junk + Salt + MP → pureEssence
+                  </span>
+                </div>
+                <div style={styles.purifyStatsRow}>
+                  <span>Junk: {junk}</span>
+                  <span>Salt: {salt}</span>
+                  <span>Dust: {dust}</span>
+                  <span>Essence: {pureEssence}</span>
+                </div>
+                <button
+                  onClick={handlePurify}
+                  disabled={!canPurify}
+                  style={{
+                    ...styles.btnPurify,
+                    opacity: canPurify ? 1 : 0.5,
+                    cursor: canPurify ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  🔄 정화 1회 (Junk 1 + Salt 1 + MP 1)
+                </button>
+              </section>
+
+              <section style={styles.eqSection}>
+                <div style={styles.eqHeader}>
+                  <span style={styles.eqTitle}>장비 & 인벤토리</span>
+                  <span style={styles.eqSubtitle}>
+                    pureEssence {GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE}개 → 잔잔한
+                    장부검
+                  </span>
+                </div>
+                <div style={styles.eqStatsRow}>
+                  <span>보유 Essence: {pureEssence}</span>
+                  <span>장비 개수: {equipment.length}</span>
+                </div>
+                <div style={styles.eqList}>
+                  {equipment.length === 0 ? (
+                    <div style={styles.eqEmpty}>
+                      아 아직 제작된 장비가 없습니다.
+                    </div>
+                  ) : (
+                    equipment.map((name, idx) => (
+                      <div key={`${name}-${idx}`} style={styles.eqItem}>
+                        <span style={styles.eqItemName}>{name}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <button
+                  onClick={handleCraftSword}
+                  disabled={!canCraftSword}
+                  style={{
+                    ...styles.btnCraft,
+                    opacity: canCraftSword ? 1 : 0.5,
+                    cursor: canCraftSword ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  ⚒ 장비 제작 (잔잔한 장부검)
+                </button>
+              </section>
+            </div>
+            <div style={styles.modalFooterRow}>
+              <button
+                type="button"
+                onClick={() => setIsInventoryModalOpen(false)}
+                style={styles.btnSecondary}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🏰 자산의 왕국 모달 */}
+      {isKingdomModalOpen && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCardLarge}>
+            <h2 style={styles.modalTitle}>자산의 왕국</h2>
+            <div style={styles.modalScrollArea}>
+              <section style={styles.assetSection}>
+                <div style={styles.assetHeader}>
+                  <span style={styles.assetTitle}>자산의 왕국</span>
+                  <span style={styles.assetSubtitle}>
+                    금액이 아니라 “횟수”로 성장하는 작은 왕국들
+                  </span>
+                </div>
+                <div style={styles.assetList}>
+                  {assetBuildings.map((b) => {
+                    const ratio =
+                      b.nextTarget === null || b.nextTarget === 0
+                        ? 1
+                        : Math.max(0, Math.min(1, b.count / b.nextTarget));
+                    const nextDiff =
+                      b.nextTarget === null
+                        ? null
+                        : Math.max(b.nextTarget - b.count, 0);
+
+                    return (
+                      <div key={b.id} style={styles.assetCard}>
+                        <div style={styles.assetCardHeader}>
+                          <span style={styles.assetLabel}>{b.label}</span>
+                          <span style={styles.assetLevelBadge}>
+                            Lv.{b.level}
+                          </span>
+                        </div>
+                        <div style={styles.assetInfoRow}>
+                          <span>누적 횟수: {b.count}회</span>
+                          {nextDiff === null ? (
+                            <span style={styles.assetDoneText}>
+                              최대 레벨 달성
+                            </span>
+                          ) : (
+                            <span>다음 레벨까지 {nextDiff}회</span>
+                          )}
+                        </div>
+                        <div style={styles.assetProgressBg}>
+                          <div
+                            style={{
+                              ...styles.assetProgressFill,
+                              width: `${ratio * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            </div>
+            <div style={styles.modalFooterRow}>
+              <button
+                type="button"
+                onClick={() => setIsKingdomModalOpen(false)}
+                style={styles.btnSecondary}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📜 기록 · 나중입력 모달 */}
+      {isRecordsModalOpen && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCardLarge}>
+            <h2 style={styles.modalTitle}>기록 · 나중입력</h2>
+            <div style={styles.modalScrollArea}>
+              {/* 나중에 입력 리스트 */}
+              <section style={styles.pendingSection}>
+                <div style={styles.pendingHeaderRow}>
+                  <span style={styles.pendingTitle}>나중에 입력 리스트</span>
+                  <span style={styles.pendingCount}>{pendingCount}건</span>
+                </div>
+
+                {pendingCount === 0 ? (
+                  <div style={styles.pendingEmpty}>
+                    보류 중인 항목이 없습니다. 필요할 때 지출 입력 화면에서
+                    &quot;나중에 입력&quot;을 눌러보세요.
+                  </div>
+                ) : (
+                  <>
+                    {isPendingHeavy && (
+                      <div style={styles.pendingWarn}>
+                        ⚠️ 나중에 입력이 {pendingCount}건 쌓였습니다. 주말에 한
+                        번 정리해 보세요.
+                      </div>
+                    )}
+                    <div style={styles.pendingList}>
+                      {pendingList.map((p) => (
+                        <div key={p.id} style={styles.pendingRow}>
+                          <div style={styles.pendingMain}>
+                            <span style={styles.pendingNote}>{p.note}</span>
+                            {p.amount !== undefined && (
+                              <span style={styles.pendingAmount}>
+                                {p.amount.toLocaleString()}원
+                              </span>
+                            )}
+                          </div>
+                          <div style={styles.pendingSub}>
+                            <span>{p.createdAt.slice(0, 10)}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePending(p.id)}
+                              style={styles.pendingDeleteBtn}
+                            >
+                              삭제
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleClearPending}
+                      style={styles.pendingClearBtn}
+                    >
+                      리스트 전체 비우기
+                    </button>
+                  </>
+                )}
+              </section>
+
+              {/* 최근 지출 로그 */}
+              <section style={styles.txSection}>
+                <div style={styles.txHeaderRow}>
+                  <span style={styles.txTitle}>최근 지출 로그</span>
+                  <span style={styles.txCount}>
+                    {gameState.transactions.length}건
+                  </span>
+                </div>
+                {gameState.transactions.length === 0 ? (
+                  <div style={styles.txEmpty}>아직 기록된 지출이 없습니다.</div>
+                ) : (
+                  <div>
+                    {recentTransactions.map((tx) => (
+                      <div key={tx.id} style={styles.txRow}>
+                        <div style={styles.txRowMain}>
+                          <span style={styles.txAmount}>
+                            {tx.amount.toLocaleString()}원
+                          </span>
+                          <span style={styles.txCategory}>
+                            {tx.isFixedCost ? '고정비' : '비고정비'}
+                          </span>
+                        </div>
+                        <div style={styles.txRowSub}>
+                          <span>{tx.date}</span>
+                          {tx.note && <span> · {tx.note}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+            <div style={styles.modalFooterRow}>
+              <button
+                type="button"
+                onClick={() => setIsRecordsModalOpen(false)}
+                style={styles.btnSecondary}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 지출 입력 모달 */}
       {isSpendModalOpen && (
@@ -796,7 +898,7 @@ export const MoneyRoomPage: React.FC = () => {
       {/* 직업 선택 모달 */}
       {isClassModalOpen && (
         <div style={styles.modalOverlay}>
-          <div style={styles.modalCard}>
+          <div style={styles.modalCardLarge}>
             <h2 style={styles.modalTitle}>직업 선택</h2>
             <p
               style={{
@@ -838,7 +940,7 @@ export const MoneyRoomPage: React.FC = () => {
               })}
             </div>
 
-            <div style={styles.modalButtonRow}>
+            <div style={styles.modalFooterRow}>
               <button onClick={handleCloseClassModal} style={styles.btnSecondary}>
                 닫기
               </button>
@@ -889,7 +991,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '12px',
   },
   heroSection: {
-    marginBottom: '30px',
+    marginBottom: '20px',
   },
   hpLabel: {
     display: 'flex',
@@ -919,7 +1021,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr 1fr',
     gap: '10px',
-    marginBottom: '16px',
+    marginBottom: '12px',
   },
   statBox: {
     backgroundColor: '#1f2937',
@@ -940,6 +1042,78 @@ const styles: Record<string, React.CSSProperties> = {
   statMax: {
     fontSize: '12px',
     color: '#6b7280',
+  },
+
+  // 아래 탭 버튼
+  quickNavRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr 1fr',
+    gap: '6px',
+    marginBottom: '16px',
+  },
+  quickNavBtn: {
+    padding: '8px 6px',
+    borderRadius: '999px',
+    border: '1px solid #374151',
+    backgroundColor: '#020617',
+    color: '#e5e7eb',
+    fontSize: '11px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+
+  feedbackArea: {
+    flexGrow: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    color: '#d1d5db',
+    marginBottom: '16px',
+    border: '1px dashed #374151',
+    borderRadius: '8px',
+    padding: '16px',
+  },
+  actionArea: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '10px',
+    marginTop: '4px',
+  },
+  btnHit: {
+    padding: '15px',
+    border: 'none',
+    borderRadius: '12px',
+    backgroundColor: '#ef4444',
+    color: 'white',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 4px 0 #b91c1c',
+  },
+  btnGuard: {
+    padding: '15px',
+    border: 'none',
+    borderRadius: '12px',
+    backgroundColor: '#3b82f6',
+    color: 'white',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 4px 0 #1d4ed8',
+  },
+  btnDayEnd: {
+    gridColumn: '1 / span 2',
+    padding: '12px',
+    border: 'none',
+    borderRadius: '10px',
+    backgroundColor: '#111827',
+    color: '#e5e7eb',
+    fontSize: '14px',
+    cursor: 'pointer',
+    marginTop: '4px',
+    borderTop: '1px solid #374151',
   },
 
   // PURIFY
@@ -981,7 +1155,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   // EQUIPMENT
   eqSection: {
-    marginBottom: '16px',
+    marginBottom: '8px',
     padding: '12px',
     borderRadius: '12px',
     backgroundColor: '#020617',
@@ -1035,7 +1209,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   // 자산의 왕국
   assetSection: {
-    marginBottom: '20px',
+    marginBottom: '8px',
     padding: '12px',
     borderRadius: '12px',
     backgroundColor: '#020617',
@@ -1107,7 +1281,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   // PENDING
   pendingSection: {
-    marginBottom: '20px',
+    marginBottom: '12px',
     padding: '12px',
     borderRadius: '12px',
     backgroundColor: '#020617',
@@ -1150,10 +1324,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   pendingMain: {
     display: 'flex',
-    justifyContent: 'spaceBetween',
+    justifyContent: 'space-between',
     alignItems: 'baseline',
     marginBottom: '2px',
-  } as React.CSSProperties,
+  },
   pendingNote: {
     fontSize: '12px',
     color: '#e5e7eb',
@@ -1191,11 +1365,11 @@ const styles: Record<string, React.CSSProperties> = {
 
   // Transaction Log
   txSection: {
-    marginBottom: '20px',
+    marginBottom: '8px',
     padding: '12px',
     borderRadius: '12px',
     backgroundColor: '#111827',
-    border: '1px solid #374151',
+    border: '1px solid '#374151',
   },
   txHeaderRow: {
     display: 'flex',
@@ -1241,61 +1415,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#6b7280',
   },
 
-  feedbackArea: {
-    flexGrow: 1,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    textAlign: 'center',
-    fontStyle: 'italic',
-    color: '#d1d5db',
-    marginBottom: '20px',
-    border: '1px dashed #374151',
-    borderRadius: '8px',
-    padding: '20px',
-  },
-  actionArea: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '10px',
-    marginTop: '4px',
-  },
-  btnHit: {
-    padding: '15px',
-    border: 'none',
-    borderRadius: '12px',
-    backgroundColor: '#ef4444',
-    color: 'white',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    boxShadow: '0 4px 0 #b91c1c',
-  },
-  btnGuard: {
-    padding: '15px',
-    border: 'none',
-    borderRadius: '12px',
-    backgroundColor: '#3b82f6',
-    color: 'white',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    boxShadow: '0 4px 0 #1d4ed8',
-  },
-  btnDayEnd: {
-    gridColumn: '1 / span 2',
-    padding: '12px',
-    border: 'none',
-    borderRadius: '10px',
-    backgroundColor: '#111827',
-    color: '#e5e7eb',
-    fontSize: '14px',
-    cursor: 'pointer',
-    marginTop: '4px',
-    borderTop: '1px solid #374151',
-  },
-
-  // 모달
+  // 공통 모달
   modalOverlay: {
     position: 'fixed',
     inset: 0,
@@ -1315,9 +1435,32 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid #1f2937',
     color: '#e5e7eb',
   },
+  modalCardLarge: {
+    width: '100%',
+    maxWidth: '380px',
+    maxHeight: '80vh',
+    backgroundColor: '#020617',
+    borderRadius: '16px',
+    padding: '16px 16px 12px',
+    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+    border: '1px solid #1f2937',
+    color: '#e5e7eb',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  modalScrollArea: {
+    flex: 1,
+    overflowY: 'auto',
+    marginTop: '8px',
+  },
+  modalFooterRow: {
+    marginTop: '12px',
+    display: 'flex',
+    justifyContent: 'flex-end',
+  },
   modalTitle: {
     fontSize: '18px',
-    marginBottom: '16px',
+    marginBottom: '8px',
   },
   modalRow: {
     marginBottom: '12px',
@@ -1374,7 +1517,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
-    marginBottom: '12px',
+    marginBottom: '8px',
   },
   classOptionCard: {
     width: '100%',
