@@ -131,6 +131,12 @@ export const MoneyRoomPage: React.FC = () => {
         </div>
       </section>
 
+      {/* --- FEEDBACK AREA --- */}
+      {/* 테마별 메시지 우선 노출, 이후 사용자 액션 피드백 노출 */}
+      <div style={{...styles.feedbackArea, borderColor: theme.color}}>
+         {feedbackMsg === "던전에 입장했습니다." ? theme.message : feedbackMsg}
+      </div>
+
       {/* --- STATS: MP & DEF --- */}
       <section style={styles.statsGrid}>
         <div style={styles.statBox}>
