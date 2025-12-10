@@ -1,17 +1,19 @@
+// src/money/constants.ts
+
 export const GAME_CONSTANTS = {
   MAX_MP: 30,
   HP_WARNING_THRESHOLD: 30, // 30% 미만 시 경고
-  
+
   // 경제 관련
   JUNK_THRESHOLD: 5000, // 이 금액 이상 지출 시 Junk 획득
   DAILY_JUNK_LIMIT: 10, // 하루 최대 Junk 획득량
   DAILY_DEFENSE_LIMIT: 3, // 하루 최대 방어 인정 횟수
-  
+
   // 보상
   MP_RECOVERY_ACCESS: 1, // 접속 시 MP 회복
   MP_RECOVERY_DEFENSE: 1, // 방어 성공 시 MP 회복
   MP_RECOVERY_QUEST: 2,   // 퀘스트 완료 시 MP 회복
-  
+
   // 쿨타임 (ms 단위)
   ACCESS_COOLDOWN_MS: 3 * 60 * 60 * 1000, // 3시간
 };
