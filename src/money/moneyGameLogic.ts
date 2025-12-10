@@ -1,7 +1,6 @@
 // src/money/moneyGameLogic.ts
-
 import type { UserState } from './types';
-import { GAME_CONSTANTS } from './constants';
+import { GAME_CONSTANTS, CLASS_TYPES, type ClassType } from './constants';
 import { checkGuardianShield, getDruidRecoveryBonus } from './moneyClassLogic';
 import { getLunaMode } from './moneyLuna';
 
@@ -382,8 +381,8 @@ export interface AssetBuildingView {
   id: string;
   kind: AssetBuildingKind;
   label: string;
-  level: number;           // 1 ~ 4
-  count: number;           // 해당 빌딩의 기준이 되는 "횟수"
+  level: number;             // 1 ~ 4
+  count: number;             // 해당 빌딩의 기준이 되는 "횟수"
   nextTarget: number | null; // 다음 레벨까지 필요한 누적 횟수(없으면 null)
 }
 
@@ -457,4 +456,55 @@ export const getAssetBuildingsView = (state: UserState): AssetBuildingView[] => 
       nextTarget: towerNext,
     },
   ];
+};
+
+/**
+ * 직업 변경 (Change Class)
+ * - 동일 직업 선택 시: 상태 변화 없음 + 안내 메시지
+ * - 다른 직업 선택 시: classType 변경 + level 1로 초기화
+ */
+export const changeClass = (
+  state: UserState,
+  newClass: ClassType
+): { newState: UserState; message: string } => {
+  const current = state.profile.classType;
+
+  if (current === newClass) {
+    return {
+      newState: state,
+      message: '이미 선택된 직업입니다. 변화는 적용되지 않았습니다.',
+    };
+  }
+
+  const newState: UserState = {
+    ...state,
+    profile: {
+      ...state.profile,
+      classType: newClass,
+      level: 1,
+    },
+  };
+
+  let classLabel = '';
+  switch (newClass) {
+    case CLASS_TYPES.GUARDIAN:
+      classLabel = '수호자';
+      break;
+    case CLASS_TYPES.SAGE:
+      classLabel = '현자';
+      break;
+    case CLASS_TYPES.ALCHEMIST:
+      classLabel = '연금술사';
+      break;
+    case CLASS_TYPES.DRUID:
+      classLabel = '드루이드';
+      break;
+    default:
+      classLabel = '모험가';
+  }
+
+  return {
+    newState,
+    message: `직업이 [${classLabel}]로 변경되었습니다. 레벨이 1로 초기화되었습니다.`,
+  };
 };
