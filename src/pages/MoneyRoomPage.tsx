@@ -11,6 +11,7 @@ import {
   getGuardPromptInfo,
   type GuardPromptInfo,
   applyDayEnd,
+  applyPurify,
 } from '../money/moneyGameLogic';
 import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
 
@@ -72,18 +73,25 @@ export const MoneyRoomPage: React.FC = () => {
   const [pendingSpendAmount, setPendingSpendAmount] = useState<number | null>(null);
   const [pendingIsFixedCost, setPendingIsFixedCost] = useState<boolean>(false);
 
-  // 1. HP 및 모드 계산
+  // 파생 값들
   const hp = getHp(gameState.budget.current, gameState.budget.total);
   const todayStr = new Date().toISOString().split('T')[0];
   const currentMode = getLunaMode(todayStr, gameState.luna.nextPeriodDate);
   const theme = getLunaTheme(currentMode);
 
-  // 2. 초기화 로직 (마운트 시 일일 리셋 체크)
+  const junk = gameState.inventory.junk;
+  const salt = gameState.inventory.salt;
+  const dust = gameState.inventory.shards['naturalDust'] ?? 0;
+  const pureEssence = gameState.inventory.materials['pureEssence'] ?? 0;
+  const canPurify =
+    junk > 0 && salt > 0 && gameState.runtime.mp > 0;
+
+  // 마운트 시 일일 리셋
   useEffect(() => {
     setGameState((prev) => checkDailyReset(prev));
   }, []);
 
-  // 3. UI 헬퍼
+  // UI 헬퍼
   const getHpColor = (hp: number) => {
     if (hp > 50) return '#4ade80'; // Green
     if (hp > 30) return '#facc15'; // Yellow
@@ -127,14 +135,12 @@ export const MoneyRoomPage: React.FC = () => {
       return;
     }
 
-    // Guard Prompt 정보 계산
     const info = getGuardPromptInfo(gameState, amount, isFixedCostInput);
     setPendingSpendAmount(amount);
     setPendingIsFixedCost(isFixedCostInput);
     setIsSpendModalOpen(false);
 
     if (info.shouldShow) {
-      // 오늘 첫 Guard Prompt → 모달 표시 + 플래그 true
       setGuardInfo(info);
       setIsGuardPromptOpen(true);
       setGameState((prev) => ({
@@ -145,7 +151,6 @@ export const MoneyRoomPage: React.FC = () => {
         },
       }));
     } else {
-      // Guard Prompt 없이 바로 Hit 적용 + 로그 생성
       const tx: Transaction = {
         id: generateId(),
         amount,
@@ -245,6 +250,13 @@ export const MoneyRoomPage: React.FC = () => {
     setFeedbackMsg(message);
   };
 
+  // --- 정화(Purify) ---
+  const handlePurify = () => {
+    const { newState, message } = applyPurify(gameState);
+    setGameState(newState);
+    setFeedbackMsg(message);
+  };
+
   // 최근 N개 지출
   const recentTransactions = [...gameState.transactions]
     .slice(-5)
@@ -309,6 +321,31 @@ export const MoneyRoomPage: React.FC = () => {
           <div style={styles.statLabel}>Junk</div>
           <div style={styles.statValue}>{gameState.inventory.junk}</div>
         </div>
+      </section>
+
+      {/* --- PURIFY SECTION --- */}
+      <section style={styles.purifySection}>
+        <div style={styles.purifyHeader}>
+          <span style={styles.purifyTitle}>정화 루프</span>
+          <span style={styles.purifySubtitle}>Junk + Salt + MP → Material</span>
+        </div>
+        <div style={styles.purifyStatsRow}>
+          <span>Junk: {junk}</span>
+          <span>Salt: {salt}</span>
+          <span>Dust: {dust}</span>
+          <span>Essence: {pureEssence}</span>
+        </div>
+        <button
+          onClick={handlePurify}
+          disabled={!canPurify}
+          style={{
+            ...styles.btnPurify,
+            opacity: canPurify ? 1 : 0.5,
+            cursor: canPurify ? 'pointer' : 'not-allowed',
+          }}
+        >
+          🔄 정화 1회 (Junk 1 + Salt 1 + MP 1)
+        </button>
       </section>
 
       {/* --- TRANSACTION LOG --- */}
@@ -511,7 +548,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr 1fr',
     gap: '10px',
-    marginBottom: '20px',
+    marginBottom: '16px',
   },
   statBox: {
     backgroundColor: '#1f2937',
@@ -532,6 +569,43 @@ const styles: Record<string, React.CSSProperties> = {
   statMax: {
     fontSize: '12px',
     color: '#6b7280',
+  },
+
+  // --- PURIFY ---
+  purifySection: {
+    marginBottom: '20px',
+    padding: '12px',
+    borderRadius: '12px',
+    backgroundColor: '#020617',
+    border: '1px solid #374151',
+  },
+  purifyHeader: {
+    marginBottom: '6px',
+  },
+  purifyTitle: {
+    fontSize: '13px',
+    fontWeight: 600,
+  },
+  purifySubtitle: {
+    fontSize: '11px',
+    color: '#9ca3af',
+  },
+  purifyStatsRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '11px',
+    color: '#e5e7eb',
+    marginTop: '6px',
+    marginBottom: '10px',
+  },
+  btnPurify: {
+    width: '100%',
+    padding: '10px',
+    borderRadius: '10px',
+    border: '1px solid #4b5563',
+    backgroundColor: '#020617',
+    color: '#e5e7eb',
+    fontSize: '13px',
   },
 
   // --- Transaction Log ---
