@@ -289,3 +289,49 @@ export const applyDayEnd = (
     message: '오늘은 지출이 있었습니다. Natural Dust 1개를 획득했습니다.',
   };
 };
+
+/**
+ * 정화(Purify) 루프
+ * - 비용: Junk 1개 + Salt 1개 + MP 1
+ * - 보상: materials['pureEssence'] 1개
+ * - 자원이 부족하면 state 그대로 + 안내 메시지
+ */
+export const applyPurify = (
+  state: UserState
+): { newState: UserState; message: string } => {
+  const { junk, salt, materials } = state.inventory;
+  const { mp } = state.runtime;
+
+  const canPurify = junk > 0 && salt > 0 && mp > 0;
+
+  if (!canPurify) {
+    return {
+      newState: state,
+      message: '정화에 필요한 자원이 부족합니다. (Junk, Salt, MP를 확인하세요.)',
+    };
+  }
+
+  const prevEssence = materials['pureEssence'] ?? 0;
+
+  const newState: UserState = {
+    ...state,
+    runtime: {
+      ...state.runtime,
+      mp: mp - 1,
+    },
+    inventory: {
+      ...state.inventory,
+      junk: junk - 1,
+      salt: salt - 1,
+      materials: {
+        ...materials,
+        pureEssence: prevEssence + 1,
+      },
+    },
+  };
+
+  return {
+    newState,
+    message: '정화 완료. Material [pureEssence] 1개를 획득했습니다.',
+  };
+};
