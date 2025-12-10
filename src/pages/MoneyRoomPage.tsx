@@ -10,6 +10,9 @@ import {
 } from '../money/moneyGameLogic';
 import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
 import InventoryModal from '../money/components/InventoryModal';
+import KingdomModal, {
+  KingdomBuilding,
+} from '../money/components/KingdomModal';
 
 // [MOCK DATA] 초기 상태
 const INITIAL_STATE: UserState = {
@@ -51,6 +54,7 @@ export const MoneyRoomPage: React.FC = () => {
   const [feedbackMsg, setFeedbackMsg] =
     useState<string>('던전에 입장했습니다.');
   const [isInventoryModalOpen, setIsInventoryModalOpen] = useState(false);
+  const [isKingdomModalOpen, setIsKingdomModalOpen] = useState(false);
 
   // 1. HP 및 모드 계산
   const hp = getHp(gameState.budget.current, gameState.budget.total);
@@ -89,8 +93,7 @@ export const MoneyRoomPage: React.FC = () => {
 
   // 4. 행동 핸들러 (지출 / 방어)
   const handleSpend = () => {
-    // 테스트: 3000원 지출 (수호자라면 방어됨)
-    const spendAmount = 3000;
+    const spendAmount = 3000; // 테스트용
 
     const { newState, message } = applySpend(gameState, spendAmount, false);
 
@@ -125,7 +128,6 @@ export const MoneyRoomPage: React.FC = () => {
   const canCraftSword = pureEssence >= 3; // 우선 고정 비용 3개로 가정
 
   const handlePurify = () => {
-    // 최소 조건 체크
     if (!canPurify) {
       setFeedbackMsg('정화를 진행할 조건이 부족합니다.');
       return;
@@ -183,11 +185,28 @@ export const MoneyRoomPage: React.FC = () => {
     setFeedbackMsg('장비 제작 완료: 잔잔한 장부검을 얻었습니다.');
   };
 
+  // 6. 자산의 왕국 파생값 (임시 규칙)
+  const buildings: KingdomBuilding[] = [
+    {
+      id: 'fortress',
+      name: '요새',
+      type: 'FORTRESS',
+      level:
+        1 + Math.min(3, Math.floor(gameState.counters.noSpendStreak / 10)),
+      streak: gameState.counters.noSpendStreak,
+    },
+    {
+      id: 'tower',
+      name: '마법탑',
+      type: 'TOWER',
+      level: 1 + Math.min(3, Math.floor(gameState.stats.creditScore / 100)),
+      streak: gameState.stats.creditScore,
+    },
+  ];
+
   return (
     <>
-      <div
-        style={{ ...styles.container, backgroundColor: theme.bgColor }}
-      >
+      <div style={{ ...styles.container, backgroundColor: theme.bgColor }}>
         {/* --- HEADER --- */}
         <header style={styles.header}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -278,6 +297,12 @@ export const MoneyRoomPage: React.FC = () => {
           >
             🎒 인벤토리
           </button>
+          <button
+            onClick={() => setIsKingdomModalOpen(true)}
+            style={styles.btnGuard}
+          >
+            🏰 자산의 왕국
+          </button>
         </footer>
       </div>
 
@@ -294,6 +319,13 @@ export const MoneyRoomPage: React.FC = () => {
         canCraft={canCraftSword}
         onPurify={handlePurify}
         onCraft={handleCraftSword}
+      />
+
+      {/* 자산의 왕국 모달 */}
+      <KingdomModal
+        open={isKingdomModalOpen}
+        onClose={() => setIsKingdomModalOpen(false)}
+        buildings={buildings}
       />
     </>
   );
