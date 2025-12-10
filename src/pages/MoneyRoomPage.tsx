@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { GAME_CONSTANTS, CLASS_TYPES, type ClassType } from '../money/constants';
-import type { UserState } from '../money/types';
+import type { UserState, Transaction } from '../money/types';
 import {
   getHp,
   applySpend,
@@ -12,6 +12,10 @@ import {
   type GuardPromptInfo,
 } from '../money/moneyGameLogic';
 import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
+
+// 간단한 ID 생성기
+const generateId = () =>
+  `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 // [MOCK DATA] 초기 상태
 const INITIAL_STATE: UserState = {
@@ -47,6 +51,7 @@ const INITIAL_STATE: UserState = {
     collection: [],
   },
   pending: [],
+  transactions: [],
 };
 
 export const MoneyRoomPage: React.FC = () => {
@@ -138,12 +143,29 @@ export const MoneyRoomPage: React.FC = () => {
         },
       }));
     } else {
-      // Guard Prompt 없이 바로 Hit 적용
+      // Guard Prompt 없이 바로 Hit 적용 + 로그 생성
+      const tx: Transaction = {
+        id: generateId(),
+        amount,
+        category: isFixedCostInput ? '고정비' : '기타',
+        date: todayStr,
+        note: spendNoteInput,
+        tags: [],
+        isFixedCost: isFixedCostInput,
+      };
+
       const { newState, message } = applySpend(gameState, amount, isFixedCostInput);
-      setGameState(newState);
+
+      const nextTransactions = [...gameState.transactions, tx];
+
+      setGameState({
+        ...newState,
+        transactions: nextTransactions,
+      });
       setFeedbackMsg(message);
       setGuardInfo(null);
       setIsGuardPromptOpen(false);
+      setPendingSpendAmount(null);
     }
   };
 
@@ -155,15 +177,34 @@ export const MoneyRoomPage: React.FC = () => {
       return;
     }
 
+    const amount = pendingSpendAmount;
+
+    const tx: Transaction = {
+      id: generateId(),
+      amount,
+      category: pendingIsFixedCost ? '고정비' : '기타',
+      date: todayStr,
+      note: spendNoteInput,
+      tags: [],
+      isFixedCost: pendingIsFixedCost,
+    };
+
     const { newState, message } = applySpend(
       gameState,
-      pendingSpendAmount,
+      amount,
       pendingIsFixedCost
     );
-    setGameState(newState);
+
+    const nextTransactions = [...gameState.transactions, tx];
+
+    setGameState({
+      ...newState,
+      transactions: nextTransactions,
+    });
     setFeedbackMsg(message);
     setIsGuardPromptOpen(false);
     setGuardInfo(null);
+    setPendingSpendAmount(null);
   };
 
   // --- Guard Prompt: 취소 후 방어 ---
@@ -179,6 +220,7 @@ export const MoneyRoomPage: React.FC = () => {
     }
     setIsGuardPromptOpen(false);
     setGuardInfo(null);
+    setPendingSpendAmount(null);
   };
 
   // --- 일반 방어 버튼 (No-Spend Guard) ---
@@ -193,6 +235,11 @@ export const MoneyRoomPage: React.FC = () => {
       `방어 성공. MP가 회복되었습니다. (${nextState.counters.defenseActionsToday}/${GAME_CONSTANTS.DAILY_DEFENSE_LIMIT})`
     );
   };
+
+  // 최근 N개 지출
+  const recentTransactions = [...gameState.transactions]
+    .slice(-5)
+    .reverse();
 
   return (
     <div style={{ ...styles.container, backgroundColor: theme.bgColor }}>
@@ -253,6 +300,36 @@ export const MoneyRoomPage: React.FC = () => {
           <div style={styles.statLabel}>Junk</div>
           <div style={styles.statValue}>{gameState.inventory.junk}</div>
         </div>
+      </section>
+
+      {/* --- TRANSACTION LOG --- */}
+      <section style={styles.txSection}>
+        <div style={styles.txHeaderRow}>
+          <span style={styles.txTitle}>최근 지출 로그</span>
+          <span style={styles.txCount}>{gameState.transactions.length}건</span>
+        </div>
+        {gameState.transactions.length === 0 ? (
+          <div style={styles.txEmpty}>아직 기록된 지출이 없습니다.</div>
+        ) : (
+          <div>
+            {recentTransactions.map((tx) => (
+              <div key={tx.id} style={styles.txRow}>
+                <div style={styles.txRowMain}>
+                  <span style={styles.txAmount}>
+                    {tx.amount.toLocaleString()}원
+                  </span>
+                  <span style={styles.txCategory}>
+                    {tx.isFixedCost ? '고정비' : '비고정비'}
+                  </span>
+                </div>
+                <div style={styles.txRowSub}>
+                  <span>{tx.date}</span>
+                  {tx.note && <span> · {tx.note}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* --- FEEDBACK AREA --- */}
@@ -368,13 +445,13 @@ const styles: Record<string, React.CSSProperties> = {
   container: {
     maxWidth: '420px',
     margin: '0 auto',
-    color: '#f3f4f6',
+    color: '#111827',
     minHeight: '100vh',
     padding: '20px',
     fontFamily: 'sans-serif',
     display: 'flex',
     flexDirection: 'column',
-    transition: 'background-color 0.5s',
+    backgroundColor: '#020617',
   },
   header: {
     display: 'flex',
@@ -385,11 +462,13 @@ const styles: Record<string, React.CSSProperties> = {
   date: {
     fontSize: '18px',
     fontWeight: 'bold',
+    color: '#0f172a',
   },
   modeBadge: {
     padding: '4px 8px',
     borderRadius: '4px',
     fontSize: '12px',
+    backgroundColor: 'rgba(0,0,0,0.05)',
   },
   heroSection: {
     marginBottom: '30px',
@@ -400,11 +479,12 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '8px',
     fontWeight: 'bold',
     fontSize: '20px',
+    color: '#0f172a',
   },
   hpBarBg: {
     width: '100%',
     height: '24px',
-    backgroundColor: '#374151',
+    backgroundColor: '#e5e7eb',
     borderRadius: '12px',
     overflow: 'hidden',
   },
@@ -416,20 +496,20 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '8px',
     textAlign: 'right',
     fontSize: '12px',
-    color: '#9ca3af',
+    color: '#6b7280',
   },
   statsGrid: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr 1fr',
     gap: '10px',
-    marginBottom: '30px',
+    marginBottom: '20px',
   },
   statBox: {
-    backgroundColor: '#1f2937',
+    backgroundColor: '#f9fafb',
     padding: '15px',
     borderRadius: '10px',
     textAlign: 'center',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.03)',
   },
   statLabel: {
     fontSize: '12px',
@@ -439,11 +519,65 @@ const styles: Record<string, React.CSSProperties> = {
   statValue: {
     fontSize: '20px',
     fontWeight: 'bold',
+    color: '#111827',
   },
   statMax: {
     fontSize: '12px',
     color: '#6b7280',
   },
+
+  // --- Transaction Log ---
+  txSection: {
+    marginBottom: '20px',
+    padding: '12px',
+    borderRadius: '12px',
+    backgroundColor: '#f9fafb',
+    border: '1px solid #e5e7eb',
+  },
+  txHeaderRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '8px',
+  },
+  txTitle: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#111827',
+  },
+  txCount: {
+    fontSize: '11px',
+    color: '#6b7280',
+  },
+  txEmpty: {
+    fontSize: '12px',
+    color: '#9ca3af',
+    padding: '4px 0',
+  },
+  txRow: {
+    padding: '6px 0',
+    borderTop: '1px solid #e5e7eb',
+  },
+  txRowMain: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  txAmount: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#111827',
+  },
+  txCategory: {
+    fontSize: '11px',
+    color: '#6b7280',
+  },
+  txRowSub: {
+    marginTop: '2px',
+    fontSize: '11px',
+    color: '#9ca3af',
+  },
+
   feedbackArea: {
     flexGrow: 1,
     display: 'flex',
@@ -451,11 +585,12 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     textAlign: 'center',
     fontStyle: 'italic',
-    color: '#d1d5db',
+    color: '#4b5563',
     marginBottom: '20px',
-    border: '1px dashed #374151',
+    border: '1px dashed #d1d5db',
     borderRadius: '8px',
     padding: '20px',
+    backgroundColor: '#f9fafb',
   },
   actionArea: {
     display: 'grid',
@@ -503,6 +638,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '20px',
     boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
     border: '1px solid #1f2937',
+    color: '#e5e7eb',
   },
   modalTitle: {
     fontSize: '18px',
