@@ -1,256 +1,425 @@
-// src/money/components/InventoryModal.tsx
-import React from 'react';
-import { GAME_CONSTANTS } from '../constants';
+// src/pages/MoneyRoomPage.tsx
+import React, { useState, useEffect } from 'react';
+import { UserState } from '../money/types';
+import { GAME_CONSTANTS, CLASS_TYPES, ClassType } from '../money/constants';
+import {
+  getHp,
+  applySpend,
+  applyDefense,
+  checkDailyReset,
+} from '../money/moneyGameLogic';
+import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
+import InventoryModal from '../money/components/InventoryModal';
 
-interface InventoryModalProps {
-  open: boolean;
-  onClose: () => void;
+// [MOCK DATA] 초기 상태
+const INITIAL_STATE: UserState = {
+  profile: { name: 'Player 1', classType: CLASS_TYPES.GUARDIAN, level: 1 },
+  luna: {
+    nextPeriodDate: '2025-12-15', // 테스트용 PMS 날짜
+    averageCycle: 28,
+    isTracking: true,
+  },
+  budget: {
+    total: 1000000,
+    current: 850000,
+    fixedCost: 300000,
+    startDate: '2025-12-01',
+  },
+  stats: { def: 50, creditScore: 0 },
+  counters: {
+    defenseActionsToday: 0,
+    junkObtainedToday: 0,
+    lastAccessDate: null,
+    lastDailyResetDate: null,
+    noSpendStreak: 3,
+    lunaShieldsUsedThisMonth: 0,
+  },
+  runtime: { mp: 15 },
+  inventory: {
+    junk: 0,
+    salt: 0,
+    shards: {},
+    materials: {},
+    equipment: [],
+    collection: [],
+  },
+  pending: [],
+};
 
-  junk: number;
-  salt: number;
-  dust: number;
-  pureEssence: number;
-  equipment: string[];
+export const MoneyRoomPage: React.FC = () => {
+  const [gameState, setGameState] = useState<UserState>(INITIAL_STATE);
+  const [feedbackMsg, setFeedbackMsg] =
+    useState<string>('던전에 입장했습니다.');
+  const [isInventoryModalOpen, setIsInventoryModalOpen] = useState(false);
 
-  canPurify: boolean;
-  canCraft: boolean;
+  // 1. HP 및 모드 계산
+  const hp = getHp(gameState.budget.current, gameState.budget.total);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const currentMode = getLunaMode(todayStr, gameState.luna.nextPeriodDate);
+  const theme = getLunaTheme(currentMode);
 
-  onPurify: () => void;
-  onCraft: () => void;
-}
+  // 2. 접속 시 하루 리셋 로직
+  useEffect(() => {
+    const refreshedState = checkDailyReset(gameState);
+    setGameState(refreshedState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-const InventoryModal: React.FC<InventoryModalProps> = ({
-  open,
-  onClose,
-  junk,
-  salt,
-  dust,
-  pureEssence,
-  equipment,
-  canPurify,
-  canCraft,
-  onPurify,
-  onCraft,
-}) => {
-  if (!open) return null;
+  // 3. UI 헬퍼
+  const getHpColor = (hp: number) => {
+    if (hp > 50) return '#4ade80'; // Green
+    if (hp > 30) return '#facc15'; // Yellow
+    return '#ef4444'; // Red
+  };
+
+  const getClassBadge = (classType: ClassType | null) => {
+    switch (classType) {
+      case CLASS_TYPES.GUARDIAN:
+        return '🛡️ 수호자 Lv.1';
+      case CLASS_TYPES.SAGE:
+        return '🔮 현자 Lv.1';
+      case CLASS_TYPES.ALCHEMIST:
+        return '💰 연금술사 Lv.1';
+      case CLASS_TYPES.DRUID:
+        return '🌿 드루이드 Lv.1';
+      default:
+        return '👶 모험가';
+    }
+  };
+
+  // 4. 행동 핸들러 (지출 / 방어)
+  const handleSpend = () => {
+    // 테스트: 3000원 지출 (수호자라면 방어됨)
+    const spendAmount = 3000;
+
+    const { newState, message } = applySpend(gameState, spendAmount, false);
+
+    setGameState(newState);
+    setFeedbackMsg(message);
+  };
+
+  const handleDefense = () => {
+    if (
+      gameState.counters.defenseActionsToday >=
+      GAME_CONSTANTS.DAILY_DEFENSE_LIMIT
+    ) {
+      setFeedbackMsg('오늘의 방어 태세가 이미 한계에 도달했습니다.');
+      return;
+    }
+    const nextState = applyDefense(gameState);
+    setGameState(nextState);
+    setFeedbackMsg(
+      `방어 성공. MP가 회복되었습니다. (${nextState.counters.defenseActionsToday}/${GAME_CONSTANTS.DAILY_DEFENSE_LIMIT})`,
+    );
+  };
+
+  // 5. 인벤토리 / 정화 관련 파생값
+  const junk = gameState.inventory.junk;
+  const salt = gameState.inventory.salt;
+  const dust = gameState.inventory.materials['dust'] || 0;
+  const pureEssence = gameState.inventory.materials['pureEssence'] || 0;
+  const equipment = gameState.inventory.equipment;
+
+  const canPurify =
+    junk > 0 && salt > 0 && gameState.runtime.mp > 0; // 간단 조건
+  const canCraftSword = pureEssence >= 3; // 우선 고정 비용 3개로 가정
+
+  const handlePurify = () => {
+    // 최소 조건 체크
+    if (!canPurify) {
+      setFeedbackMsg('정화를 진행할 조건이 부족합니다.');
+      return;
+    }
+
+    setGameState((prev) => {
+      const prevDust = prev.inventory.materials['dust'] || 0;
+      const prevEss = prev.inventory.materials['pureEssence'] || 0;
+
+      return {
+        ...prev,
+        runtime: {
+          ...prev.runtime,
+          mp: Math.max(0, prev.runtime.mp - 1),
+        },
+        inventory: {
+          ...prev.inventory,
+          junk: Math.max(0, prev.inventory.junk - 1),
+          salt: Math.max(0, prev.inventory.salt - 1),
+          materials: {
+            ...prev.inventory.materials,
+            dust: prevDust + 1,
+            pureEssence: prevEss + 1,
+          },
+        },
+      };
+    });
+
+    setFeedbackMsg('정화 완료. pureEssence가 1 증가했습니다.');
+  };
+
+  const handleCraftSword = () => {
+    if (!canCraftSword) {
+      setFeedbackMsg('장비 제작에 필요한 pureEssence가 부족합니다.');
+      return;
+    }
+
+    setGameState((prev) => {
+      const prevEss = prev.inventory.materials['pureEssence'] || 0;
+      const newEss = Math.max(0, prevEss - 3);
+
+      return {
+        ...prev,
+        inventory: {
+          ...prev.inventory,
+          materials: {
+            ...prev.inventory.materials,
+            pureEssence: newEss,
+          },
+          equipment: [...prev.inventory.equipment, '잔잔한 장부검'],
+        },
+      };
+    });
+
+    setFeedbackMsg('장비 제작 완료: 잔잔한 장부검을 얻었습니다.');
+  };
 
   return (
-    <div style={styles.modalOverlay}>
-      <div style={styles.modalCardLarge}>
-        <h2 style={styles.modalTitle}>인벤토리 · 정화</h2>
-
-        <div style={styles.modalScrollArea}>
-          {/* 정화 루프 */}
-          <section style={styles.purifySection}>
-            <div style={styles.purifyHeader}>
-              <span style={styles.purifyTitle}>정화 루프</span>
-              <span style={styles.purifySubtitle}>
-                Junk + Salt + MP → pureEssence
-              </span>
-            </div>
-            <div style={styles.purifyStatsRow}>
-              <span>Junk: {junk}</span>
-              <span>Salt: {salt}</span>
-              <span>Dust: {dust}</span>
-              <span>Essence: {pureEssence}</span>
-            </div>
-            <button
-              onClick={onPurify}
-              disabled={!canPurify}
+    <>
+      <div
+        style={{ ...styles.container, backgroundColor: theme.bgColor }}
+      >
+        {/* --- HEADER --- */}
+        <header style={styles.header}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={styles.date}>{todayStr}</span>
+            <span
               style={{
-                ...styles.btnPurify,
-                opacity: canPurify ? 1 : 0.5,
-                cursor: canPurify ? 'pointer' : 'not-allowed',
+                fontSize: '14px',
+                color: '#60a5fa',
+                marginTop: '4px',
               }}
             >
-              🔄 정화 1회 (Junk 1 + Salt 1 + MP 1)
-            </button>
-          </section>
+              {getClassBadge(gameState.profile.classType)}
+            </span>
+          </div>
+          <span
+            style={{
+              ...styles.modeBadge,
+              color: theme.color,
+              border: `1px solid ${theme.color}`,
+            }}
+          >
+            {theme.label}
+          </span>
+        </header>
 
-          {/* 장비 & 인벤토리 */}
-          <section style={styles.eqSection}>
-            <div style={styles.eqHeader}>
-              <span style={styles.eqTitle}>장비 & 인벤토리</span>
-              <span style={styles.eqSubtitle}>
-                pureEssence {GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE}개 → 잔잔한 장부검
-              </span>
-            </div>
-            <div style={styles.eqStatsRow}>
-              <span>보유 Essence: {pureEssence}</span>
-              <span>장비 개수: {equipment.length}</span>
-            </div>
-            <div style={styles.eqList}>
-              {equipment.length === 0 ? (
-                <div style={styles.eqEmpty}>아직 제작된 장비가 없습니다.</div>
-              ) : (
-                equipment.map((name, idx) => (
-                  <div key={`${name}-${idx}`} style={styles.eqItem}>
-                    <span style={styles.eqItemName}>{name}</span>
-                  </div>
-                ))
-              )}
-            </div>
-            <button
-              onClick={onCraft}
-              disabled={!canCraft}
+        {/* --- HERO: HP BAR --- */}
+        <section style={styles.heroSection}>
+          <div style={styles.hpLabel}>
+            <span>HP (생존력)</span>
+            <span>{hp}%</span>
+          </div>
+          <div style={styles.hpBarBg}>
+            <div
               style={{
-                ...styles.btnCraft,
-                opacity: canCraft ? 1 : 0.5,
-                cursor: canCraft ? 'pointer' : 'not-allowed',
+                ...styles.hpBarFill,
+                width: `${hp}%`,
+                backgroundColor: getHpColor(hp),
               }}
-            >
-              ⚒ 장비 제작 (잔잔한 장부검)
-            </button>
-          </section>
+            />
+          </div>
+          <div style={styles.budgetDetail}>
+            {gameState.budget.current.toLocaleString()} /{' '}
+            {gameState.budget.total.toLocaleString()}
+          </div>
+        </section>
+
+        {/* --- STATS GRID --- */}
+        <section style={styles.statsGrid}>
+          <div style={styles.statBox}>
+            <div style={styles.statLabel}>MP</div>
+            <div style={styles.statValue}>
+              <span style={{ color: '#60a5fa' }}>
+                {gameState.runtime.mp}
+              </span>
+              <span style={styles.statMax}> / {GAME_CONSTANTS.MAX_MP}</span>
+            </div>
+          </div>
+          <div style={styles.statBox}>
+            <div style={styles.statLabel}>DEF</div>
+            <div style={styles.statValue}>{gameState.stats.def}</div>
+          </div>
+          <div style={styles.statBox}>
+            <div style={styles.statLabel}>Junk</div>
+            <div style={styles.statValue}>{gameState.inventory.junk}</div>
+          </div>
+        </section>
+
+        {/* --- FEEDBACK AREA --- */}
+        <div
+          style={{ ...styles.feedbackArea, borderColor: theme.color }}
+        >
+          {feedbackMsg === '던전에 입장했습니다.'
+            ? theme.message
+            : feedbackMsg}
         </div>
 
-        <div style={styles.modalFooterRow}>
-          <button type="button" onClick={onClose} style={styles.btnSecondary}>
-            닫기
+        {/* --- ACTIONS --- */}
+        <footer style={styles.actionArea}>
+          <button onClick={handleSpend} style={styles.btnHit}>
+            🔥 지출 (Hit 3k)
           </button>
-        </div>
+          <button onClick={handleDefense} style={styles.btnGuard}>
+            🛡️ 방어 (Guard)
+          </button>
+          <button
+            onClick={() => setIsInventoryModalOpen(true)}
+            style={styles.btnInventory}
+          >
+            🎒 인벤토리
+          </button>
+        </footer>
       </div>
-    </div>
+
+      {/* 인벤토리 / 정화 모달 */}
+      <InventoryModal
+        open={isInventoryModalOpen}
+        onClose={() => setIsInventoryModalOpen(false)}
+        junk={junk}
+        salt={salt}
+        dust={dust}
+        pureEssence={pureEssence}
+        equipment={equipment}
+        canPurify={canPurify}
+        canCraft={canCraftSword}
+        onPurify={handlePurify}
+        onCraft={handleCraftSword}
+      />
+    </>
   );
 };
 
+// --- 스타일 ---
 const styles: Record<string, React.CSSProperties> = {
-  modalOverlay: {
-    position: 'fixed',
-    inset: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 50,
-  },
-  modalCardLarge: {
-    width: '100%',
-    maxWidth: '380px',
-    maxHeight: '80vh',
-    backgroundColor: '#020617',
-    borderRadius: '16px',
-    padding: '16px 16px 12px',
-    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-    border: '1px solid #1f2937',
-    color: '#e5e7eb',
+  container: {
+    maxWidth: '420px',
+    margin: '0 auto',
+    color: '#f3f4f6',
+    minHeight: '100vh',
+    padding: '20px',
+    fontFamily: 'sans-serif',
     display: 'flex',
     flexDirection: 'column',
+    transition: 'background-color 0.5s',
   },
-  modalTitle: {
-    fontSize: '18px',
-    marginBottom: '8px',
-  },
-  modalScrollArea: {
-    flex: 1,
-    overflowY: 'auto',
-    marginTop: '8px',
-  },
-  modalFooterRow: {
-    marginTop: '12px',
-    display: 'flex',
-    justifyContent: 'flex-end',
-  },
-  btnSecondary: {
-    padding: '8px 12px',
-    borderRadius: '10px',
-    border: '1px solid #4b5563',
-    backgroundColor: '#020617',
-    color: '#e5e7eb',
-    fontSize: '13px',
-    cursor: 'pointer',
-  },
-
-  // 정화 섹션
-  purifySection: {
-    marginBottom: '16px',
-    padding: '12px',
-    borderRadius: '12px',
-    backgroundColor: '#020617',
-    border: '1px solid #374151',
-  },
-  purifyHeader: {
-    marginBottom: '6px',
-  },
-  purifyTitle: {
-    fontSize: '13px',
-    fontWeight: 600,
-  },
-  purifySubtitle: {
-    fontSize: '11px',
-    color: '#9ca3af',
-  },
-  purifyStatsRow: {
+  header: {
     display: 'flex',
     justifyContent: 'space-between',
-    fontSize: '11px',
-    color: '#e5e7eb',
-    marginTop: '6px',
-    marginBottom: '10px',
+    alignItems: 'center',
+    marginBottom: '30px',
   },
-  btnPurify: {
-    width: '100%',
-    padding: '10px',
-    borderRadius: '10px',
-    border: '1px solid #4b5563',
-    backgroundColor: '#020617',
-    color: '#e5e7eb',
-    fontSize: '13px',
-  },
-
-  // 장비 섹션
-  eqSection: {
-    marginBottom: '8px',
-    padding: '12px',
-    borderRadius: '12px',
-    backgroundColor: '#020617',
-    border: '1px solid #374151',
-  },
-  eqHeader: {
-    marginBottom: '6px',
-  },
-  eqTitle: {
-    fontSize: '13px',
-    fontWeight: 600,
-  },
-  eqSubtitle: {
-    fontSize: '11px',
-    color: '#9ca3af',
-  },
-  eqStatsRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontSize: '11px',
-    color: '#e5e7eb',
-    marginTop: '4px',
-    marginBottom: '8px',
-  },
-  eqList: {
-    maxHeight: '80px',
-    overflowY: 'auto',
-    marginBottom: '8px',
-  },
-  eqEmpty: {
-    fontSize: '11px',
-    color: '#6b7280',
-  },
-  eqItem: {
-    padding: '4px 0',
-    borderTop: '1px solid #111827',
+  date: { fontSize: '18px', fontWeight: 'bold' },
+  modeBadge: {
+    padding: '4px 8px',
+    borderRadius: '4px',
     fontSize: '12px',
   },
-  eqItemName: {
-    color: '#e5e7eb',
+  heroSection: { marginBottom: '30px' },
+  hpLabel: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginBottom: '8px',
+    fontWeight: 'bold',
+    fontSize: '20px',
   },
-  btnCraft: {
+  hpBarBg: {
     width: '100%',
-    padding: '10px',
+    height: '24px',
+    backgroundColor: '#374151',
+    borderRadius: '12px',
+    overflow: 'hidden',
+  },
+  hpBarFill: {
+    height: '100%',
+    transition: 'width 0.5s ease-in-out, background-color 0.5s',
+  },
+  budgetDetail: {
+    marginTop: '8px',
+    textAlign: 'right',
+    fontSize: '12px',
+    color: '#9ca3af',
+  },
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr 1fr',
+    gap: '10px',
+    marginBottom: '30px',
+  },
+  statBox: {
+    backgroundColor: '#1f2937',
+    padding: '15px',
     borderRadius: '10px',
-    border: '1px solid #4b5563',
-    backgroundColor: '#020617',
-    color: '#e5e7eb',
-    fontSize: '13px',
+    textAlign: 'center',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+  },
+  statLabel: {
+    fontSize: '12px',
+    color: '#9ca3af',
+    marginBottom: '4px',
+  },
+  statValue: { fontSize: '20px', fontWeight: 'bold' },
+  statMax: { fontSize: '12px', color: '#6b7280' },
+  feedbackArea: {
+    flexGrow: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    color: '#d1d5db',
+    marginBottom: '20px',
+    border: '1px dashed #374151',
+    borderRadius: '8px',
+    padding: '20px',
+  },
+  actionArea: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr 1fr',
+    gap: '10px',
+  },
+  btnHit: {
+    padding: '15px',
+    border: 'none',
+    borderRadius: '12px',
+    backgroundColor: '#ef4444',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 4px 0 #b91c1c',
+  },
+  btnGuard: {
+    padding: '15px',
+    border: 'none',
+    borderRadius: '12px',
+    backgroundColor: '#3b82f6',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 4px 0 #1d4ed8',
+  },
+  btnInventory: {
+    padding: '15px',
+    border: 'none',
+    borderRadius: '12px',
+    backgroundColor: '#22c55e',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 4px 0 #15803d',
   },
 };
 
-export default InventoryModal;
+export default MoneyRoomPage;
