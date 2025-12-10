@@ -13,6 +13,8 @@ import {
   applyDayEnd,
   applyPurify,
   applyCraftEquipment,
+  getAssetBuildingsView,
+  type AssetBuildingView,
 } from '../money/moneyGameLogic';
 import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
 
@@ -85,8 +87,11 @@ export const MoneyRoomPage: React.FC = () => {
   const dust = gameState.inventory.shards['naturalDust'] ?? 0;
   const pureEssence = gameState.inventory.materials['pureEssence'] ?? 0;
   const equipment = gameState.inventory.equipment;
+
   const canPurify = junk > 0 && salt > 0 && gameState.runtime.mp > 0;
   const canCraftSword = pureEssence >= GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE;
+
+  const assetBuildings: AssetBuildingView[] = getAssetBuildingsView(gameState);
 
   // 마운트 시 일일 리셋
   useEffect(() => {
@@ -94,10 +99,10 @@ export const MoneyRoomPage: React.FC = () => {
   }, []);
 
   // UI 헬퍼
-  const getHpColor = (hp: number) => {
-    if (hp > 50) return '#4ade80'; // Green
-    if (hp > 30) return '#facc15'; // Yellow
-    return '#ef4444';              // Red
+  const getHpColor = (hpValue: number) => {
+    if (hpValue > 50) return '#4ade80'; // Green
+    if (hpValue > 30) return '#facc15'; // Yellow
+    return '#ef4444';                   // Red
   };
 
   const getClassBadge = (classType: ClassType | null) => {
@@ -393,6 +398,51 @@ export const MoneyRoomPage: React.FC = () => {
         </button>
       </section>
 
+      {/* --- ASSET KINGDOM SECTION --- */}
+      <section style={styles.assetSection}>
+        <div style={styles.assetHeader}>
+          <span style={styles.assetTitle}>자산의 왕국</span>
+          <span style={styles.assetSubtitle}>
+            금액이 아니라 “횟수”로 성장하는 작은 왕국들
+          </span>
+        </div>
+        <div style={styles.assetList}>
+          {assetBuildings.map((b) => {
+            const ratio =
+              b.nextTarget === null || b.nextTarget === 0
+                ? 1
+                : Math.max(0, Math.min(1, b.count / b.nextTarget));
+            const nextDiff =
+              b.nextTarget === null ? null : Math.max(b.nextTarget - b.count, 0);
+
+            return (
+              <div key={b.id} style={styles.assetCard}>
+                <div style={styles.assetCardHeader}>
+                  <span style={styles.assetLabel}>{b.label}</span>
+                  <span style={styles.assetLevelBadge}>Lv.{b.level}</span>
+                </div>
+                <div style={styles.assetInfoRow}>
+                  <span>누적 횟수: {b.count}회</span>
+                  {nextDiff === null ? (
+                    <span style={styles.assetDoneText}>최대 레벨 달성</span>
+                  ) : (
+                    <span>다음 레벨까지 {nextDiff}회</span>
+                  )}
+                </div>
+                <div style={styles.assetProgressBg}>
+                  <div
+                    style={{
+                      ...styles.assetProgressFill,
+                      width: `${ratio * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
       {/* --- TRANSACTION LOG --- */}
       <section style={styles.txSection}>
         <div style={styles.txHeaderRow}>
@@ -549,7 +599,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   header: {
     display: 'flex',
-    justifyContent: 'spaceBetween' as any,
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: '30px',
   },
@@ -622,7 +672,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '12px',
     borderRadius: '12px',
     backgroundColor: '#020617',
-    border: '1px solid '#374151',
+    border: '1px solid #374151',
   },
   purifyHeader: {
     marginBottom: '6px',
@@ -655,7 +705,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   // --- EQUIPMENT ---
   eqSection: {
-    marginBottom: '20px',
+    marginBottom: '16px',
     padding: '12px',
     borderRadius: '12px',
     backgroundColor: '#020617',
@@ -705,6 +755,78 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: '#020617',
     color: '#e5e7eb',
     fontSize: '13px',
+  },
+
+  // --- ASSET KINGDOM ---
+  assetSection: {
+    marginBottom: '20px',
+    padding: '12px',
+    borderRadius: '12px',
+    backgroundColor: '#020617',
+    border: '1px solid #374151',
+  },
+  assetHeader: {
+    marginBottom: '6px',
+  },
+  assetTitle: {
+    fontSize: '13px',
+    fontWeight: 600,
+  },
+  assetSubtitle: {
+    fontSize: '11px',
+    color: '#9ca3af',
+  },
+  assetList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    marginTop: '6px',
+  },
+  assetCard: {
+    padding: '8px 10px',
+    borderRadius: '10px',
+    border: '1px solid #111827',
+    backgroundColor: '#020617',
+  },
+  assetCardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '4px',
+  },
+  assetLabel: {
+    fontSize: '12px',
+    color: '#e5e7eb',
+  },
+  assetLevelBadge: {
+    fontSize: '11px',
+    padding: '2px 6px',
+    borderRadius: '999px',
+    border: '1px solid #4b5563',
+    color: '#e5e7eb',
+  },
+  assetInfoRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '11px',
+    color: '#9ca3af',
+    marginBottom: '4px',
+  },
+  assetDoneText: {
+    color: '#facc15',
+  },
+  assetProgressBg: {
+    width: '100%',
+    height: '6px',
+    borderRadius: '999px',
+    backgroundColor: '#111827',
+    overflow: 'hidden',
+  },
+  assetProgressFill: {
+    height: '100%',
+    borderRadius: '999px',
+    backgroundColor: '#22c55e',
+    transition: 'width 0.4s ease-out',
   },
 
   // --- Transaction Log ---
@@ -850,7 +972,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     padding: '8px 10px',
     borderRadius: '8px',
-    border: '1px solid #4b5563',
+    border: '1px solid '#4b5563',
     backgroundColor: '#020617',
     color: '#e5e7eb',
     fontSize: '14px',
