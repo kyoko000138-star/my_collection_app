@@ -15,3 +15,5 @@ import InventoryModal from '../money/components/InventoryModal';
   onPurify={handlePurify}
   onCraft={handleCraftSword}
 />
+
+export const MoneyRoomPage: React.FC = () => { ... }
