@@ -16,6 +16,9 @@ export const GAME_CONSTANTS = {
 
   // 쿨타임 (ms 단위)
   ACCESS_COOLDOWN_MS: 3 * 60 * 60 * 1000, // 3시간
+
+  // 장비 제작 관련
+  EQUIPMENT_COST_PURE_ESSENCE: 3, // 잔잔한 장부검 제작에 필요한 pureEssence 개수
 };
 
 export const CLASS_TYPES = {
