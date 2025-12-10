@@ -3,7 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import { GAME_CONSTANTS, CLASS_TYPES, type ClassType } from '../money/constants';
 import type { UserState } from '../money/types';
-import { getHp, applySpend, applyDefense, checkDailyReset } from '../money/moneyGameLogic';
+import {
+  getHp,
+  applySpend,
+  applyDefense,
+  checkDailyReset,
+  getGuardPromptInfo,
+  type GuardPromptInfo,
+} from '../money/moneyGameLogic';
 import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
 
 // [MOCK DATA] 초기 상태
@@ -28,6 +35,7 @@ const INITIAL_STATE: UserState = {
     lastDailyResetDate: null,
     noSpendStreak: 3,
     lunaShieldsUsedThisMonth: 0,
+    guardPromptShownToday: false,
   },
   runtime: { mp: 15 },
   inventory: {
@@ -44,6 +52,18 @@ const INITIAL_STATE: UserState = {
 export const MoneyRoomPage: React.FC = () => {
   const [gameState, setGameState] = useState<UserState>(INITIAL_STATE);
   const [feedbackMsg, setFeedbackMsg] = useState<string>('던전에 입장했습니다.');
+
+  // 지출 입력 모달 상태
+  const [isSpendModalOpen, setIsSpendModalOpen] = useState(false);
+  const [spendAmountInput, setSpendAmountInput] = useState<string>('');
+  const [isFixedCostInput, setIsFixedCostInput] = useState<boolean>(false);
+  const [spendNoteInput, setSpendNoteInput] = useState<string>('');
+
+  // Guard Prompt 상태
+  const [isGuardPromptOpen, setIsGuardPromptOpen] = useState(false);
+  const [guardInfo, setGuardInfo] = useState<GuardPromptInfo | null>(null);
+  const [pendingSpendAmount, setPendingSpendAmount] = useState<number | null>(null);
+  const [pendingIsFixedCost, setPendingIsFixedCost] = useState<boolean>(false);
 
   // 1. HP 및 모드 계산
   const hp = getHp(gameState.budget.current, gameState.budget.total);
@@ -78,23 +98,95 @@ export const MoneyRoomPage: React.FC = () => {
     }
   };
 
-  // 4. 행동 핸들러
-  const handleSpend = () => {
-    // 테스트: 3000원 지출 (수호자라면 방어됨)
-    const spendAmount = 3000;
-
-    const { newState, message } = applySpend(gameState, spendAmount, false);
-
-    setGameState(newState);
-    setFeedbackMsg(message);
+  // --- 지출 입력 모달 열기 ---
+  const handleOpenSpendModal = () => {
+    setSpendAmountInput('');
+    setIsFixedCostInput(false);
+    setSpendNoteInput('');
+    setIsSpendModalOpen(true);
   };
 
-  const handleDefense = () => {
+  const handleCloseSpendModal = () => {
+    setIsSpendModalOpen(false);
+  };
+
+  // --- Guard Prompt 플로우 포함한 지출 제출 ---
+  const handleSpendNext = () => {
+    const raw = spendAmountInput.replace(/,/g, '');
+    const amount = Number(raw);
+
+    if (!amount || amount <= 0 || Number.isNaN(amount)) {
+      setFeedbackMsg('지출 금액을 입력해주세요.');
+      return;
+    }
+
+    // Guard Prompt 정보 계산
+    const info = getGuardPromptInfo(gameState, amount, isFixedCostInput);
+    setPendingSpendAmount(amount);
+    setPendingIsFixedCost(isFixedCostInput);
+    setIsSpendModalOpen(false);
+
+    if (info.shouldShow) {
+      // 오늘 첫 Guard Prompt → 모달 표시 + 플래그 true
+      setGuardInfo(info);
+      setIsGuardPromptOpen(true);
+      setGameState((prev) => ({
+        ...prev,
+        counters: {
+          ...prev.counters,
+          guardPromptShownToday: true,
+        },
+      }));
+    } else {
+      // Guard Prompt 없이 바로 Hit 적용
+      const { newState, message } = applySpend(gameState, amount, isFixedCostInput);
+      setGameState(newState);
+      setFeedbackMsg(message);
+      setGuardInfo(null);
+      setIsGuardPromptOpen(false);
+    }
+  };
+
+  // --- Guard Prompt: Hit 진행 ---
+  const handleConfirmHit = () => {
+    if (!pendingSpendAmount) {
+      setIsGuardPromptOpen(false);
+      setGuardInfo(null);
+      return;
+    }
+
+    const { newState, message } = applySpend(
+      gameState,
+      pendingSpendAmount,
+      pendingIsFixedCost
+    );
+    setGameState(newState);
+    setFeedbackMsg(message);
+    setIsGuardPromptOpen(false);
+    setGuardInfo(null);
+  };
+
+  // --- Guard Prompt: 취소 후 방어 ---
+  const handleCancelAndGuard = () => {
+    if (gameState.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) {
+      setFeedbackMsg('오늘의 방어 태세가 이미 한계에 도달했습니다.');
+    } else {
+      const nextState = applyDefense(gameState);
+      setGameState(nextState);
+      setFeedbackMsg(
+        `지출을 취소했습니다. 방어 성공. MP가 회복되었습니다. (${nextState.counters.defenseActionsToday}/${GAME_CONSTANTS.DAILY_DEFENSE_LIMIT})`
+      );
+    }
+    setIsGuardPromptOpen(false);
+    setGuardInfo(null);
+  };
+
+  // --- 일반 방어 버튼 (No-Spend Guard) ---
+  const handleDefenseClick = () => {
     if (gameState.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) {
       setFeedbackMsg('오늘의 방어 태세가 이미 한계에 도달했습니다.');
       return;
     }
-
     const nextState = applyDefense(gameState);
     setGameState(nextState);
     setFeedbackMsg(
@@ -170,13 +262,103 @@ export const MoneyRoomPage: React.FC = () => {
 
       {/* --- ACTIONS --- */}
       <footer style={styles.actionArea}>
-        <button onClick={handleSpend} style={styles.btnHit}>
-          🔥 지출 (Hit 3k)
+        <button onClick={handleOpenSpendModal} style={styles.btnHit}>
+          🔥 지출 입력
         </button>
-        <button onClick={handleDefense} style={styles.btnGuard}>
-          🛡️ 방어 (Guard)
+        <button onClick={handleDefenseClick} style={styles.btnGuard}>
+          🛡️ 방어 (No Spend)
         </button>
       </footer>
+
+      {/* --- 지출 입력 모달 --- */}
+      {isSpendModalOpen && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <h2 style={styles.modalTitle}>지출 입력</h2>
+
+            <div style={styles.modalRow}>
+              <label style={styles.modalLabel}>금액</label>
+              <input
+                style={styles.modalInput}
+                type="number"
+                inputMode="numeric"
+                placeholder="0"
+                value={spendAmountInput}
+                onChange={(e) => setSpendAmountInput(e.target.value)}
+              />
+            </div>
+
+            <div style={styles.modalRow}>
+              <label style={styles.modalLabel}>고정비 여부</label>
+              <div style={styles.modalCheckboxRow}>
+                <input
+                  id="fixedCostCheckbox"
+                  type="checkbox"
+                  checked={isFixedCostInput}
+                  onChange={(e) => setIsFixedCostInput(e.target.checked)}
+                />
+                <label htmlFor="fixedCostCheckbox" style={{ marginLeft: '8px' }}>
+                  고정비로 처리
+                </label>
+              </div>
+            </div>
+
+            <div style={styles.modalRow}>
+              <label style={styles.modalLabel}>메모 (선택)</label>
+              <input
+                style={styles.modalInput}
+                type="text"
+                placeholder="메모를 남겨둘 수 있습니다."
+                value={spendNoteInput}
+                onChange={(e) => setSpendNoteInput(e.target.value)}
+              />
+            </div>
+
+            <div style={styles.modalButtonRow}>
+              <button onClick={handleCloseSpendModal} style={styles.btnSecondary}>
+                취소
+              </button>
+              <button onClick={handleSpendNext} style={styles.btnPrimary}>
+                다음 →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- Guard Prompt 모달 --- */}
+      {isGuardPromptOpen && guardInfo && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <h2 style={styles.modalTitle}>Guard 체크</h2>
+            <p style={{ fontSize: '14px', marginBottom: '12px', lineHeight: 1.6 }}>
+              이 지출을 진행하면 HP와 일일 사용 가능 금액이 다음과 같이 변합니다.
+            </p>
+            <div style={{ marginBottom: '12px', fontSize: '14px' }}>
+              <div>
+                <strong>HP</strong> : {guardInfo.hpBefore}% →{' '}
+                {guardInfo.hpAfter}%
+              </div>
+              <div style={{ marginTop: '6px' }}>
+                <strong>남은 기간 일평균</strong> :{' '}
+                {guardInfo.avgAvailablePerDay.toLocaleString()}원 사용 가능
+              </div>
+            </div>
+            <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '16px' }}>
+              숫자와 상태만 알려드립니다. 진행 여부는 사용자가 결정합니다.
+            </p>
+
+            <div style={styles.modalButtonRow}>
+              <button onClick={handleCancelAndGuard} style={styles.btnSecondary}>
+                지출 취소 & 방어
+              </button>
+              <button onClick={handleConfirmHit} style={styles.btnPrimary}>
+                Hit 진행
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -301,6 +483,79 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'bold',
     cursor: 'pointer',
     boxShadow: '0 4px 0 #1d4ed8',
+  },
+
+  // --- 모달 스타일 ---
+  modalOverlay: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 50,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: '360px',
+    backgroundColor: '#020617',
+    borderRadius: '16px',
+    padding: '20px',
+    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+    border: '1px solid #1f2937',
+  },
+  modalTitle: {
+    fontSize: '18px',
+    marginBottom: '16px',
+  },
+  modalRow: {
+    marginBottom: '12px',
+  },
+  modalLabel: {
+    display: 'block',
+    fontSize: '12px',
+    color: '#9ca3af',
+    marginBottom: '4px',
+  },
+  modalInput: {
+    width: '100%',
+    padding: '8px 10px',
+    borderRadius: '8px',
+    border: '1px solid #4b5563',
+    backgroundColor: '#020617',
+    color: '#e5e7eb',
+    fontSize: '14px',
+  },
+  modalCheckboxRow: {
+    display: 'flex',
+    alignItems: 'center',
+    fontSize: '13px',
+  },
+  modalButtonRow: {
+    marginTop: '16px',
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '8px',
+  },
+  btnSecondary: {
+    padding: '8px 12px',
+    borderRadius: '10px',
+    border: '1px solid #4b5563',
+    backgroundColor: '#020617',
+    color: '#e5e7eb',
+    fontSize: '13px',
+    cursor: 'pointer',
+  },
+  btnPrimary: {
+    padding: '8px 12px',
+    borderRadius: '10px',
+    border: 'none',
+    backgroundColor: '#3b82f6',
+    color: 'white',
+    fontSize: '13px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 3px 0 #1d4ed8',
   },
 };
 
