@@ -1,6 +1,6 @@
 // src/pages/MoneyRoomPage.tsx
 import React, { useState, useEffect } from 'react';
-import { UserState } from '../money/types';
+import { UserState, PendingTransaction } from '../money/types';
 import { GAME_CONSTANTS, CLASS_TYPES, ClassType } from '../money/constants';
 import {
   getHp,
@@ -206,6 +206,48 @@ export const MoneyRoomPage: React.FC = () => {
     },
   ];
 
+  // 7. "나중에 입력" 추가 핸들러
+  const handleAddPending = () => {
+    const note = window.prompt('나중에 입력할 메모를 적어 주세요.') || '';
+    if (!note.trim()) {
+      // 메모가 비어 있으면 생성하지 않음
+      return;
+    }
+
+    const amountInput =
+      window.prompt('금액을 입력하세요. (없으면 비워두기)') || '';
+    let amount: number | undefined = undefined;
+
+    if (amountInput.trim()) {
+      const parsed = Number(amountInput.replace(/,/g, ''));
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        amount = parsed;
+      }
+    }
+
+    const now = new Date();
+    const timeStr = now
+      .toLocaleTimeString('ko-KR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+      .replace(/^24:/, '00:'); // 혹시 모를 24시 처리
+
+    const pendingItem: PendingTransaction = {
+      id: `${now.getTime()}`,
+      amount,
+      note: note.trim(),
+      createdAt: `${todayStr} ${timeStr}`,
+    };
+
+    setGameState((prev) => ({
+      ...prev,
+      pending: [...prev.pending, pendingItem],
+    }));
+
+    setFeedbackMsg('나중에 입력할 항목이 대기열에 추가되었습니다.');
+  };
+
   return (
     <>
       <div style={{ ...styles.container, backgroundColor: theme.bgColor }}>
@@ -296,6 +338,12 @@ export const MoneyRoomPage: React.FC = () => {
           </button>
           <button onClick={handleDefense} style={styles.btnGuard}>
             🛡️ 방어 (Guard)
+          </button>
+          <button
+            onClick={handleAddPending}
+            style={styles.btnPending}
+          >
+            📝 나중에 입력
           </button>
           <button
             onClick={() => setIsInventoryModalOpen(true)}
@@ -461,6 +509,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'bold',
     cursor: 'pointer',
     boxShadow: '0 4px 0 #1d4ed8',
+  },
+  btnPending: {
+    padding: '15px',
+    border: 'none',
+    borderRadius: '12px',
+    backgroundColor: '#f97316',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 4px 0 #c2410c',
   },
   btnInventory: {
     padding: '15px',
