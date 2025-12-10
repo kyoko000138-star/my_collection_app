@@ -1,4 +1,3 @@
-// src/pages/MoneyRoomPage.tsx
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   Swords, Shield, Heart, Zap, Map as MapIcon, 
