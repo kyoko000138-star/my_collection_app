@@ -373,3 +373,88 @@ export const applyCraftEquipment = (
     message: '장비 [잔잔한 장부검] 1개가 제작되었습니다.',
   };
 };
+
+// --- 자산의 왕국 (Asset Kingdom) 뷰 ---
+
+export type AssetBuildingKind = 'FORTRESS' | 'AIRFIELD' | 'TOWER';
+
+export interface AssetBuildingView {
+  id: string;
+  kind: AssetBuildingKind;
+  label: string;
+  level: number;           // 1 ~ 4
+  count: number;           // 해당 빌딩의 기준이 되는 "횟수"
+  nextTarget: number | null; // 다음 레벨까지 필요한 누적 횟수(없으면 null)
+}
+
+// 레벨 기준: Lv1(0회 이상), Lv2(10회 이상), Lv3(30회 이상), Lv4(100회 이상)
+const ASSET_LEVEL_THRESHOLDS = [0, 10, 30, 100];
+
+const getAssetLevelFromCount = (count: number): number => {
+  if (count >= ASSET_LEVEL_THRESHOLDS[3]) return 4;
+  if (count >= ASSET_LEVEL_THRESHOLDS[2]) return 3;
+  if (count >= ASSET_LEVEL_THRESHOLDS[1]) return 2;
+  return 1;
+};
+
+const getNextAssetThreshold = (count: number): number | null => {
+  for (let i = 0; i < ASSET_LEVEL_THRESHOLDS.length; i++) {
+    const threshold = ASSET_LEVEL_THRESHOLDS[i];
+    if (count < threshold) {
+      return threshold;
+    }
+  }
+  return null; // 이미 최종 레벨
+};
+
+/**
+ * 현재 UserState를 기반으로
+ * 자산 빌딩 3종(요새/비행장/마법탑)의 레벨 정보를 계산합니다.
+ *
+ * - 요새: noSpendStreak (연속 무지출 일수)
+ * - 비행장: 누적 지출 기록 수 (transactions.length)
+ * - 마법탑: 제작된 장비 개수 (equipment.length)
+ */
+export const getAssetBuildingsView = (state: UserState): AssetBuildingView[] => {
+  // Fortress: 절약의 성곽 (연속 무지출)
+  const fortressCount = state.counters.noSpendStreak;
+  const fortressLevel = getAssetLevelFromCount(fortressCount);
+  const fortressNext = getNextAssetThreshold(fortressCount);
+
+  // Airfield: 흐름의 비행장 (지출 기록의 횟수)
+  const airfieldCount = state.transactions.length;
+  const airfieldLevel = getAssetLevelFromCount(airfieldCount);
+  const airfieldNext = getNextAssetThreshold(airfieldCount);
+
+  // Tower: 기록의 마법탑 (장비 개수)
+  const towerCount = state.inventory.equipment.length;
+  const towerLevel = getAssetLevelFromCount(towerCount);
+  const towerNext = getNextAssetThreshold(towerCount);
+
+  return [
+    {
+      id: 'fortress',
+      kind: 'FORTRESS',
+      label: '요새 · 절약의 성곽',
+      level: fortressLevel,
+      count: fortressCount,
+      nextTarget: fortressNext,
+    },
+    {
+      id: 'airfield',
+      kind: 'AIRFIELD',
+      label: '비행장 · 흐름의 활주로',
+      level: airfieldLevel,
+      count: airfieldCount,
+      nextTarget: airfieldNext,
+    },
+    {
+      id: 'tower',
+      kind: 'TOWER',
+      label: '마법탑 · 기록의 탑',
+      level: towerLevel,
+      count: towerCount,
+      nextTarget: towerNext,
+    },
+  ];
+};
