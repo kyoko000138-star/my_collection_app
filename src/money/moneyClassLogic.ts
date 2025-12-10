@@ -1,7 +1,5 @@
-// src/money/moneyClassLogic.ts
-import { UserState } from './types';
+import { UserState, LunaMode } from './types';
 import { CLASS_TYPES, CLASS_CONSTANTS } from './constants';
-import { LunaMode } from './types'; // types.ts에 정의되어 있어야 함
 
 /**
  * 수호자(Guardian) 패시브: 철벽 방어
@@ -21,5 +19,3 @@ export const getDruidRecoveryBonus = (state: UserState, currentLunaMode: LunaMod
   if (currentLunaMode === 'REST') return CLASS_CONSTANTS.DRUID_REST_HEAL;
   return 0;
 };
-
-// 추후 Sage(현자), Alchemist(연금술사) 로직 추가
