@@ -1,4 +1,18 @@
 // src/money/types.ts
+// src/money/types.ts 에 추가/수정
+
+export type LunaMode = 'NORMAL' | 'PMS' | 'REST';
+
+export interface UserState {
+  // ... 기존 profile, budget 등 유지
+  
+  // [NEW] 루나 시스템 설정 및 상태
+  luna: {
+    nextPeriodDate: string; // "YYYY-MM-DD" (사용자가 입력한 다음 예정일)
+    averageCycle: number;   // 주기 (예: 28일)
+    isTracking: boolean;    // 사용 여부
+  };
+
 import { ClassType } from './constants';
 
 // 거래 기록 (지출/수입/메모)
