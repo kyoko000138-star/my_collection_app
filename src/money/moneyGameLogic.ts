@@ -13,9 +13,68 @@ export const getHp = (current: number, total: number): number => {
   return Math.max(0, Math.min(100, Math.floor(percentage)));
 };
 
+// --- Guard Prompt 계산용 타입 & 헬퍼 ---
+
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+const getDaysLeftInMonth = (todayStr: string): number => {
+  const date = new Date(todayStr);
+  const year = date.getFullYear();
+  const month = date.getMonth(); // 0-based
+  const lastDate = new Date(year, month + 1, 0); // 이번 달 말일
+  const diff =
+    Math.floor((lastDate.getTime() - date.getTime()) / MS_PER_DAY) + 1;
+  return Math.max(diff, 1);
+};
+
+export interface GuardPromptInfo {
+  shouldShow: boolean;
+  hpBefore: number;
+  hpAfter: number;
+  avgAvailablePerDay: number;
+}
+
+/**
+ * Guard Prompt 정보 계산
+ * - 이 지출을 했을 때 HP 변화
+ * - 남은 기간(이번 달) 일평균 사용 가능 금액
+ * - 오늘 이미 프롬프트를 띄웠는지 여부에 따라 shouldShow 결정
+ */
+export const getGuardPromptInfo = (
+  state: UserState,
+  amount: number,
+  isFixedCost: boolean
+): GuardPromptInfo => {
+  const todayStr = getTodayString();
+
+  const hpBefore = getHp(state.budget.current, state.budget.total);
+  const hpAfter = getHp(state.budget.current - amount, state.budget.total);
+
+  const daysLeft = getDaysLeftInMonth(todayStr);
+  const remainingAfterSpend = state.budget.current - amount;
+  const avgAvailablePerDay =
+    daysLeft > 0 ? Math.floor(remainingAfterSpend / daysLeft) : 0;
+
+  const isHighRiskAmount = amount >= GAME_CONSTANTS.JUNK_THRESHOLD;
+  const isHpDropRisk = hpAfter < GAME_CONSTANTS.HP_WARNING_THRESHOLD;
+
+  const shouldShow =
+    !isFixedCost &&
+    !state.counters.guardPromptShownToday &&
+    (isHighRiskAmount || isHpDropRisk);
+
+  return {
+    shouldShow,
+    hpBefore,
+    hpAfter,
+    avgAvailablePerDay,
+  };
+};
+
 /**
  * 일일 리셋 처리
  * - 방어/정크 카운터 0으로
+ * - Guard Prompt 노출 플래그 초기화
  * - 드루이드 & REST 모드일 경우 MP 보너스
  */
 export const checkDailyReset = (state: UserState): UserState => {
@@ -46,6 +105,7 @@ export const checkDailyReset = (state: UserState): UserState => {
       ...state.counters,
       defenseActionsToday: 0,
       junkObtainedToday: 0,
+      guardPromptShownToday: false,
       lastDailyResetDate: today,
     },
   };
