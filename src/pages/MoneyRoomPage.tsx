@@ -6,6 +6,9 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+// MoneyRoomPage.tsx 내부
+const MoneyRoomPage: React.FC = () => {
+
 // 1. 설계도 및 로직 가져오기
 import { 
   UserState, TransactionLike, ResidueType, 
@@ -17,6 +20,9 @@ import {
   updateBuildingExp, calcAttackDamage 
 } from '../money/moneyGameLogic';
 import { getDailyMonster } from '../money/moneyJourney';
+
+// [추가] 현재 화면 탭 상태 ('battle' | 'inventory' | 'map' | 'kingdom')
+  const [currentTab, setCurrentTab] = useState<'battle' | 'inventory' | 'map' | 'kingdom'>('battle');
 
 // 초기값 상수 (데이터가 없을 때 사용)
 const INITIAL_USER_STATE: UserState = {
