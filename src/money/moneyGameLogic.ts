@@ -1,17 +1,75 @@
-// moneyGameLogic.ts
+// src/money/moneyGameLogic.ts
 
+import type { UserState } from './types';
+import { GAME_CONSTANTS } from './constants';
+import { checkGuardianShield, getDruidRecoveryBonus } from './moneyClassLogic';
+import { getLunaMode } from './moneyLuna';
+
+const getTodayString = (): string => new Date().toISOString().split('T')[0];
+
+export const getHp = (current: number, total: number): number => {
+  if (total === 0) return 0;
+  const percentage = (current / total) * 100;
+  return Math.max(0, Math.min(100, Math.floor(percentage)));
+};
+
+/**
+ * 일일 리셋 처리
+ * - 방어/정크 카운터 0으로
+ * - 드루이드 & REST 모드일 경우 MP 보너스
+ */
+export const checkDailyReset = (state: UserState): UserState => {
+  const today = getTodayString();
+
+  if (state.counters.lastDailyResetDate === today) {
+    return state;
+  }
+
+  // 루나 모드 확인
+  const currentMode = getLunaMode(today, state.luna.nextPeriodDate);
+
+  // 드루이드 보너스
+  const druidBonus = getDruidRecoveryBonus(state, currentMode);
+
+  const newMp = Math.min(
+    GAME_CONSTANTS.MAX_MP,
+    state.runtime.mp + druidBonus
+  );
+
+  return {
+    ...state,
+    runtime: {
+      ...state.runtime,
+      mp: newMp,
+    },
+    counters: {
+      ...state.counters,
+      defenseActionsToday: 0,
+      junkObtainedToday: 0,
+      lastDailyResetDate: today,
+    },
+  };
+};
+
+/**
+ * 지출 처리 로직
+ * - 예산 차감
+ * - 수호자 패시브 판정
+ * - Junk 생성 여부 판정
+ * - noSpendStreak 리셋
+ */
 export const applySpend = (
   state: UserState,
   amount: number,
   isFixedCost: boolean
 ): { newState: UserState; message: string } => {
-  // 1. 먼저 수호자 패시브 판정 (state는 그대로 사용)
+  // 수호자 패시브 판정 (state는 불변)
   const isGuarded = checkGuardianShield(state, amount);
 
-  // 2. 예산 계산 (음수 허용/불허는 정책에 따라 조정 가능)
+  // 예산 계산
   const nextBudgetCurrent = state.budget.current - amount;
 
-  // 공통으로 들어가는 예산 업데이트
+  // 예산 반영된 기본 상태
   const baseState: UserState = {
     ...state,
     budget: {
@@ -20,11 +78,10 @@ export const applySpend = (
     },
   };
 
-  // 3. 수호자에게 방어된 경우
+  // Guarded 지출: 스트릭 유지, 카운터 변화 없음
   if (isGuarded) {
     const guardedState: UserState = {
       ...baseState,
-      // 수호자는 스트릭 유지, 다른 카운터 변화 없음
     };
 
     return {
@@ -33,7 +90,7 @@ export const applySpend = (
     };
   }
 
-  // 4. 방어되지 않은 일반 피격
+  // 방어되지 않은 일반 피격
   const resetCounters = {
     ...state.counters,
     noSpendStreak: 0,
@@ -63,7 +120,7 @@ export const applySpend = (
     };
   }
 
-  // 5. 피격이지만 Junk는 안 생기는 경우
+  // 피격이지만 Junk는 안 생기는 경우
   const hitState: UserState = {
     ...baseState,
     counters: resetCounters,
@@ -72,5 +129,33 @@ export const applySpend = (
   return {
     newState: hitState,
     message: `💥 피격(Hit) 발생. 예산이 차감되었습니다.`,
+  };
+};
+
+/**
+ * 방어 행동 로직
+ * - 하루 최대 DAILY_DEFENSE_LIMIT회
+ * - MP 회복 (클램프)
+ */
+export const applyDefense = (state: UserState): UserState => {
+  if (state.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) {
+    return state;
+  }
+
+  const newMp = Math.min(
+    GAME_CONSTANTS.MAX_MP,
+    state.runtime.mp + GAME_CONSTANTS.MP_RECOVERY_DEFENSE
+  );
+
+  return {
+    ...state,
+    runtime: {
+      ...state.runtime,
+      mp: newMp,
+    },
+    counters: {
+      ...state.counters,
+      defenseActionsToday: state.counters.defenseActionsToday + 1,
+    },
   };
 };
