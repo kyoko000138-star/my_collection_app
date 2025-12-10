@@ -10,6 +10,7 @@ import {
   checkDailyReset,
   getGuardPromptInfo,
   type GuardPromptInfo,
+  applyDayEnd,
 } from '../money/moneyGameLogic';
 import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
 
@@ -40,6 +41,7 @@ const INITIAL_STATE: UserState = {
     noSpendStreak: 3,
     lunaShieldsUsedThisMonth: 0,
     guardPromptShownToday: false,
+    lastDayEndDate: null,
   },
   runtime: { mp: 15 },
   inventory: {
@@ -236,6 +238,13 @@ export const MoneyRoomPage: React.FC = () => {
     );
   };
 
+  // --- 오늘 마감하기 ---
+  const handleDayEnd = () => {
+    const { newState, message } = applyDayEnd(gameState);
+    setGameState(newState);
+    setFeedbackMsg(message);
+  };
+
   // 최근 N개 지출
   const recentTransactions = [...gameState.transactions]
     .slice(-5)
@@ -345,6 +354,9 @@ export const MoneyRoomPage: React.FC = () => {
         <button onClick={handleDefenseClick} style={styles.btnGuard}>
           🛡️ 방어 (No Spend)
         </button>
+        <button onClick={handleDayEnd} style={styles.btnDayEnd}>
+          🌙 오늘 마감하기
+        </button>
       </footer>
 
       {/* --- 지출 입력 모달 --- */}
@@ -445,13 +457,13 @@ const styles: Record<string, React.CSSProperties> = {
   container: {
     maxWidth: '420px',
     margin: '0 auto',
-    color: '#111827',
+    color: '#f3f4f6',
     minHeight: '100vh',
     padding: '20px',
     fontFamily: 'sans-serif',
     display: 'flex',
     flexDirection: 'column',
-    backgroundColor: '#020617',
+    transition: 'background-color 0.5s',
   },
   header: {
     display: 'flex',
@@ -462,13 +474,11 @@ const styles: Record<string, React.CSSProperties> = {
   date: {
     fontSize: '18px',
     fontWeight: 'bold',
-    color: '#0f172a',
   },
   modeBadge: {
     padding: '4px 8px',
     borderRadius: '4px',
     fontSize: '12px',
-    backgroundColor: 'rgba(0,0,0,0.05)',
   },
   heroSection: {
     marginBottom: '30px',
@@ -479,12 +489,11 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '8px',
     fontWeight: 'bold',
     fontSize: '20px',
-    color: '#0f172a',
   },
   hpBarBg: {
     width: '100%',
     height: '24px',
-    backgroundColor: '#e5e7eb',
+    backgroundColor: '#374151',
     borderRadius: '12px',
     overflow: 'hidden',
   },
@@ -496,7 +505,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '8px',
     textAlign: 'right',
     fontSize: '12px',
-    color: '#6b7280',
+    color: '#9ca3af',
   },
   statsGrid: {
     display: 'grid',
@@ -505,11 +514,11 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '20px',
   },
   statBox: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#1f2937',
     padding: '15px',
     borderRadius: '10px',
     textAlign: 'center',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.03)',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
   },
   statLabel: {
     fontSize: '12px',
@@ -519,7 +528,6 @@ const styles: Record<string, React.CSSProperties> = {
   statValue: {
     fontSize: '20px',
     fontWeight: 'bold',
-    color: '#111827',
   },
   statMax: {
     fontSize: '12px',
@@ -531,8 +539,8 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '20px',
     padding: '12px',
     borderRadius: '12px',
-    backgroundColor: '#f9fafb',
-    border: '1px solid #e5e7eb',
+    backgroundColor: '#111827',
+    border: '1px solid #374151',
   },
   txHeaderRow: {
     display: 'flex',
@@ -543,20 +551,20 @@ const styles: Record<string, React.CSSProperties> = {
   txTitle: {
     fontSize: '13px',
     fontWeight: 600,
-    color: '#111827',
+    color: '#e5e7eb',
   },
   txCount: {
     fontSize: '11px',
-    color: '#6b7280',
+    color: '#9ca3af',
   },
   txEmpty: {
     fontSize: '12px',
-    color: '#9ca3af',
+    color: '#6b7280',
     padding: '4px 0',
   },
   txRow: {
     padding: '6px 0',
-    borderTop: '1px solid #e5e7eb',
+    borderTop: '1px solid #1f2937',
   },
   txRowMain: {
     display: 'flex',
@@ -566,16 +574,16 @@ const styles: Record<string, React.CSSProperties> = {
   txAmount: {
     fontSize: '13px',
     fontWeight: 600,
-    color: '#111827',
+    color: '#f9fafb',
   },
   txCategory: {
     fontSize: '11px',
-    color: '#6b7280',
+    color: '#9ca3af',
   },
   txRowSub: {
     marginTop: '2px',
     fontSize: '11px',
-    color: '#9ca3af',
+    color: '#6b7280',
   },
 
   feedbackArea: {
@@ -585,17 +593,17 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     textAlign: 'center',
     fontStyle: 'italic',
-    color: '#4b5563',
+    color: '#d1d5db',
     marginBottom: '20px',
-    border: '1px dashed #d1d5db',
+    border: '1px dashed #374151',
     borderRadius: '8px',
     padding: '20px',
-    backgroundColor: '#f9fafb',
   },
   actionArea: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
-    gap: '15px',
+    gap: '10px',
+    marginTop: '4px',
   },
   btnHit: {
     padding: '15px',
@@ -618,6 +626,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'bold',
     cursor: 'pointer',
     boxShadow: '0 4px 0 #1d4ed8',
+  },
+  btnDayEnd: {
+    gridColumn: '1 / span 2',
+    padding: '12px',
+    border: 'none',
+    borderRadius: '10px',
+    backgroundColor: '#111827',
+    color: '#e5e7eb',
+    fontSize: '14px',
+    cursor: 'pointer',
+    marginTop: '4px',
+    borderTop: '1px solid #374151',
   },
 
   // --- 모달 스타일 ---
