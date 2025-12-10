@@ -1,3 +1,6 @@
+// import 추가
+import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
+
 import React, { useState, useEffect } from 'react';
 import { UserState } from '../money/types';
 import { GAME_CONSTANTS, CLASS_TYPES } from '../money/constants';
@@ -68,6 +71,17 @@ export const MoneyRoomPage: React.FC = () => {
     const nextState = applyDefense(gameState);
     setGameState(nextState);
 
+    export const MoneyRoomPage: React.FC = () => {
+  // Mock State에 luna 정보 추가 (테스트를 위해 오늘 날짜 근처로 설정해보세요)
+  const [gameState, setGameState] = useState<UserState>({
+    ...INITIAL_STATE,
+    luna: { 
+      nextPeriodDate: '2025-12-15', // 테스트: 오늘이 12/10이면 D-5 -> PMS 모드여야 함
+      averageCycle: 28, 
+      isTracking: true 
+    } 
+  });
+
     // 피드백 메시지 (칭찬 대신 상태 보고)
     setFeedbackMsg(`방어 성공. MP가 회복되었습니다. (오늘 방어: ${nextState.counters.defenseActionsToday}/${GAME_CONSTANTS.DAILY_DEFENSE_LIMIT})`);
   };
@@ -78,6 +92,23 @@ export const MoneyRoomPage: React.FC = () => {
       <header style={styles.header}>
         <span style={styles.date}>12월 10일 (수)</span>
         <span style={styles.modeBadge}>NORMAL MODE</span>
+      </header>
+
+      // [NEW] Luna Mode 계산
+  const todayStr = new Date().toISOString().split('T')[0]; // "2025-12-10"
+  const currentMode = getLunaMode(todayStr, gameState.luna.nextPeriodDate);
+  const theme = getLunaTheme(currentMode);
+
+  return (
+    // 배경색을 모드에 따라 변경 (긴장감 조성 or 편안함)
+    <div style={{...styles.container, backgroundColor: theme.bgColor}}> 
+      
+      {/* --- HEADER --- */}
+      <header style={styles.header}>
+        <span style={styles.date}>{todayStr}</span>
+        <span style={{...styles.modeBadge, color: theme.color, border: `1px solid ${theme.color}`}}>
+          {theme.label}
+        </span>
       </header>
 
       {/* --- HERO: HP BAR (핵심) --- */}
