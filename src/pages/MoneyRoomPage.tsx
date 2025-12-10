@@ -1,8 +1,7 @@
 // src/pages/MoneyRoomPage.tsx
-
 import React, { useEffect, useState } from 'react';
 import { GAME_CONSTANTS, CLASS_TYPES, type ClassType } from '../money/constants';
-import type { UserState, Transaction } from '../money/types';
+import type { UserState, Transaction, PendingTransaction } from '../money/types';
 import {
   getHp,
   applySpend,
@@ -15,6 +14,7 @@ import {
   applyCraftEquipment,
   getAssetBuildingsView,
   type AssetBuildingView,
+  changeClass,
 } from '../money/moneyGameLogic';
 import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
 
@@ -22,11 +22,46 @@ import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
 const generateId = () =>
   `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+// 직업 선택 옵션 정의 (UI용)
+const CLASS_OPTIONS: {
+  id: ClassType;
+  title: string;
+  subtitle: string;
+  detail: string;
+}[] = [
+  {
+    id: CLASS_TYPES.GUARDIAN,
+    title: '🛡️ 수호자',
+    subtitle: '소액 방어 & 스트릭 유지',
+    detail: '3,000원 이하 지출을 방어해 스트릭을 지켜주는 방어 특화 타입입니다.',
+  },
+  {
+    id: CLASS_TYPES.SAGE,
+    title: '🔮 현자',
+    subtitle: '기록 & 패턴 분석',
+    detail:
+      '기록과 패턴 분석에 특화된 타입입니다. 리포트/분석 화면에서 힘을 발휘하도록 확장 예정입니다.',
+  },
+  {
+    id: CLASS_TYPES.ALCHEMIST,
+    title: '💰 연금술사',
+    subtitle: '정크 → 자산 변환',
+    detail:
+      'Junk를 자산으로 바꾸는 경제 타입입니다. 추후 골드/자산 화면과 연동됩니다.',
+  },
+  {
+    id: CLASS_TYPES.DRUID,
+    title: '🌿 드루이드',
+    subtitle: 'REST 기간 회복 버프',
+    detail: 'REST 기간에 MP 추가 회복을 받는 타입입니다. 멘탈 & 회복에 초점을 둡니다.',
+  },
+];
+
 // [MOCK DATA] 초기 상태
 const INITIAL_STATE: UserState = {
   profile: { name: 'Player 1', classType: CLASS_TYPES.GUARDIAN, level: 1 },
   luna: {
-    nextPeriodDate: '2025-12-15', // 테스트 날짜 (PMS 유도용)
+    nextPeriodDate: '2025-12-15', // 테스트용
     averageCycle: 28,
     isTracking: true,
   },
@@ -42,10 +77,10 @@ const INITIAL_STATE: UserState = {
     junkObtainedToday: 0,
     lastAccessDate: null,
     lastDailyResetDate: null,
+    lastDayEndDate: null,
+    guardPromptShownToday: false,
     noSpendStreak: 3,
     lunaShieldsUsedThisMonth: 0,
-    guardPromptShownToday: false,
-    lastDayEndDate: null,
   },
   runtime: { mp: 15 },
   inventory: {
@@ -73,8 +108,13 @@ export const MoneyRoomPage: React.FC = () => {
   // Guard Prompt 상태
   const [isGuardPromptOpen, setIsGuardPromptOpen] = useState(false);
   const [guardInfo, setGuardInfo] = useState<GuardPromptInfo | null>(null);
-  const [pendingSpendAmount, setPendingSpendAmount] = useState<number | null>(null);
+  const [pendingSpendAmount, setPendingSpendAmount] = useState<number | null>(
+    null
+  );
   const [pendingIsFixedCost, setPendingIsFixedCost] = useState<boolean>(false);
+
+  // 직업 선택 모달 상태
+  const [isClassModalOpen, setIsClassModalOpen] = useState(false);
 
   // 파생 값들
   const hp = getHp(gameState.budget.current, gameState.budget.total);
@@ -89,9 +129,14 @@ export const MoneyRoomPage: React.FC = () => {
   const equipment = gameState.inventory.equipment;
 
   const canPurify = junk > 0 && salt > 0 && gameState.runtime.mp > 0;
-  const canCraftSword = pureEssence >= GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE;
+  const canCraftSword =
+    pureEssence >= GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE;
 
   const assetBuildings: AssetBuildingView[] = getAssetBuildingsView(gameState);
+
+  const pendingList: PendingTransaction[] = gameState.pending;
+  const pendingCount = pendingList.length;
+  const isPendingHeavy = pendingCount >= 5;
 
   // 마운트 시 일일 리셋
   useEffect(() => {
@@ -102,7 +147,7 @@ export const MoneyRoomPage: React.FC = () => {
   const getHpColor = (hpValue: number) => {
     if (hpValue > 50) return '#4ade80'; // Green
     if (hpValue > 30) return '#facc15'; // Yellow
-    return '#ef4444';                   // Red
+    return '#ef4444'; // Red
   };
 
   const getClassBadge = (classType: ClassType | null) => {
@@ -120,7 +165,7 @@ export const MoneyRoomPage: React.FC = () => {
     }
   };
 
-  // --- 지출 입력 모달 열기 ---
+  // --- 지출 입력 모달 열기/닫기 ---
   const handleOpenSpendModal = () => {
     setSpendAmountInput('');
     setIsFixedCostInput(false);
@@ -150,6 +195,7 @@ export const MoneyRoomPage: React.FC = () => {
     if (info.shouldShow) {
       setGuardInfo(info);
       setIsGuardPromptOpen(true);
+      // 오늘 프롬프트 표시 플래그
       setGameState((prev) => ({
         ...prev,
         counters: {
@@ -168,7 +214,11 @@ export const MoneyRoomPage: React.FC = () => {
         isFixedCost: isFixedCostInput,
       };
 
-      const { newState, message } = applySpend(gameState, amount, isFixedCostInput);
+      const { newState, message } = applySpend(
+        gameState,
+        amount,
+        isFixedCostInput
+      );
 
       const nextTransactions = [...gameState.transactions, tx];
 
@@ -181,6 +231,40 @@ export const MoneyRoomPage: React.FC = () => {
       setIsGuardPromptOpen(false);
       setPendingSpendAmount(null);
     }
+  };
+
+  // --- 지출 입력 모달에서 "나중에 입력" 저장 ---
+  const handleSaveToPending = () => {
+    const raw = spendAmountInput.replace(/,/g, '');
+    const amount =
+      raw.trim().length > 0 && !Number.isNaN(Number(raw))
+        ? Number(raw)
+        : undefined;
+
+    if (amount !== undefined && amount <= 0) {
+      setFeedbackMsg('금액을 비워두거나, 0보다 큰 숫자로 입력해주세요.');
+      return;
+    }
+
+    if (!spendNoteInput && amount === undefined) {
+      setFeedbackMsg('메모나 금액 중 하나는 입력해주세요.');
+      return;
+    }
+
+    const pendingItem: PendingTransaction = {
+      id: generateId(),
+      amount,
+      note: spendNoteInput || '(메모 없음)',
+      createdAt: new Date().toISOString(),
+    };
+
+    setGameState((prev) => ({
+      ...prev,
+      pending: [...prev.pending, pendingItem],
+    }));
+
+    setIsSpendModalOpen(false);
+    setFeedbackMsg('나중에 입력 리스트에 1건을 보관했습니다.');
   };
 
   // --- Guard Prompt: Hit 진행 ---
@@ -223,7 +307,10 @@ export const MoneyRoomPage: React.FC = () => {
 
   // --- Guard Prompt: 취소 후 방어 ---
   const handleCancelAndGuard = () => {
-    if (gameState.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) {
+    if (
+      gameState.counters.defenseActionsToday >=
+      GAME_CONSTANTS.DAILY_DEFENSE_LIMIT
+    ) {
       setFeedbackMsg('오늘의 방어 태세가 이미 한계에 도달했습니다.');
     } else {
       const nextState = applyDefense(gameState);
@@ -239,7 +326,10 @@ export const MoneyRoomPage: React.FC = () => {
 
   // --- 일반 방어 버튼 (No-Spend Guard) ---
   const handleDefenseClick = () => {
-    if (gameState.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) {
+    if (
+      gameState.counters.defenseActionsToday >=
+      GAME_CONSTANTS.DAILY_DEFENSE_LIMIT
+    ) {
       setFeedbackMsg('오늘의 방어 태세가 이미 한계에 도달했습니다.');
       return;
     }
@@ -271,10 +361,40 @@ export const MoneyRoomPage: React.FC = () => {
     setFeedbackMsg(message);
   };
 
+  // --- 직업 모달 열기/닫기 & 선택 ---
+  const handleOpenClassModal = () => {
+    setIsClassModalOpen(true);
+  };
+
+  const handleCloseClassModal = () => {
+    setIsClassModalOpen(false);
+  };
+
+  const handleSelectClass = (classType: ClassType) => {
+    const { newState, message } = changeClass(gameState, classType);
+    setGameState(newState);
+    setFeedbackMsg(message);
+    setIsClassModalOpen(false);
+  };
+
+  // --- Pending 리스트 삭제/초기화 ---
+  const handleRemovePending = (id: string) => {
+    setGameState((prev) => ({
+      ...prev,
+      pending: prev.pending.filter((p) => p.id !== id),
+    }));
+  };
+
+  const handleClearPending = () => {
+    setGameState((prev) => ({
+      ...prev,
+      pending: [],
+    }));
+    setFeedbackMsg('나중에 입력 리스트를 모두 비웠습니다.');
+  };
+
   // 최근 N개 지출
-  const recentTransactions = [...gameState.transactions]
-    .slice(-5)
-    .reverse();
+  const recentTransactions = [...gameState.transactions].slice(-5).reverse();
 
   return (
     <div style={{ ...styles.container, backgroundColor: theme.bgColor }}>
@@ -282,9 +402,13 @@ export const MoneyRoomPage: React.FC = () => {
       <header style={styles.header}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <span style={styles.date}>{todayStr}</span>
-          <span style={{ fontSize: '14px', color: '#60a5fa', marginTop: '4px' }}>
+          <button
+            type="button"
+            onClick={handleOpenClassModal}
+            style={styles.classButton}
+          >
             {getClassBadge(gameState.profile.classType)}
-          </span>
+          </button>
         </div>
         <span
           style={{
@@ -341,7 +465,9 @@ export const MoneyRoomPage: React.FC = () => {
       <section style={styles.purifySection}>
         <div style={styles.purifyHeader}>
           <span style={styles.purifyTitle}>정화 루프</span>
-          <span style={styles.purifySubtitle}>Junk + Salt + MP → Material</span>
+          <span style={styles.purifySubtitle}>
+            Junk + Salt + MP → Material
+          </span>
         </div>
         <div style={styles.purifyStatsRow}>
           <span>Junk: {junk}</span>
@@ -367,7 +493,8 @@ export const MoneyRoomPage: React.FC = () => {
         <div style={styles.eqHeader}>
           <span style={styles.eqTitle}>장비 & 인벤토리</span>
           <span style={styles.eqSubtitle}>
-            pureEssence {GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE}개 → 잔잔한 장부검
+            pureEssence {GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE}개 → 잔잔한
+            장부검
           </span>
         </div>
         <div style={styles.eqStatsRow}>
@@ -443,11 +570,68 @@ export const MoneyRoomPage: React.FC = () => {
         </div>
       </section>
 
+      {/* --- PENDING SECTION (나중에 입력 리스트) --- */}
+      <section style={styles.pendingSection}>
+        <div style={styles.pendingHeaderRow}>
+          <span style={styles.pendingTitle}>나중에 입력 리스트</span>
+          <span style={styles.pendingCount}>{pendingCount}건</span>
+        </div>
+
+        {pendingCount === 0 ? (
+          <div style={styles.pendingEmpty}>
+            보류 중인 항목이 없습니다. 필요할 때 지출 입력 화면에서
+            &quot;나중에 입력&quot;을 눌러보세요.
+          </div>
+        ) : (
+          <>
+            {isPendingHeavy && (
+              <div style={styles.pendingWarn}>
+                ⚠️ 나중에 입력이 {pendingCount}건 쌓였습니다. 주말에 한 번 정리해
+                보세요.
+              </div>
+            )}
+            <div style={styles.pendingList}>
+              {pendingList.map((p) => (
+                <div key={p.id} style={styles.pendingRow}>
+                  <div style={styles.pendingMain}>
+                    <span style={styles.pendingNote}>{p.note}</span>
+                    {p.amount !== undefined && (
+                      <span style={styles.pendingAmount}>
+                        {p.amount.toLocaleString()}원
+                      </span>
+                    )}
+                  </div>
+                  <div style={styles.pendingSub}>
+                    <span>{p.createdAt.slice(0, 10)}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePending(p.id)}
+                      style={styles.pendingDeleteBtn}
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={handleClearPending}
+              style={styles.pendingClearBtn}
+            >
+              리스트 전체 비우기
+            </button>
+          </>
+        )}
+      </section>
+
       {/* --- TRANSACTION LOG --- */}
       <section style={styles.txSection}>
         <div style={styles.txHeaderRow}>
           <span style={styles.txTitle}>최근 지출 로그</span>
-          <span style={styles.txCount}>{gameState.transactions.length}건</span>
+          <span style={styles.txCount}>
+            {gameState.transactions.length}건
+          </span>
         </div>
         {gameState.transactions.length === 0 ? (
           <div style={styles.txEmpty}>아직 기록된 지출이 없습니다.</div>
@@ -537,10 +721,13 @@ export const MoneyRoomPage: React.FC = () => {
 
             <div style={styles.modalButtonRow}>
               <button onClick={handleCloseSpendModal} style={styles.btnSecondary}>
-                취소
+                닫기
+              </button>
+              <button onClick={handleSaveToPending} style={styles.btnSecondary}>
+                나중에 입력
               </button>
               <button onClick={handleSpendNext} style={styles.btnPrimary}>
-                다음 →
+                Hit 진행 →
               </button>
             </div>
           </div>
@@ -552,7 +739,13 @@ export const MoneyRoomPage: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div style={styles.modalCard}>
             <h2 style={styles.modalTitle}>Guard 체크</h2>
-            <p style={{ fontSize: '14px', marginBottom: '12px', lineHeight: 1.6 }}>
+            <p
+              style={{
+                fontSize: '14px',
+                marginBottom: '12px',
+                lineHeight: 1.6,
+              }}
+            >
               이 지출을 진행하면 HP와 일일 사용 가능 금액이 다음과 같이 변합니다.
             </p>
             <div style={{ marginBottom: '12px', fontSize: '14px' }}>
@@ -565,16 +758,77 @@ export const MoneyRoomPage: React.FC = () => {
                 {guardInfo.avgAvailablePerDay.toLocaleString()}원 사용 가능
               </div>
             </div>
-            <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '16px' }}>
+            <p
+              style={{
+                fontSize: '12px',
+                color: '#9ca3af',
+                marginBottom: '16px',
+              }}
+            >
               숫자와 상태만 알려드립니다. 진행 여부는 사용자가 결정합니다.
             </p>
 
             <div style={styles.modalButtonRow}>
-              <button onClick={handleCancelAndGuard} style={styles.btnSecondary}>
+              <button
+                onClick={handleCancelAndGuard}
+                style={styles.btnSecondary}
+              >
                 지출 취소 & 방어
               </button>
               <button onClick={handleConfirmHit} style={styles.btnPrimary}>
                 Hit 진행
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- 직업 선택 모달 --- */}
+      {isClassModalOpen && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <h2 style={styles.modalTitle}>직업 선택</h2>
+            <p
+              style={{
+                fontSize: '13px',
+                color: '#9ca3af',
+                marginBottom: '12px',
+              }}
+            >
+              이번 달 머니룸에서 사용할 직업을 선택합니다.
+              직업을 변경하면 레벨은 1로 초기화됩니다.
+            </p>
+
+            <div style={styles.classOptionsList}>
+              {CLASS_OPTIONS.map((opt) => {
+                const isCurrent = gameState.profile.classType === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => handleSelectClass(opt.id)}
+                    style={{
+                      ...styles.classOptionCard,
+                      borderColor: isCurrent ? '#60a5fa' : '#1f2937',
+                      opacity: isCurrent ? 0.9 : 1,
+                    }}
+                  >
+                    <div style={styles.classOptionHeader}>
+                      <span style={styles.classOptionTitle}>{opt.title}</span>
+                      {isCurrent && (
+                        <span style={styles.classOptionCurrent}>현재</span>
+                      )}
+                    </div>
+                    <div style={styles.classOptionSubtitle}>{opt.subtitle}</div>
+                    <div style={styles.classOptionDetail}>{opt.detail}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={styles.modalButtonRow}>
+              <button onClick={handleCloseClassModal} style={styles.btnSecondary}>
+                닫기
               </button>
             </div>
           </div>
@@ -606,6 +860,16 @@ const styles: Record<string, React.CSSProperties> = {
   date: {
     fontSize: '18px',
     fontWeight: 'bold',
+  },
+  classButton: {
+    marginTop: '4px',
+    padding: '4px 8px',
+    borderRadius: '999px',
+    border: '1px solid #1f2937',
+    backgroundColor: 'rgba(15,23,42,0.85)',
+    color: '#60a5fa',
+    fontSize: '12px',
+    cursor: 'pointer',
   },
   modeBadge: {
     padding: '4px 8px',
@@ -672,7 +936,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '12px',
     borderRadius: '12px',
     backgroundColor: '#020617',
-    border: '1px solid #374151',
+    border: '1px solid '#374151',
   },
   purifyHeader: {
     marginBottom: '6px',
@@ -829,6 +1093,90 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'width 0.4s ease-out',
   },
 
+  // --- PENDING ---
+  pendingSection: {
+    marginBottom: '20px',
+    padding: '12px',
+    borderRadius: '12px',
+    backgroundColor: '#020617',
+    border: '1px dashed #4b5563',
+  },
+  pendingHeaderRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '6px',
+  },
+  pendingTitle: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#e5e7eb',
+  },
+  pendingCount: {
+    fontSize: '11px',
+    color: '#9ca3af',
+  },
+  pendingEmpty: {
+    fontSize: '12px',
+    color: '#6b7280',
+  },
+  pendingWarn: {
+    fontSize: '11px',
+    color: '#facc15',
+    marginBottom: '6px',
+  },
+  pendingList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    marginTop: '4px',
+    marginBottom: '8px',
+  },
+  pendingRow: {
+    padding: '6px 0',
+    borderTop: '1px solid #111827',
+  },
+  pendingMain: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: '2px',
+  },
+  pendingNote: {
+    fontSize: '12px',
+    color: '#e5e7eb',
+    marginRight: '8px',
+  },
+  pendingAmount: {
+    fontSize: '12px',
+    color: '#93c5fd',
+  },
+  pendingSub: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '11px',
+    color: '#6b7280',
+    marginTop: '2px',
+  },
+  pendingDeleteBtn: {
+    border: 'none',
+    background: 'transparent',
+    color: '#f97373',
+    cursor: 'pointer',
+    fontSize: '11px',
+  },
+  pendingClearBtn: {
+    marginTop: '4px',
+    width: '100%',
+    padding: '6px 8px',
+    borderRadius: '8px',
+    border: '1px solid #4b5563',
+    backgroundColor: '#020617',
+    color: '#9ca3af',
+    fontSize: '11px',
+    cursor: 'pointer',
+  },
+
   // --- Transaction Log ---
   txSection: {
     marginBottom: '20px',
@@ -859,7 +1207,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   txRow: {
     padding: '6px 0',
-    borderTop: '1px solid #1f2937',
+    borderTop: '1px solid '#1f2937',
   },
   txRowMain: {
     display: 'flex',
@@ -935,7 +1283,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderTop: '1px solid #374151',
   },
 
-  // --- 모달 스타일 ---
+  // --- 모달 ---
   modalOverlay: {
     position: 'fixed',
     inset: 0,
@@ -972,7 +1320,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     padding: '8px 10px',
     borderRadius: '8px',
-    border: '1px solid '#4b5563',
+    border: '1px solid #4b5563',
     backgroundColor: '#020617',
     color: '#e5e7eb',
     fontSize: '14px',
@@ -1007,6 +1355,49 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'bold',
     cursor: 'pointer',
     boxShadow: '0 3px 0 #1d4ed8',
+  },
+
+  // --- 직업 선택 모달용 ---
+  classOptionsList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    marginBottom: '12px',
+  },
+  classOptionCard: {
+    width: '100%',
+    textAlign: 'left',
+    padding: '10px 12px',
+    borderRadius: '10px',
+    border: '1px solid #1f2937',
+    backgroundColor: '#020617',
+    cursor: 'pointer',
+  },
+  classOptionHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '4px',
+  },
+  classOptionTitle: {
+    fontSize: '14px',
+    fontWeight: 600,
+  },
+  classOptionCurrent: {
+    fontSize: '11px',
+    padding: '2px 6px',
+    borderRadius: '999px',
+    border: '1px solid #60a5fa',
+    color: '#bfdbfe',
+  },
+  classOptionSubtitle: {
+    fontSize: '12px',
+    color: '#9ca3af',
+    marginBottom: '2px',
+  },
+  classOptionDetail: {
+    fontSize: '11px',
+    color: '#6b7280',
   },
 };
 
