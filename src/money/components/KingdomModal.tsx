@@ -3,10 +3,10 @@ import React from 'react';
 
 export interface KingdomBuilding {
   id: string;
-  name: string;           // 예: '요새'
-  type: string;           // 예: 'FORTRESS'
-  level: number;          // 1 ~ 4
-  streak: number;         // 누적 횟수 (예: 무지출 스트릭)
+  name: string;   // 예: '요새'
+  type: string;   // 예: 'FORTRESS'
+  level: number;  // 1 ~ 4
+  streak: number; // 누적 횟수, 예: noSpendStreak
 }
 
 interface KingdomModalProps {
