@@ -1,4 +1,6 @@
-import { LunaMode } from './types';
+// src/money/moneyLuna.ts
+
+import type { LunaMode } from './types';
 
 const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -29,22 +31,22 @@ export const getLunaTheme = (mode: LunaMode) => {
     case 'PMS':
       return {
         label: '🩸 PMS WARNING',
-        color: '#ef4444', // Red
-        bgColor: '#450a0a', // Dark Red Bg
+        color: '#ef4444',    // Red
+        bgColor: '#450a0a',  // Dark Red Bg
         message: '충동구매 경보 발령. [회복 포션] 사용이 허가됩니다.',
       };
     case 'REST':
       return {
         label: '🛌 REST PERIOD',
-        color: '#a78bfa', // Purple
-        bgColor: '#2e1065', // Dark Purple Bg
+        color: '#a78bfa',    // Purple
+        bgColor: '#2e1065',  // Dark Purple Bg
         message: '휴식 기간입니다. MP 회복량이 2배로 증가합니다.',
       };
     default:
       return {
         label: '🟢 NORMAL MODE',
-        color: '#10b981', // Green
-        bgColor: '#111827', // Default Gray
+        color: '#10b981',    // Green
+        bgColor: '#111827',  // Default Gray
         message: '평온한 상태입니다. 정화 루틴을 수행하세요.',
       };
   }
