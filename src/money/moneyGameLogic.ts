@@ -335,3 +335,41 @@ export const applyPurify = (
     message: '정화 완료. Material [pureEssence] 1개를 획득했습니다.',
   };
 };
+
+/**
+ * 장비 제작 (Craft Equipment)
+ * - 비용: pureEssence N개 (GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE)
+ * - 보상: equipment 배열에 "잔잔한 장부검" 1개 추가
+ */
+export const applyCraftEquipment = (
+  state: UserState
+): { newState: UserState; message: string } => {
+  const cost = GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE;
+  const currentEssence = state.inventory.materials['pureEssence'] ?? 0;
+
+  if (currentEssence < cost) {
+    return {
+      newState: state,
+      message: `장비 제작에 필요한 재료가 부족합니다. (필요: pureEssence ${cost}개)`,
+    };
+  }
+
+  const newEssence = currentEssence - cost;
+
+  const newState: UserState = {
+    ...state,
+    inventory: {
+      ...state.inventory,
+      materials: {
+        ...state.inventory.materials,
+        pureEssence: newEssence,
+      },
+      equipment: [...state.inventory.equipment, '잔잔한 장부검'],
+    },
+  };
+
+  return {
+    newState,
+    message: '장비 [잔잔한 장부검] 1개가 제작되었습니다.',
+  };
+};
