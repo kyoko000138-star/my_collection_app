@@ -122,6 +122,94 @@ export const applyAccessBonus = (state: UserState): UserState => {
     };
   }
 
+  // src/money/moneyGameLogic.ts (수정)
+import { checkGuardianShield, getDruidRecoveryBonus } from './moneyClassLogic'; // Import 추가
+import { getLunaMode } from './moneyLuna'; // Luna 모드 확인용
+
+// ... (기존 getHp 함수 유지) ...
+
+/**
+ * [UPDATE] applySpend: 지출 적용 (수호자 패시브 적용)
+ */
+export const applySpend = (
+  state: UserState, 
+  amount: number, 
+  isFixedCost: boolean
+): { newState: UserState, message: string } => { // 리턴 타입 변경: 메시지 포함
+  
+  const newState = { ...state };
+  let message = '';
+
+  // 1. 예산 차감 (공통)
+  newState.budget.current -= amount;
+
+  // 2. 수호자 패시브 체크
+  const isGuarded = checkGuardianShield(state, amount);
+
+  if (isGuarded) {
+    // 수호자: 소액 지출 시 스트릭 유지 + 방어 태그
+    message = `🛡️ [수호자] ${amount.toLocaleString()}원 지출을 방어했습니다! (스트릭 유지)`;
+    // noSpendStreak를 0으로 리셋하지 않음 (Pass)
+    // 필요하다면 inventory에 기록하거나 stats.def를 소폭 상승시키는 로직 추가
+  } else {
+    // 일반 피격: 스트릭 깨짐
+    newState.counters.noSpendStreak = 0;
+    
+    // Junk 획득 로직 (비고정비 & 5000원 이상)
+    if (
+      !isFixedCost && 
+      amount >= GAME_CONSTANTS.JUNK_THRESHOLD && 
+      newState.counters.junkObtainedToday < GAME_CONSTANTS.DAILY_JUNK_LIMIT
+    ) {
+      newState.inventory.junk += 1;
+      newState.counters.junkObtainedToday += 1;
+      message = `💥 피격(Hit)! Junk 1개를 획득했습니다.`;
+    } else {
+      message = `💥 피격(Hit)! 예산이 차감되었습니다.`;
+    }
+  }
+
+  return { newState, message };
+};
+
+/**
+ * [UPDATE] checkDailyReset: 일일 초기화 (드루이드 패시브 적용)
+ */
+export const checkDailyReset = (state: UserState): UserState => {
+  const today = getTodayString();
+  
+  if (state.counters.lastDailyResetDate === today) {
+    return state;
+  }
+
+  // 루나 모드 확인 (함수 호출에 필요한 데이터가 state에 있다고 가정)
+  // 실제로는 nextPeriodDate를 넘겨받거나 state 안에 있어야 함.
+  // 여기서는 state.luna가 있다고 가정합니다.
+  const currentMode = getLunaMode(today, state.luna.nextPeriodDate);
+
+  // 드루이드 보너스 계산
+  const druidBonus = getDruidRecoveryBonus(state, currentMode);
+  
+  // 기본 MP 회복 + 드루이드 보너스
+  const newMp = Math.min(
+    GAME_CONSTANTS.MAX_MP, 
+    state.runtime.mp + druidBonus // 리셋 시 기본 회복량은 없으나 드루이드는 회복함
+  );
+
+  return {
+    ...state,
+    runtime: {
+      ...state.runtime,
+      mp: newMp
+    },
+    counters: {
+      ...state.counters,
+      defenseActionsToday: 0,
+      junkObtainedToday: 0,
+      lastDailyResetDate: today,
+    },
+  };
+};
   // 쿨타임 지남 -> MP 지급
   return {
     ...state,
