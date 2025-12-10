@@ -1,272 +1,251 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { 
-  Swords, Shield, Heart, Zap, Map as MapIcon, 
-  ShoppingBag, Coffee, Car, BookOpen, Crown 
-} from 'lucide-react';
-import confetti from 'canvas-confetti';
+import React, { useState, useEffect } from 'react';
+import { UserState } from '../money/types';
+import { GAME_CONSTANTS, CLASS_TYPES } from '../money/constants';
+import { getHp, applySpend, applyDefense, checkDailyReset } from '../money/moneyGameLogic';
 
-// 1. 설계도 및 로직 가져오기
-import { 
-  UserState, TransactionLike, ResidueType, 
-  MaterialType, Building 
-} from '../money/types';
-import { calcCycleStatus } from '../money/moneyLuna';
-import { 
-  calcHP, calcMP, getResidueFromCategory, 
-  updateBuildingExp, calcAttackDamage 
-} from '../money/moneyGameLogic';
-import { getDailyMonster } from '../money/moneyJourney';
-
-// [추가] 인벤토리 컴포넌트 가져오기
-import MoneyInventory from '../components/money/MoneyInventory';
-
-// 초기값 상수
-const INITIAL_USER_STATE: UserState = {
-  meta: { lastLoginDate: new Date().toISOString().slice(0, 10), lastLoginTime: '00:00', currentYear: 2025, currentMonth: 12 },
-  status: { hp: 100, mp: 10, credit: 0 },
-  budget: { year: 2025, month: 12, variableBudget: 500000, noSpendTarget: 10, snackRecoveryBudget: 30000 },
-  cycle: { lastPeriodStart: '2025-12-01', cycleLength: 28 },
-  inventory: { 
-    gold: 0, leaf: 0, potions: 3, 
-    shards: { record: 0, discipline: 0, freedom: 0 }, 
-    items: {}, materials: {}, consumables: {},
-    collection: [], equipped: {} 
+// ----------------------------------------------------------------------
+// [MOCK DATA] 실제 앱에서는 DB나 로컬 스토리지에서 불러옵니다.
+// ----------------------------------------------------------------------
+const INITIAL_STATE: UserState = {
+  profile: { name: 'Player 1', classType: CLASS_TYPES.GUARDIAN, level: 1 },
+  budget: { total: 1000000, current: 850000, fixedCost: 300000, startDate: '2023-10-01' },
+  stats: { def: 50, creditScore: 0 },
+  counters: {
+    defenseActionsToday: 0,
+    junkObtainedToday: 0,
+    lastAccessDate: null,
+    lastDailyResetDate: null,
+    noSpendStreak: 3,
+    lunaShieldsUsedThisMonth: 0,
   },
-  buildings: [
-    { id: 'main_bank', name: '비상금 창고', type: 'warehouse', level: 1, currentExp: 0, totalSavings: 0, monthStreak: 0 }
-  ],
-  job: { currentJob: 'novice', tier: 0, exp: 0, unlockedSkills: [] },
-  journey: { nodes: [], currentNodeId: 0, routeTheme: 'forest' },
-  buffs: {},
+  runtime: { mp: 15 },
+  inventory: { junk: 0, salt: 0, shards: {}, materials: {}, equipment: [], collection: [] },
+  pending: [],
 };
 
-const MoneyRoomPage: React.FC = () => {
-  const today = useMemo(() => new Date(), []);
-  const todayStr = today.toISOString().slice(0, 10);
+export const MoneyRoomPage: React.FC = () => {
+  const [gameState, setGameState] = useState<UserState>(INITIAL_STATE);
+  const [feedbackMsg, setFeedbackMsg] = useState<string>("던전에 입장했습니다.");
 
-  // ----------------------------------------------------------------
-  // 전역 상태 (User State)
-  // ----------------------------------------------------------------
-  const [user, setUser] = useState<UserState>(() => {
-    try {
-      const saved = localStorage.getItem('mr_user_v3');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          ...INITIAL_USER_STATE,
-          ...parsed,
-          cycle: parsed.cycle || INITIAL_USER_STATE.cycle,
-          inventory: { ...INITIAL_USER_STATE.inventory, ...(parsed.inventory || {}) }
-        };
-      }
-    } catch (e) {
-      console.error("데이터 로드 실패, 초기화합니다.", e);
-    }
-    return INITIAL_USER_STATE;
-  });
+  // 1. HP 계산 (실시간 반영)
+  const hp = getHp(gameState.budget.current, gameState.budget.total);
+  
+  // HP 색상 로직 (안전: 초록 / 경고: 노랑 / 위험: 빨강)
+  const getHpColor = (hp: number) => {
+    if (hp > 50) return '#4ade80'; // Green
+    if (hp > 30) return '#facc15'; // Yellow
+    return '#ef4444'; // Red
+  };
 
+  // 2. 초기화 로직 (접속 시)
   useEffect(() => {
-    localStorage.setItem('mr_user_v3', JSON.stringify(user));
-  }, [user]);
+    // 실제 구현 시 여기서 checkDailyReset 등을 호출하여 상태 업데이트
+    const refreshedState = checkDailyReset(gameState);
+    setGameState(refreshedState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // [추가] 탭 상태 관리 ('battle' | 'inventory' | 'map' | 'kingdom')
-  const [currentTab, setCurrentTab] = useState<'battle' | 'inventory' | 'map' | 'kingdom'>('battle');
+  // 3. 행동 핸들러: 지출 (Hit)
+  const handleSpend = () => {
+    // 테스트를 위해 15,000원 지출로 고정
+    const spendAmount = 15000; 
+    
+    // 로직 적용
+    const nextState = applySpend(gameState, spendAmount, false);
+    setGameState(nextState);
 
-  const [todayTransactions, setTodayTransactions] = useState<TransactionLike[]>([]);
-
-  // ----------------------------------------------------------------
-  // 엔진 가동
-  // ----------------------------------------------------------------
-  const luna = useMemo(() => calcCycleStatus(today, user.cycle), [today, user.cycle]);
-  const monster = useMemo(() => getDailyMonster(todayTransactions), [todayTransactions]);
-  const currentHP = useMemo(() => calcHP(user.budget, todayTransactions), [user.budget, todayTransactions]);
-
-  // ----------------------------------------------------------------
-  // 액션 핸들러
-  // ----------------------------------------------------------------
-  const [txForm, setTxForm] = useState({ amount: '', category: '식비', memo: '' });
-
-  const handleCheck = () => {
-    setUser(prev => ({
-      ...prev,
-      status: { ...prev.status, mp: Math.min(prev.status.mp + 1, 100) }
-    }));
-    alert("⚔️ 평타 공격! 몬스터를 견제하고 의지력(MP)을 회복했습니다.");
+    // 피드백 메시지 (No Guilt)
+    setFeedbackMsg(`피격(Hit)! HP가 ${getHp(nextState.budget.current, nextState.budget.total)}%로 감소했습니다.`);
   };
 
-  const handleSpend = (usePotion: boolean) => {
-    const amount = Number(txForm.amount);
-    if (!amount) return alert("금액을 입력해주세요.");
-
-    if (usePotion && user.inventory.potions <= 0) return alert("🧪 포션이 부족합니다!");
-
-    const residue = getResidueFromCategory(txForm.category);
-    
-    setUser(prev => {
-      const newMaterials = { ...prev.inventory.materials }; 
-      newMaterials[residue as string] = (newMaterials[residue as string] || 0) + 1;
-
-      return {
-        ...prev,
-        inventory: {
-          ...prev.inventory,
-          potions: usePotion ? prev.inventory.potions - 1 : prev.inventory.potions,
-          materials: newMaterials 
-        }
-      };
-    });
-
-    const newTx: TransactionLike = {
-      id: Date.now().toString(), date: todayStr, type: 'expense',
-      category: txForm.category, amount, isRecoverySnack: usePotion, memo: txForm.memo
-    };
-    setTodayTransactions(prev => [...prev, newTx]);
-
-    if (usePotion) {
-      confetti({ colors: ['#ff69b4', '#fff'] });
-      alert(`🧪 포션 사용! 데미지를 막아내고 [${residue}] 잔해를 수습했습니다.`);
-    } else {
-      alert(`💥 크윽! ${amount} 데미지! [${residue}] 잔해를 획득했습니다.`);
+  // 4. 행동 핸들러: 방어 (Guard)
+  const handleDefense = () => {
+    if (gameState.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) {
+      setFeedbackMsg("오늘의 방어 태세가 이미 한계에 도달했습니다.");
+      return;
     }
-    
-    setTxForm({ amount: '', category: '식비', memo: '' });
+
+    const nextState = applyDefense(gameState);
+    setGameState(nextState);
+
+    // 피드백 메시지 (칭찬 대신 상태 보고)
+    setFeedbackMsg(`방어 성공. MP가 회복되었습니다. (오늘 방어: ${nextState.counters.defenseActionsToday}/${GAME_CONSTANTS.DAILY_DEFENSE_LIMIT})`);
   };
-
-  const handleSave = () => {
-    const amount = Number(txForm.amount);
-    if (!amount) return;
-
-    setUser(prev => {
-      const updatedBuilding = updateBuildingExp(prev.buildings[0], amount, false);
-      const newBuildings = [...prev.buildings];
-      newBuildings[0] = updatedBuilding;
-
-      return {
-        ...prev,
-        buildings: newBuildings,
-        inventory: { ...prev.inventory, gold: prev.inventory.gold + Math.floor(amount / 100) } 
-      };
-    });
-
-    confetti({ colors: ['#ffd700', '#FFA500'] });
-    alert(`🔨 저축 강타! 몬스터에게 강력한 데미지! (건물 경험치 +)`);
-    setTxForm({ amount: '', category: '저축', memo: '' });
-  };
-
-  // ----------------------------------------------------------------
-  // UI 렌더링
-  // ----------------------------------------------------------------
-  const bgColor = luna.mode === 'pms' ? '#fff0f5' : luna.mode === 'rest' ? '#f0f8ff' : '#f8f9fa';
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: bgColor, padding: '20px', paddingBottom: '100px', transition: 'background 0.5s' }}>
-      
-      {/* 1. HUD (항상 표시) */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div>
-          <div style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>{luna.message}</div>
-          <div style={{ fontSize: 18, fontWeight: 'bold' }}>LV.1 모험가</div>
-        </div>
-        <div style={{ textAlign: 'right', fontSize: 12, fontWeight: 'bold' }}>
-          <div style={{ color: '#e11d48' }}>HP {currentHP}%</div>
-          <div style={{ color: '#3b82f6' }}>MP {user.status.mp} / 10</div>
-        </div>
+    <div style={styles.container}>
+      {/* --- HEADER: 날짜 & 모드(Luna) --- */}
+      <header style={styles.header}>
+        <span style={styles.date}>12월 10일 (수)</span>
+        <span style={styles.modeBadge}>NORMAL MODE</span>
       </header>
 
-      {/* 2. 탭별 화면 전환 */}
-      {currentTab === 'battle' && (
-        <>
-          {/* 몬스터 카드 */}
-          <div style={{ 
-            backgroundColor: '#fff', borderRadius: 16, padding: 20, textAlign: 'center', 
-            boxShadow: '0 4px 15px rgba(0,0,0,0.1)', marginBottom: 20, border: '2px solid #333' 
-          }}>
-            <div style={{ fontSize: 48, marginBottom: 8, animation: 'bounce 2s infinite' }}>{monster.emoji}</div>
-            <div style={{ fontSize: 16, fontWeight: 'bold' }}>{monster.name}</div>
-            <div style={{ fontSize: 12, color: '#888' }}>{monster.desc}</div>
-            <div style={{ width: '100%', height: 8, background: '#eee', borderRadius: 4, marginTop: 10, overflow: 'hidden' }}>
-              <div style={{ width: '100%', height: '100%', background: '#ff4444' }} /> 
-            </div>
+      {/* --- HERO: HP BAR (핵심) --- */}
+      <section style={styles.heroSection}>
+        <div style={styles.hpLabel}>
+          <span>HP (생존력)</span>
+          <span>{hp}%</span>
+        </div>
+        <div style={styles.hpBarBg}>
+          <div 
+            style={{
+              ...styles.hpBarFill, 
+              width: `${hp}%`, 
+              backgroundColor: getHpColor(hp)
+            }} 
+          />
+        </div>
+        <div style={styles.budgetDetail}>
+          잔여: {gameState.budget.current.toLocaleString()} / 전체: {gameState.budget.total.toLocaleString()}
+        </div>
+      </section>
+
+      {/* --- STATS: MP & DEF --- */}
+      <section style={styles.statsGrid}>
+        <div style={styles.statBox}>
+          <div style={styles.statLabel}>MP (의지)</div>
+          <div style={styles.statValue}>
+            <span style={{color: '#60a5fa'}}>{gameState.runtime.mp}</span> 
+            <span style={styles.statMax}> / {GAME_CONSTANTS.MAX_MP}</span>
           </div>
+        </div>
+        <div style={styles.statBox}>
+          <div style={styles.statLabel}>DEF (방어)</div>
+          <div style={styles.statValue}>{gameState.stats.def}</div>
+        </div>
+        <div style={styles.statBox}>
+          <div style={styles.statLabel}>Junk (파편)</div>
+          <div style={styles.statValue}>{gameState.inventory.junk}</div>
+        </div>
+      </section>
 
-          {/* 전투 컨트롤러 */}
-          <div style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <button onClick={handleCheck} style={{ flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: 8, background: '#f9f9f9', fontSize: 12 }}>
-                ⚔️ 눈팅 (평타)
-              </button>
-              <button style={{ flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: 8, background: '#f9f9f9', fontSize: 12 }}>
-                ✨ 퀘스트 (스킬)
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', overflowX: 'auto', gap: 6, marginBottom: 12, paddingBottom: 4 }}>
-              {['식비', '쇼핑', '교통', '문화', '저축'].map(cat => (
-                <button key={cat} onClick={() => setTxForm({...txForm, category: cat})}
-                  style={{ 
-                    padding: '6px 12px', borderRadius: 20, fontSize: 12, whiteSpace: 'nowrap',
-                    background: txForm.category === cat ? '#333' : '#eee', 
-                    color: txForm.category === cat ? '#fff' : '#333', border: 'none'
-                  }}>
-                  {cat}
-                </button>
-              ))}
-            </div>
-
-            <input 
-              type="number" placeholder="금액 입력" value={txForm.amount} 
-              onChange={e => setTxForm({...txForm, amount: e.target.value})}
-              style={{ width: '100%', padding: '12px', fontSize: 16, border: '1px solid #ddd', borderRadius: 10, marginBottom: 12 }}
-            />
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              {txForm.category === '저축' ? (
-                <button onClick={handleSave} style={{ flex: 1, padding: '14px', background: '#ffd700', color: '#333', fontWeight: 'bold', border: 'none', borderRadius: 12 }}>
-                  🔨 저축 강타!
-                </button>
-              ) : (
-                <>
-                  <button onClick={() => handleSpend(false)} style={{ flex: 2, padding: '14px', background: '#333', color: '#fff', fontWeight: 'bold', border: 'none', borderRadius: 12 }}>
-                    💥 지출 (피격)
-                  </button>
-                  {luna.mode === 'pms' && (
-                    <button onClick={() => handleSpend(true)} style={{ flex: 1, padding: '14px', background: '#e11d48', color: '#fff', fontWeight: 'bold', border: 'none', borderRadius: 12, boxShadow: '0 0 10px #e11d4840' }}>
-                      🧪 포션 ({user.inventory.potions})
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* 인벤토리 탭 */}
-      {currentTab === 'inventory' && (
-        <MoneyInventory user={user} setUser={setUser} />
-      )}
-
-      {/* 월드맵/왕국 탭 (준비중) */}
-      {currentTab === 'map' && <div style={{textAlign:'center', marginTop:50, color:'#888'}}>🗺️ 5대 테마 월드맵 준비중...</div>}
-      {currentTab === 'kingdom' && <div style={{textAlign:'center', marginTop:50, color:'#888'}}>🏰 자산의 왕국 건설 준비중...</div>}
-
-      {/* 하단 네비게이션 */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #eee', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', zIndex: 100 }}>
-        <div onClick={() => setCurrentTab('battle')} style={{cursor:'pointer'}}><NavButton icon={<Swords size={20}/>} label="전투" active={currentTab==='battle'} /></div>
-        <div onClick={() => setCurrentTab('inventory')} style={{cursor:'pointer'}}><NavButton icon={<ShoppingBag size={20}/>} label="인벤토리" active={currentTab==='inventory'} /></div>
-        <div onClick={() => setCurrentTab('map')} style={{cursor:'pointer'}}><NavButton icon={<MapIcon size={20}/>} label="월드맵" active={currentTab==='map'} /></div>
-        <div onClick={() => setCurrentTab('kingdom')} style={{cursor:'pointer'}}><NavButton icon={<Crown size={20}/>} label="왕국" active={currentTab==='kingdom'} /></div>
+      {/* --- FEEDBACK AREA --- */}
+      <div style={styles.feedbackArea}>
+        "{feedbackMsg}"
       </div>
 
+      {/* --- ACTIONS: Combat Interface --- */}
+      <footer style={styles.actionArea}>
+        <button onClick={handleSpend} style={styles.btnHit}>
+          🔥 지출 (Hit)
+        </button>
+        <button onClick={handleDefense} style={styles.btnGuard}>
+          🛡️ 방어 (Guard)
+        </button>
+      </footer>
     </div>
   );
 };
 
-const NavButton = ({ icon, label, active = false }: any) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: active ? '#333' : '#aaa' }}>
-    {icon}
-    <span style={{ fontSize: 10, fontWeight: active ? 'bold' : 'normal' }}>{label}</span>
-  </div>
-);
-
-export default MoneyRoomPage;
+// ----------------------------------------------------------------------
+// [STYLES] 인라인 스타일 (빠른 프로토타이핑용)
+// ----------------------------------------------------------------------
+const styles: Record<string, React.CSSProperties> = {
+  container: {
+    maxWidth: '420px', // 모바일 사이즈 제한
+    margin: '0 auto',
+    backgroundColor: '#111827', // Dark Gray Background
+    color: '#f3f4f6',
+    minHeight: '100vh',
+    padding: '20px',
+    fontFamily: 'sans-serif',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '30px',
+  },
+  date: { fontSize: '18px', fontWeight: 'bold' },
+  modeBadge: {
+    backgroundColor: '#374151',
+    padding: '4px 8px',
+    borderRadius: '4px',
+    fontSize: '12px',
+    color: '#9ca3af',
+  },
+  heroSection: { marginBottom: '30px' },
+  hpLabel: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginBottom: '8px',
+    fontWeight: 'bold',
+    fontSize: '20px',
+  },
+  hpBarBg: {
+    width: '100%',
+    height: '24px',
+    backgroundColor: '#374151',
+    borderRadius: '12px',
+    overflow: 'hidden',
+    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)',
+  },
+  hpBarFill: {
+    height: '100%',
+    transition: 'width 0.5s ease-in-out, background-color 0.5s',
+  },
+  budgetDetail: {
+    marginTop: '8px',
+    textAlign: 'right',
+    fontSize: '12px',
+    color: '#9ca3af',
+  },
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr 1fr',
+    gap: '10px',
+    marginBottom: '30px',
+  },
+  statBox: {
+    backgroundColor: '#1f2937',
+    padding: '15px',
+    borderRadius: '10px',
+    textAlign: 'center',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+  },
+  statLabel: { fontSize: '12px', color: '#9ca3af', marginBottom: '4px' },
+  statValue: { fontSize: '20px', fontWeight: 'bold' },
+  statMax: { fontSize: '12px', color: '#6b7280' },
+  feedbackArea: {
+    flexGrow: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    color: '#d1d5db',
+    marginBottom: '20px',
+    border: '1px dashed #374151',
+    borderRadius: '8px',
+    padding: '20px',
+  },
+  actionArea: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '15px',
+  },
+  btnHit: {
+    padding: '15px',
+    border: 'none',
+    borderRadius: '12px',
+    backgroundColor: '#ef4444',
+    color: 'white',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 4px 0 #b91c1c', // 버튼 입체감
+  },
+  btnGuard: {
+    padding: '15px',
+    border: 'none',
+    borderRadius: '12px',
+    backgroundColor: '#3b82f6',
+    color: 'white',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 4px 0 #1d4ed8',
+  },
+};
