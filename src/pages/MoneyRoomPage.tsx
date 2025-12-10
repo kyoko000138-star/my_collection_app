@@ -12,6 +12,7 @@ import {
   type GuardPromptInfo,
   applyDayEnd,
   applyPurify,
+  applyCraftEquipment,
 } from '../money/moneyGameLogic';
 import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
 
@@ -83,8 +84,9 @@ export const MoneyRoomPage: React.FC = () => {
   const salt = gameState.inventory.salt;
   const dust = gameState.inventory.shards['naturalDust'] ?? 0;
   const pureEssence = gameState.inventory.materials['pureEssence'] ?? 0;
-  const canPurify =
-    junk > 0 && salt > 0 && gameState.runtime.mp > 0;
+  const equipment = gameState.inventory.equipment;
+  const canPurify = junk > 0 && salt > 0 && gameState.runtime.mp > 0;
+  const canCraftSword = pureEssence >= GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE;
 
   // 마운트 시 일일 리셋
   useEffect(() => {
@@ -257,6 +259,13 @@ export const MoneyRoomPage: React.FC = () => {
     setFeedbackMsg(message);
   };
 
+  // --- 장비 제작 (Craft) ---
+  const handleCraftSword = () => {
+    const { newState, message } = applyCraftEquipment(gameState);
+    setGameState(newState);
+    setFeedbackMsg(message);
+  };
+
   // 최근 N개 지출
   const recentTransactions = [...gameState.transactions]
     .slice(-5)
@@ -345,6 +354,42 @@ export const MoneyRoomPage: React.FC = () => {
           }}
         >
           🔄 정화 1회 (Junk 1 + Salt 1 + MP 1)
+        </button>
+      </section>
+
+      {/* --- EQUIPMENT SECTION --- */}
+      <section style={styles.eqSection}>
+        <div style={styles.eqHeader}>
+          <span style={styles.eqTitle}>장비 & 인벤토리</span>
+          <span style={styles.eqSubtitle}>
+            pureEssence {GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE}개 → 잔잔한 장부검
+          </span>
+        </div>
+        <div style={styles.eqStatsRow}>
+          <span>보유 Essence: {pureEssence}</span>
+          <span>장비 개수: {equipment.length}</span>
+        </div>
+        <div style={styles.eqList}>
+          {equipment.length === 0 ? (
+            <div style={styles.eqEmpty}>아직 제작된 장비가 없습니다.</div>
+          ) : (
+            equipment.map((name, idx) => (
+              <div key={`${name}-${idx}`} style={styles.eqItem}>
+                <span style={styles.eqItemName}>{name}</span>
+              </div>
+            ))
+          )}
+        </div>
+        <button
+          onClick={handleCraftSword}
+          disabled={!canCraftSword}
+          style={{
+            ...styles.btnCraft,
+            opacity: canCraftSword ? 1 : 0.5,
+            cursor: canCraftSword ? 'pointer' : 'not-allowed',
+          }}
+        >
+          ⚒ 장비 제작 (잔잔한 장부검)
         </button>
       </section>
 
@@ -504,7 +549,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   header: {
     display: 'flex',
-    justifyContent: 'space-between',
+    justifyContent: 'spaceBetween' as any,
     alignItems: 'center',
     marginBottom: '30px',
   },
@@ -573,11 +618,11 @@ const styles: Record<string, React.CSSProperties> = {
 
   // --- PURIFY ---
   purifySection: {
-    marginBottom: '20px',
+    marginBottom: '16px',
     padding: '12px',
     borderRadius: '12px',
     backgroundColor: '#020617',
-    border: '1px solid #374151',
+    border: '1px solid '#374151',
   },
   purifyHeader: {
     marginBottom: '6px',
@@ -599,6 +644,60 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '10px',
   },
   btnPurify: {
+    width: '100%',
+    padding: '10px',
+    borderRadius: '10px',
+    border: '1px solid #4b5563',
+    backgroundColor: '#020617',
+    color: '#e5e7eb',
+    fontSize: '13px',
+  },
+
+  // --- EQUIPMENT ---
+  eqSection: {
+    marginBottom: '20px',
+    padding: '12px',
+    borderRadius: '12px',
+    backgroundColor: '#020617',
+    border: '1px solid #374151',
+  },
+  eqHeader: {
+    marginBottom: '6px',
+  },
+  eqTitle: {
+    fontSize: '13px',
+    fontWeight: 600,
+  },
+  eqSubtitle: {
+    fontSize: '11px',
+    color: '#9ca3af',
+  },
+  eqStatsRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '11px',
+    color: '#e5e7eb',
+    marginTop: '4px',
+    marginBottom: '8px',
+  },
+  eqList: {
+    maxHeight: '80px',
+    overflowY: 'auto',
+    marginBottom: '8px',
+  },
+  eqEmpty: {
+    fontSize: '11px',
+    color: '#6b7280',
+  },
+  eqItem: {
+    padding: '4px 0',
+    borderTop: '1px solid #111827',
+    fontSize: '12px',
+  },
+  eqItemName: {
+    color: '#e5e7eb',
+  },
+  btnCraft: {
     width: '100%',
     padding: '10px',
     borderRadius: '10px',
