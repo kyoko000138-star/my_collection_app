@@ -83,4 +83,7 @@ export interface UserState {
   // 7. 인벤토리 & 대기열
   inventory: Inventory;
   pending: PendingTransaction[];
+
+  // 8. 거래 로그
+  transactions: Transaction[];
 }
