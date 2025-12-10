@@ -81,9 +81,7 @@ const InventoryModal: React.FC<InventoryModalProps> = ({
             </div>
             <div style={styles.eqList}>
               {equipment.length === 0 ? (
-                <div style={styles.eqEmpty}>
-                  아직 제작된 장비가 없습니다.
-                </div>
+                <div style={styles.eqEmpty}>아직 제작된 장비가 없습니다.</div>
               ) : (
                 equipment.map((name, idx) => (
                   <div key={`${name}-${idx}`} style={styles.eqItem}>
@@ -206,7 +204,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '12px',
     borderRadius: '12px',
     backgroundColor: '#020617',
-    border: '1px solid '#374151',
+    border: '1px solid #374151',
   },
   eqHeader: {
     marginBottom: '6px',
