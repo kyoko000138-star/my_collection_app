@@ -73,6 +73,8 @@ export interface UserState {
     noSpendStreak: number;             // 연속 무지출 일수
     lunaShieldsUsedThisMonth: number;  // 월간 루나 실드 사용 횟수
     guardPromptShownToday: boolean;    // 오늘 Guard Prompt 노출 여부
+
+    lastDayEndDate: string | null;     // 마지막 "오늘 마감하기" 실행일
   };
 
   // 6. 런타임 스탯 (MP)
