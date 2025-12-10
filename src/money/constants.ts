@@ -1,4 +1,11 @@
 // src/money/constants.ts
+// src/money/constants.ts (추가)
+
+export const CLASS_CONSTANTS = {
+  GUARDIAN_DEFENSE_THRESHOLD: 3000, // 이 금액 이하 지출은 '방어됨' 판정
+  DRUID_REST_HEAL: 5,               // 드루이드가 REST 기간에 얻는 추가 MP
+  ALCHEMIST_GOLD_PER_JUNK: 100,     // 연금술사가 정크 판매 시 얻는 가상 골드(혹은 예산 환급)
+};
 
 export const GAME_CONSTANTS = {
   MAX_MP: 30,
