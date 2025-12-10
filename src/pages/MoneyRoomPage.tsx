@@ -1,199 +1,273 @@
-// src/pages/MoneyRoomPage.tsx
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
-  Swords, Moon, Heart, Shield, Map as MapIcon,
-  Zap, Database, Gift
+  Swords, Shield, Heart, Zap, Map as MapIcon, 
+  ShoppingBag, Coffee, Car, BookOpen, Crown 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-// --- Logic Imports ---
-import { UserState, TransactionLike, DayStatusLike, ResidueType } from '../money/types';
+// 1. 설계도 및 로직 가져오기
+import { 
+  UserState, TransactionLike, ResidueType, 
+  MaterialType, Building 
+} from '../money/types';
 import { calcCycleStatus } from '../money/moneyLuna';
-import { calcHP, getResidueFromCategory, calcAttackDamage } from '../money/moneyGameLogic';
-import { createJourney, getDailyMonster } from '../money/moneyJourney';
+import { 
+  calcHP, calcMP, getResidueFromCategory, 
+  updateBuildingExp, calcAttackDamage 
+} from '../money/moneyGameLogic';
+import { getDailyMonster } from '../money/moneyJourney';
 
-// --- Components (기존 것 사용, 내용만 props로 전달) ---
-import MoneyMonsterCard from '../components/money/MoneyMonsterCard'; 
-import MoneyStats from '../components/money/MoneyStats';
-// (나머지 컴포넌트 import...)
+// 2. 컴포넌트 (기존에 만드신 것 활용 가능, 여기선 인라인 스타일로 통합)
+// 실제 프로젝트에서는 components/money 폴더의 컴포넌트를 import 해서 쓰세요.
 
 const MoneyRoomPage: React.FC = () => {
   const today = useMemo(() => new Date(), []);
   const todayStr = today.toISOString().slice(0, 10);
 
-  // 1. 전역 상태 (실제론 Context나 Redux 권장하지만, 일단 useState로 구현)
+  // ----------------------------------------------------------------
+  // 3. 전역 상태 (User State) - 로컬 스토리지 연동
+  // ----------------------------------------------------------------
   const [user, setUser] = useState<UserState>(() => {
     const saved = localStorage.getItem('mr_user_v3');
-    // 초기값 세팅 (생략됨 - 실제 구현시엔 types.ts의 UserState 초기값 필요)
-    return saved ? JSON.parse(saved) : { 
-      budget: { variableBudget: 500000, snackRecoveryBudget: 30000 },
-      cycleSettings: { lastPeriodStart: '2025-12-01', cycleLength: 28 },
-      inventory: { potions: 3, shards: { record:0, discipline:0, freedom:0 }, materials: {} },
+    if (saved) return JSON.parse(saved);
+
+    // 초기 데이터 (신규 유저용)
+    return {
+      meta: { lastLoginDate: todayStr, lastLoginTime: '00:00', currentYear: 2025, currentMonth: 12 },
       status: { hp: 100, mp: 10, credit: 0 },
-      // ... 나머지 필드 초기화
+      budget: { year: 2025, month: 12, variableBudget: 500000, noSpendTarget: 10, snackRecoveryBudget: 30000 },
+      cycle: { lastPeriodStart: '2025-12-01', cycleLength: 28 }, // 예시
+      inventory: { 
+        gold: 0, leaf: 0, potions: 3, 
+        shards: { record: 0, discipline: 0, freedom: 0 }, 
+        items: {}, materials: {}, consumables: {},
+        collection: [], equipped: {} 
+      },
+      buildings: [
+        { id: 'main_bank', name: '비상금 창고', type: 'warehouse', level: 1, currentExp: 0, totalSavings: 0, monthStreak: 0 }
+      ],
+      job: { currentJob: 'novice', tier: 0, exp: 0, unlockedSkills: [] },
+      journey: { nodes: [], currentNodeId: 0, routeTheme: 'forest' },
+      buffs: {},
+      seenPMSAlert: false
     };
   });
 
-  // 로컬스토리지 저장
+  // 상태 변경 시 자동 저장
   useEffect(() => {
     localStorage.setItem('mr_user_v3', JSON.stringify(user));
   }, [user]);
 
-  // 2. 엔진 가동
-  const luna = useMemo(() => calcCycleStatus(today, user.cycleSettings), [today, user.cycleSettings]);
-  const transactions = []; // (실제론 user.transactions 등에서 가져와야 함)
-  const todayTxs = transactions.filter((t:any) => t.date === todayStr);
-  const monster = useMemo(() => getDailyMonster(todayTxs), [todayTxs]);
+  // 임시: 오늘의 거래 내역 (실제로는 별도 state나 DB에서 관리)
+  const [todayTransactions, setTodayTransactions] = useState<TransactionLike[]>([]);
 
-  // 3. 입력 폼 상태
-  const [txForm, setTxForm] = useState({ amount: '', category: '', memo: '' });
+  // ----------------------------------------------------------------
+  // 4. 엔진 가동 (계산기 돌리기)
+  // ----------------------------------------------------------------
+  
+  // A. 바이오 리듬 엔진
+  const luna = useMemo(() => calcCycleStatus(today, user.cycle), [today, user.cycle]);
+  
+  // B. 데일리 몬스터 엔진
+  const monster = useMemo(() => getDailyMonster(todayTransactions), [todayTransactions]);
 
-  // --- Actions ---
+  // C. 현재 HP/MP 계산
+  const currentHP = useMemo(() => calcHP(user.budget, todayTransactions), [user.budget, todayTransactions]);
+  // (실제 앱에서는 전체 기간 트랜잭션을 넣어야 함)
 
-  // ⚔️ 평타: 앱 켜기 / 눈팅
+  // ----------------------------------------------------------------
+  // 5. 액션 핸들러 (사용자 행동 처리)
+  // ----------------------------------------------------------------
+
+  const [txForm, setTxForm] = useState({ amount: '', category: '식비', memo: '' });
+
+  // ⚔️ 평타: 앱 켜기 / 눈팅 (Check)
   const handleCheck = () => {
-    // 쿨타임 로직 필요 (여기선 생략)
+    // 쿨타임 로직은 생략 (단순 구현)
     setUser(prev => ({
       ...prev,
-      status: { ...prev.status, mp: Math.min(prev.status.mp + 1, 100) }
+      status: { ...prev.status, mp: Math.min(prev.status.mp + 1, 100) } // MP 회복
     }));
-    alert("⚔️ 평타 공격! 몬스터를 견제하고 MP가 1 회복되었습니다.");
+    alert("⚔️ 평타 공격! 몬스터를 견제하고 의지력(MP)을 회복했습니다.");
   };
 
-  // 💥 피격 & 수습: 지출 입력
-  const handleAddExpense = (usePotion: boolean) => {
+  // 💥 피격: 지출 발생 (Spend)
+  const handleSpend = (usePotion: boolean) => {
     const amount = Number(txForm.amount);
-    if (!amount) return;
+    if (!amount) return alert("금액을 입력해주세요.");
 
-    // 1. 잔해(Residue) 획득
+    // 1. 포션 사용 체크
+    if (usePotion && user.inventory.potions <= 0) return alert("🧪 포션이 부족합니다!");
+
+    // 2. 잔해(Residue) 획득 로직
     const residue = getResidueFromCategory(txForm.category);
     
-    // 2. 포션 사용 여부 체크
-    let finalUsePotion = usePotion;
-    if (usePotion && user.inventory.potions <= 0) {
-      alert("🧪 포션이 부족합니다!");
-      finalUsePotion = false; 
-    }
-
     // 3. 상태 업데이트
     setUser(prev => {
-      const newMaterials = { ...prev.inventory.materials };
-      newMaterials[residue] = (newMaterials[residue] || 0) + 1; // 잔해 추가
+      const newMaterials = { ...prev.inventory.materials }; // materials가 Record<string, number> 타입이어야 함
+      // residue를 키로 사용하여 수량 증가 (타입 단언 필요 시 as string 사용)
+      newMaterials[residue as string] = (newMaterials[residue as string] || 0) + 1;
 
-      const newPotions = finalUsePotion ? prev.inventory.potions - 1 : prev.inventory.potions;
-      
-      // HP 계산은 moneyGameLogic의 calcHP가 담당 (여기선 단순화)
-      
       return {
         ...prev,
-        inventory: { ...prev.inventory, materials: newMaterials, potions: newPotions },
-        // ... HP 감소 로직 추가 필요
+        inventory: {
+          ...prev.inventory,
+          potions: usePotion ? prev.inventory.potions - 1 : prev.inventory.potions,
+          materials: newMaterials // 업데이트된 재료 목록 저장
+        }
       };
     });
 
-    // 4. 피드백
-    if (finalUsePotion) {
-      confetti({ colors: ['#ff69b4', '#fff'] }); // 핑크 힐링
-      alert(`🧪 포션을 마셔 데미지를 막았습니다! (잔해: ${residue} 획득)`);
+    // 4. 거래 내역 저장 (임시)
+    const newTx: TransactionLike = {
+      id: Date.now().toString(), date: todayStr, type: 'expense',
+      category: txForm.category, amount, isRecoverySnack: usePotion, memo: txForm.memo
+    };
+    setTodayTransactions(prev => [...prev, newTx]);
+
+    // 5. 피드백
+    if (usePotion) {
+      confetti({ colors: ['#ff69b4', '#fff'] });
+      alert(`🧪 포션 사용! 데미지를 막아내고 [${residue}] 잔해를 수습했습니다.`);
     } else {
-      alert(`💥 ${amount} 데미지를 입었습니다! (잔해: ${residue} 획득)`);
+      alert(`💥 크윽! ${amount} 데미지! [${residue}] 잔해를 획득했습니다.`);
     }
     
-    // 5. 수습(기록) 보상
-    if (txForm.memo.length > 2) {
-       // 기록의 조각 추가 로직
-    }
+    setTxForm({ amount: '', category: '식비', memo: '' });
   };
 
-  // 🔨 강타: 저축
-  const handleSaving = () => {
+  // 🔨 강타: 저축 (Save)
+  const handleSave = () => {
     const amount = Number(txForm.amount);
-    // 건물 경험치 로직 호출
-    confetti({ colors: ['#ffd700'] });
-    alert(`🔨 강타! 몬스터에게 ${amount*2} 데미지!`);
+    if (!amount) return;
+
+    setUser(prev => {
+      // 첫 번째 건물 성장 (예시)
+      const updatedBuilding = updateBuildingExp(prev.buildings[0], amount, false);
+      const newBuildings = [...prev.buildings];
+      newBuildings[0] = updatedBuilding;
+
+      return {
+        ...prev,
+        buildings: newBuildings,
+        inventory: { ...prev.inventory, gold: prev.inventory.gold + Math.floor(amount / 100) } // 보너스 골드
+      };
+    });
+
+    confetti({ colors: ['#ffd700', '#FFA500'] });
+    alert(`🔨 저축 강타! 몬스터에게 강력한 데미지! (건물 경험치 +)`);
+    setTxForm({ amount: '', category: '저축', memo: '' });
   };
+
+  // ----------------------------------------------------------------
+  // 6. UI 렌더링
+  // ----------------------------------------------------------------
+  
+  // 배경색 동적 변경 (PMS일 때 붉은 틴트)
+  const bgColor = luna.mode === 'pms' ? '#fff0f5' : luna.mode === 'rest' ? '#f0f8ff' : '#f8f9fa';
 
   return (
-    <div style={{ padding: 20, maxWidth: 480, margin: '0 auto', background: luna.mode === 'pms' ? '#fff0f5' : '#fff' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: bgColor, padding: '20px', paddingBottom: '100px', transition: 'background 0.5s' }}>
       
-      {/* 1. 상단 HUD */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+      {/* --- HUD --- */}
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <h2 style={{ fontSize: 18, fontWeight: 'bold' }}>Lv.1 모험가</h2>
-          <div style={{ fontSize: 12, color: '#666' }}>{luna.message}</div>
+          <div style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>{luna.message}</div>
+          <div style={{ fontSize: 18, fontWeight: 'bold' }}>LV.1 모험가</div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ color: '#e11d48', fontWeight: 'bold' }}>HP {user.status.hp}%</div>
-          <div style={{ color: '#3b82f6', fontWeight: 'bold' }}>MP {user.status.mp}</div>
+        <div style={{ textAlign: 'right', fontSize: 12, fontWeight: 'bold' }}>
+          <div style={{ color: '#e11d48' }}>HP {currentHP}%</div>
+          <div style={{ color: '#3b82f6' }}>MP {user.status.mp} / 10</div>
         </div>
       </header>
 
-      {/* 2. 몬스터 카드 (오늘의 전황) */}
-      <div style={{ marginBottom: 20, textAlign: 'center', padding: 20, border: '2px solid #333', borderRadius: 16 }}>
-        <div style={{ fontSize: 40 }}>{monster.emoji}</div>
-        <h3>{monster.name} (Lv.{monster.level})</h3>
-        <div style={{ fontSize: 12, color: '#888' }}>오늘의 지출 마수</div>
+      {/* --- 몬스터 카드 --- */}
+      <div style={{ 
+        backgroundColor: '#fff', borderRadius: 16, padding: 20, textAlign: 'center', 
+        boxShadow: '0 4px 15px rgba(0,0,0,0.1)', marginBottom: 20, border: '2px solid #333' 
+      }}>
+        <div style={{ fontSize: 48, marginBottom: 8, animation: 'bounce 2s infinite' }}>{monster.emoji}</div>
+        <div style={{ fontSize: 16, fontWeight: 'bold' }}>{monster.name}</div>
+        <div style={{ fontSize: 12, color: '#888' }}>{monster.desc}</div>
+        
+        {/* HP Bar */}
+        <div style={{ width: '100%', height: 8, background: '#eee', borderRadius: 4, marginTop: 10, overflow: 'hidden' }}>
+          <div style={{ width: '100%', height: '100%', background: '#ff4444' }} /> 
+          {/* 실제론 monster.hp / monster.maxHp 비율 */}
+        </div>
       </div>
 
-      {/* 3. 전투 컨트롤러 (입력폼) */}
-      <div style={{ background: '#f5f5f5', padding: 16, borderRadius: 16 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <button onClick={handleCheck} style={{ flex: 1, padding: 8, background: '#fff', border: '1px solid #ddd', borderRadius: 8 }}>
+      {/* --- 전투 컨트롤러 (입력) --- */}
+      <div style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <button onClick={handleCheck} style={{ flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: 8, background: '#f9f9f9', fontSize: 12 }}>
             ⚔️ 눈팅 (평타)
           </button>
-          <button onClick={() => alert('퀘스트창 열기')} style={{ flex: 1, padding: 8, background: '#fff', border: '1px solid #ddd', borderRadius: 8 }}>
+          <button style={{ flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: 8, background: '#f9f9f9', fontSize: 12 }}>
             ✨ 퀘스트 (스킬)
           </button>
         </div>
 
-        <input 
-          type="number" placeholder="금액 입력" 
-          value={txForm.amount} onChange={e => setTxForm({...txForm, amount: e.target.value})}
-          style={{ width: '100%', padding: 12, marginBottom: 8, borderRadius: 8, border: '1px solid #ddd' }}
-        />
-        <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-           {['식비', '쇼핑', '교통', '저축'].map(cat => (
-             <button key={cat} onClick={() => setTxForm({...txForm, category: cat})} 
-               style={{ flex: 1, fontSize: 11, padding: 6, borderRadius: 6, background: txForm.category===cat ? '#333' : '#eee', color: txForm.category===cat ? '#fff' : '#333' }}>
-               {cat}
-             </button>
-           ))}
+        {/* 카테고리 선택 */}
+        <div style={{ display: 'flex', overflowX: 'auto', gap: 6, marginBottom: 12, paddingBottom: 4 }}>
+          {['식비', '쇼핑', '교통', '문화', '저축'].map(cat => (
+            <button key={cat} onClick={() => setTxForm({...txForm, category: cat})}
+              style={{ 
+                padding: '6px 12px', borderRadius: 20, fontSize: 12, whiteSpace: 'nowrap',
+                background: txForm.category === cat ? '#333' : '#eee', 
+                color: txForm.category === cat ? '#fff' : '#333', border: 'none'
+              }}>
+              {cat}
+            </button>
+          ))}
         </div>
 
+        {/* 금액 입력 */}
+        <input 
+          type="number" placeholder="금액 입력" value={txForm.amount} 
+          onChange={e => setTxForm({...txForm, amount: e.target.value})}
+          style={{ width: '100%', padding: '12px', fontSize: 16, border: '1px solid #ddd', borderRadius: 10, marginBottom: 12 }}
+        />
+
+        {/* 액션 버튼 */}
         <div style={{ display: 'flex', gap: 8 }}>
-          {/* 지출 버튼 */}
-          {txForm.category !== '저축' && (
+          {txForm.category === '저축' ? (
+            <button onClick={handleSave} style={{ flex: 1, padding: '14px', background: '#ffd700', color: '#333', fontWeight: 'bold', border: 'none', borderRadius: 12 }}>
+              🔨 저축 강타!
+            </button>
+          ) : (
             <>
-              <button onClick={() => handleAddExpense(false)} style={{ flex: 2, padding: 12, background: '#333', color: '#fff', fontWeight: 'bold', borderRadius: 8, border: 'none' }}>
+              <button onClick={() => handleSpend(false)} style={{ flex: 2, padding: '14px', background: '#333', color: '#fff', fontWeight: 'bold', border: 'none', borderRadius: 12 }}>
                 💥 지출 (피격)
               </button>
-              {/* PMS일 때만 포션 버튼 등장 */}
               {luna.mode === 'pms' && (
-                <button onClick={() => handleAddExpense(true)} style={{ flex: 1, padding: 12, background: '#e11d48', color: '#fff', fontWeight: 'bold', borderRadius: 8, border: 'none' }}>
+                <button onClick={() => handleSpend(true)} style={{ flex: 1, padding: '14px', background: '#e11d48', color: '#fff', fontWeight: 'bold', border: 'none', borderRadius: 12, boxShadow: '0 0 10px #e11d4840' }}>
                   🧪 포션 ({user.inventory.potions})
                 </button>
               )}
             </>
           )}
-          
-          {/* 저축 버튼 */}
-          {txForm.category === '저축' && (
-            <button onClick={handleSaving} style={{ flex: 1, padding: 12, background: '#ffd700', color: '#333', fontWeight: 'bold', borderRadius: 8, border: 'none' }}>
-              🔨 저축 강타!
-            </button>
-          )}
         </div>
       </div>
 
-      {/* 4. 하단 메뉴 (인벤토리 등) */}
-      <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-        <button style={{ padding: 12, background: '#fff', border: '1px solid #ddd', borderRadius: 8 }}>🎒 인벤토리</button>
-        <button style={{ padding: 12, background: '#fff', border: '1px solid #ddd', borderRadius: 8 }}>🗺️ 월드맵</button>
-        <button style={{ padding: 12, background: '#fff', border: '1px solid #ddd', borderRadius: 8 }}>🏰 내 왕국</button>
+      {/* --- 하단 메뉴 (네비게이션) --- */}
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #eee', padding: '12px 20px', display: 'flex', justifyContent: 'space-between' }}>
+        <NavButton icon={<Swords size={20}/>} label="전투" active />
+        <NavButton icon={<ShoppingBag size={20}/>} label="인벤토리" />
+        <NavButton icon={<MapIcon size={20}/>} label="월드맵" />
+        <NavButton icon={<Crown size={20}/>} label="왕국" />
       </div>
 
     </div>
   );
 };
+
+// 하단 버튼 컴포넌트
+const NavButton = ({ icon, label, active = false }: any) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: active ? '#333' : '#aaa' }}>
+    {icon}
+    <span style={{ fontSize: 10, fontWeight: active ? 'bold' : 'normal' }}>{label}</span>
+  </div>
+);
 
 export default MoneyRoomPage;
