@@ -10,196 +10,200 @@ interface VillageViewProps {
 }
 
 export const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
-  // [수정] 유저 데이터가 로딩되지 않았을 때 안전하게 처리
+  // 로딩 처리
   if (!user) {
     return (
-      <div className="flex items-center justify-center h-full text-white bg-black">
+      <div style={styles.loadingContainer}>
         <p>L O A D I N G . . .</p>
       </div>
     );
   }
 
-  // --- 통계 및 날짜 계산 ---
-  
-  // 1. HP 퍼센트 계산
+  // --- 데이터 계산 ---
   const currentHpPercent = user.maxBudget > 0 
     ? Math.max(0, Math.min(100, (user.currentBudget / user.maxBudget) * 100))
     : 0;
 
-  // 2. [수정] 남은 일수 및 일일 생존 예산 계산 (0으로 나누기 방지)
   const today = new Date();
   const year = today.getFullYear();
   const month = today.getMonth();
-  
-  // 이번 달의 마지막 날 구하기 (다음 달의 0일 = 이번 달 말일)
   const lastDay = new Date(year, month + 1, 0);
-  
-  // 오늘 포함 남은 일수 (말일 - 오늘날짜 + 1)
-  // 예: 오늘 30일, 말일 30일 -> 30-30+1 = 1일 남음
   const rawDaysLeft = lastDay.getDate() - today.getDate() + 1;
-  
-  // 최소 1일은 남은 것으로 처리 (0으로 나누기 방지)
   const daysLeft = Math.max(1, rawDaysLeft);
-
   const dailySurvivalBudget = Math.floor(user.currentBudget / daysLeft);
   
-  // 3. 루나 페이즈 계산
   const luna = calculateLunaPhase(user.lunaCycle);
 
   return (
-    // [전체 컨테이너]
-    <div className="relative w-full h-full overflow-hidden select-none bg-black font-sans">
-      {/* 1. [배경 레이어] 픽셀 아트 방 느낌 */}
-      <div
-        className="absolute inset-0 z-0"
-        style={{
-          backgroundColor: '#3b3247',
-          backgroundImage: `
-            linear-gradient(rgba(0,0,0,0.3) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0,0,0,0.3) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(0,0,0,0.8), transparent 40%)
-          `,
-          backgroundSize: '20px 20px, 20px 20px, 100% 100%',
-        }}
-      >
+    // [전체 컨테이너] - Tailwind 제거하고 인라인 스타일 적용
+    <div style={styles.container}>
+      
+      {/* 1. [배경 레이어] */}
+      <div style={styles.backgroundLayer}>
         {/* 창문 효과 */}
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-32 h-32 bg-blue-900 border-4 border-amber-900 opacity-80 shadow-inner">
-          <div className="w-full h-1/2 border-b-4 border-amber-900" />
-          <div className="absolute top-0 left-1/2 h-full w-1 bg-amber-900 -translate-x-1/2" />
-          {/* 달 (Luna 상태) */}
-          <div className="absolute top-4 right-4 text-2xl drop-shadow-[0_0_5px_rgba(255,255,100,0.8)]">
+        <div style={styles.windowFrame}>
+          <div style={styles.windowGlassUpper} />
+          <div style={styles.windowBar} />
+          <div style={styles.moonIcon}>
             {luna.isPeriod ? '🔴' : '🌙'}
           </div>
         </div>
       </div>
 
       {/* 2. [캐릭터 레이어] */}
-      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pt-20 pointer-events-none">
+      <div style={styles.characterLayer}>
         {/* 캐릭터 스프라이트 */}
-        <div className="relative animate-bounce-slow">
-          <div className="text-[100px] filter drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)]">
-            🧙‍♀️
-          </div>
-          {/* 그림자 */}
-          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-20 h-4 bg-black opacity-40 rounded-[50%] blur-sm" />
+        <div style={styles.characterSprite}>
+          <div style={styles.characterEmoji}>🧙‍♀️</div>
+          <div style={styles.characterShadow} />
         </div>
 
-        {/* 대사창 (내적 독백용) */}
-        <div className="mt-4 bg-[#fff1cc] text-[#422006] px-4 py-2 rounded-lg border-2 border-[#422006] relative shadow-lg max-w-[80%] text-center">
-          <p className="text-sm font-bold leading-tight">
+        {/* 대사창 */}
+        <div style={styles.dialogBox}>
+          <p style={styles.dialogText}>
             "
             {luna.isPeriod
               ? '오늘은 몸이 무거워...'
               : '이번 달도 무사히 넘겨야 해.'}
             "
           </p>
-          <div className="text-[10px] text-[#854d0e] mt-1 font-bold">
+          <div style={styles.dialogSubText}>
             (이번 달 {daysLeft}일 남음)
           </div>
-          <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-[#fff1cc] border-t-2 border-l-2 border-[#422006] rotate-45" />
+          <div style={styles.dialogArrow} />
         </div>
       </div>
 
       {/* 3. [UI 레이어 - HUD] */}
 
       {/* (1) 좌측 상단: 상태창 */}
-      <div className="absolute top-2 left-2 z-20 w-[160px]">
-        <div className="bg-[#eec39a] border-[3px] border-[#8b5a2b] rounded p-2 shadow-[2px_2px_0_#000] relative">
+      <div style={styles.hudLeft}>
+        <div style={styles.statusBox}>
           {/* 모서리 장식 */}
-          <div className="absolute top-1 left-1 w-1 h-1 bg-[#5d4037]" />
-          <div className="absolute top-1 right-1 w-1 h-1 bg-[#5d4037]" />
-          <div className="absolute bottom-1 left-1 w-1 h-1 bg-[#5d4037]" />
-          <div className="absolute bottom-1 right-1 w-1 h-1 bg-[#5d4037]" />
+          <div style={{...styles.cornerDot, top: 4, left: 4}} />
+          <div style={{...styles.cornerDot, top: 4, right: 4}} />
+          <div style={{...styles.cornerDot, bottom: 4, left: 4}} />
+          <div style={{...styles.cornerDot, bottom: 4, right: 4}} />
 
-          <div className="flex justify-between items-end mb-1 border-b border-[#c19a6b] pb-1">
-            <span className="text-xs font-bold text-[#5d4037]">
-              {user.name}
-            </span>
-            <span className="text-[10px] text-[#8b5a2b]">Lv.{user.level}</span>
+          <div style={styles.statusHeader}>
+            <span style={styles.userName}>{user.name}</span>
+            <span style={styles.userLevel}>Lv.{user.level}</span>
           </div>
 
           {/* HP Bar */}
-          <div className="relative w-full h-4 bg-[#3e2723] border border-[#5d4037] rounded-sm mb-1">
-            <div
-              className="h-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-300"
-              style={{ width: `${currentHpPercent}%` }}
-            />
-            <span className="absolute inset-0 text-[9px] text-white flex items-center justify-center drop-shadow-md">
-              HP {Math.floor(currentHpPercent)}%
-            </span>
+          <div style={styles.hpBarContainer}>
+            <div style={{
+              ...styles.hpBarFill, 
+              width: `${currentHpPercent}%`
+            }} />
+            <span style={styles.hpText}>HP {Math.floor(currentHpPercent)}%</span>
           </div>
 
-          <div className="text-right">
-            <p className="text-[9px] text-[#5d4037]">남은 예산</p>
-            <p className="text-sm font-bold text-[#8b5a2b] drop-shadow-sm">
-              {user.currentBudget.toLocaleString()} G
-            </p>
+          <div style={{ textAlign: 'right' }}>
+            <p style={styles.budgetLabel}>남은 예산</p>
+            <p style={styles.budgetValue}>{user.currentBudget.toLocaleString()} G</p>
           </div>
         </div>
       </div>
 
       {/* (2) 우측 상단: Today Limit */}
-      <div className="absolute top-2 right-2 z-20">
-        <div className="bg-[#3b82f6] border-[3px] border-[#1e3a8a] text-white px-3 py-1 rounded-full shadow-[2px_2px_0_#000] flex flex-col items-center">
-          <span className="text-[10px] text-blue-100">Today Limit</span>
-          <span className="text-sm font-bold text-yellow-300 drop-shadow-md">
-            {dailySurvivalBudget.toLocaleString()}
-          </span>
+      <div style={styles.hudRight}>
+        <div style={styles.limitBadge}>
+          <span style={styles.limitLabel}>Today Limit</span>
+          <span style={styles.limitValue}>{dailySurvivalBudget.toLocaleString()}</span>
         </div>
       </div>
 
       {/* 4. [UI 레이어 - 컨트롤러] */}
-      <div className="absolute bottom-0 left-0 right-0 z-30 p-2 bg-gradient-to-t from-black via-black to-transparent">
-        <div className="bg-[#fff1cc] border-[4px] border-[#6b4c35] rounded-lg p-1 shadow-[0_0_10px_rgba(0,0,0,0.8)] flex gap-1 h-[80px]">
-          <button
-            onClick={() => onChangeScene(Scene.WORLD_MAP)}
-            className="flex-1 bg-[#ef4444] border-b-4 border-r-4 border-[#991b1b] active:border-0 active:translate-y-1 rounded hover:bg-red-400 transition-colors flex flex-col items-center justify-center group"
-          >
-            <span className="text-xl group-hover:-translate-y-1 transition-transform">
-              ⚔️
-            </span>
-            <span className="text-[10px] font-bold text-white shadow-black drop-shadow-md">
-              지출
-            </span>
+      <div style={styles.controllerArea}>
+        <div style={styles.controllerBox}>
+          <button onClick={() => onChangeScene(Scene.WORLD_MAP)} style={{...styles.controlBtn, backgroundColor: '#ef4444', borderColor: '#991b1b'}}>
+            <span style={styles.btnIcon}>⚔️</span>
+            <span style={styles.btnLabel}>지출</span>
           </button>
 
-          <button
-            onClick={() => onChangeScene(Scene.INVENTORY)}
-            className="flex-1 bg-[#3b82f6] border-b-4 border-r-4 border-[#1e40af] active:border-0 active:translate-y-1 rounded hover:bg-blue-400 transition-colors flex flex-col items-center justify-center group"
-          >
-            <span className="text-xl group-hover:-translate-y-1 transition-transform">
-              🎒
-            </span>
-            <span className="text-[10px] font-bold text-white shadow-black drop-shadow-md">
-              가방
-            </span>
+          <button onClick={() => onChangeScene(Scene.INVENTORY)} style={{...styles.controlBtn, backgroundColor: '#3b82f6', borderColor: '#1e40af'}}>
+            <span style={styles.btnIcon}>🎒</span>
+            <span style={styles.btnLabel}>가방</span>
           </button>
 
-          <button
-            onClick={() => onChangeScene(Scene.KINGDOM)}
-            className="flex-1 bg-[#10b981] border-b-4 border-r-4 border-[#047857] active:border-0 active:translate-y-1 rounded hover:bg-green-400 transition-colors flex flex-col items-center justify-center group"
-          >
-            <span className="text-xl group-hover:-translate-y-1 transition-transform">
-              🏰
-            </span>
-            <span className="text-[10px] font-bold text-white shadow-black drop-shadow-md">
-              자산
-            </span>
+          <button onClick={() => onChangeScene(Scene.KINGDOM)} style={{...styles.controlBtn, backgroundColor: '#10b981', borderColor: '#047857'}}>
+            <span style={styles.btnIcon}>🏰</span>
+            <span style={styles.btnLabel}>자산</span>
           </button>
 
-          <button
-            onClick={() => onChangeScene(Scene.COLLECTION)}
-            className="flex-1 bg-[#f59e0b] border-b-4 border-r-4 border-[#b45309] active:border-0 active:translate-y-1 rounded hover:bg-yellow-400 transition-colors flex flex-col items-center justify-center group"
-          >
-            <span className="text-xl group-hover:-translate-y-1 transition-transform">
-              📖
-            </span>
-            <span className="text-[10px] font-bold text-white shadow-black drop-shadow-md">
-              도감
-            </span>
+          <button onClick={() => onChangeScene(Scene.COLLECTION)} style={{...styles.controlBtn, backgroundColor: '#f59e0b', borderColor: '#b45309'}}>
+            <span style={styles.btnIcon}>📖</span>
+            <span style={styles.btnLabel}>도감</span>
           </button>
         </div>
       </div>
     </div>
   );
+};
+
+// --- 스타일 정의 (Tailwind 대체) ---
+const styles: Record<string, React.CSSProperties> = {
+  loadingContainer: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'white', backgroundColor: 'black' },
+  
+  // 전체 컨테이너
+  container: { position: 'relative', width: '100%', height: '100%', overflow: 'hidden', userSelect: 'none', backgroundColor: '#000', fontFamily: 'inherit' },
+
+  // 배경
+  backgroundLayer: {
+    position: 'absolute', inset: 0, zIndex: 0, backgroundColor: '#3b3247',
+    backgroundImage: `
+      linear-gradient(rgba(0,0,0,0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,0,0,0.3) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0,0,0,0.8), transparent 40%)
+    `,
+    backgroundSize: '20px 20px, 20px 20px, 100% 100%',
+  },
+  windowFrame: {
+    position: 'absolute', top: '40px', left: '50%', transform: 'translateX(-50%)',
+    width: '128px', height: '128px', backgroundColor: '#1e3a8a',
+    border: '4px solid #78350f', opacity: 0.8, boxShadow: 'inset 0 0 10px rgba(0,0,0,0.5)'
+  },
+  windowGlassUpper: { width: '100%', height: '50%', borderBottom: '4px solid #78350f' },
+  windowBar: { position: 'absolute', top: 0, left: '50%', height: '100%', width: '4px', backgroundColor: '#78350f', transform: 'translateX(-50%)' },
+  moonIcon: { position: 'absolute', top: '16px', right: '16px', fontSize: '24px', filter: 'drop-shadow(0 0 5px rgba(255,255,100,0.8))' },
+
+  // 캐릭터
+  characterLayer: { position: 'absolute', inset: 0, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: '80px', pointerEvents: 'none' },
+  characterSprite: { position: 'relative', animation: 'bounce-slow 2s infinite' }, // 애니메이션은 CSS 파일 필요할 수 있음 (없어도 위치는 잡힘)
+  characterEmoji: { fontSize: '100px', filter: 'drop-shadow(0 10px 10px rgba(0,0,0,0.5))' },
+  characterShadow: { position: 'absolute', bottom: '-8px', left: '50%', transform: 'translateX(-50%)', width: '80px', height: '16px', backgroundColor: '#000', opacity: 0.4, borderRadius: '50%', filter: 'blur(4px)' },
+  
+  dialogBox: { marginTop: '16px', backgroundColor: '#fff1cc', color: '#422006', padding: '8px 16px', borderRadius: '8px', border: '2px solid #422006', position: 'relative', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', maxWidth: '80%', textAlign: 'center' },
+  dialogText: { fontSize: '14px', fontWeight: 'bold', lineHeight: 1.2, margin: 0 },
+  dialogSubText: { fontSize: '10px', color: '#854d0e', marginTop: '4px', fontWeight: 'bold' },
+  dialogArrow: { position: 'absolute', top: '-6px', left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: '16px', height: '16px', backgroundColor: '#fff1cc', borderTop: '2px solid #422006', borderLeft: '2px solid #422006' },
+
+  // HUD Left
+  hudLeft: { position: 'absolute', top: '8px', left: '8px', zIndex: 20, width: '160px' },
+  statusBox: { backgroundColor: '#eec39a', border: '3px solid #8b5a2b', borderRadius: '4px', padding: '8px', boxShadow: '2px 2px 0 #000', position: 'relative' },
+  cornerDot: { position: 'absolute', width: '4px', height: '4px', backgroundColor: '#5d4037' },
+  statusHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '4px', borderBottom: '1px solid #c19a6b', paddingBottom: '4px' },
+  userName: { fontSize: '12px', fontWeight: 'bold', color: '#5d4037' },
+  userLevel: { fontSize: '10px', color: '#8b5a2b' },
+  
+  hpBarContainer: { position: 'relative', width: '100%', height: '16px', backgroundColor: '#3e2723', border: '1px solid #5d4037', borderRadius: '2px', marginBottom: '4px' },
+  hpBarFill: { height: '100%', backgroundColor: '#4ade80', transition: 'width 0.3s' },
+  hpText: { position: 'absolute', inset: 0, fontSize: '9px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', textShadow: '1px 1px 0 #000' },
+  
+  budgetLabel: { fontSize: '9px', color: '#5d4037', margin: 0 },
+  budgetValue: { fontSize: '14px', fontWeight: 'bold', color: '#8b5a2b', textShadow: '0 1px 0 rgba(255,255,255,0.5)', margin: 0 },
+
+  // HUD Right
+  hudRight: { position: 'absolute', top: '8px', right: '8px', zIndex: 20 },
+  limitBadge: { backgroundColor: '#3b82f6', border: '3px solid #1e3a8a', color: 'white', padding: '4px 12px', borderRadius: '999px', boxShadow: '2px 2px 0 #000', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  limitLabel: { fontSize: '10px', color: '#dbeafe' },
+  limitValue: { fontSize: '14px', fontWeight: 'bold', color: '#fde047', textShadow: '0 1px 2px rgba(0,0,0,0.3)' },
+
+  // Controller
+  controllerArea: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 30, padding: '8px', background: 'linear-gradient(to top, #000, transparent)' },
+  controllerBox: { backgroundColor: '#fff1cc', border: '4px solid #6b4c35', borderRadius: '8px', padding: '4px', boxShadow: '0 0 10px rgba(0,0,0,0.8)', display: 'flex', gap: '4px', height: '80px' },
+  controlBtn: { flex: 1, borderBottomWidth: '4px', borderRightWidth: '4px', borderTop: 'none', borderLeft: 'none', borderStyle: 'solid', borderRadius: '6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', transition: 'all 0.1s' },
+  btnIcon: { fontSize: '20px', marginBottom: '2px' },
+  btnLabel: { fontSize: '10px', fontWeight: 'bold', color: 'white', textShadow: '0 1px 2px rgba(0,0,0,0.8)' },
 };
