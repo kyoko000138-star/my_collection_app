@@ -6,7 +6,7 @@ interface VillageViewProps {
   gameState: UserState;
   hp: number;
   todayStr: string;
-  theme: any; // 테마 객체 받음
+  theme: any; 
   onMoveToWorld: () => void;
   onOpenMenu: (menu: string) => void;
   onRest: () => void;
@@ -16,7 +16,6 @@ export const VillageView: React.FC<VillageViewProps> = ({
   gameState, hp, todayStr, theme, onMoveToWorld, onOpenMenu, onRest 
 }) => {
   
-  // 직업별 아이콘
   const getJobIcon = (type: any) => {
     switch(type) {
       case CLASS_TYPES.GUARDIAN: return '🛡️';
@@ -33,7 +32,6 @@ export const VillageView: React.FC<VillageViewProps> = ({
       <div style={styles.statusBar}>
         <div style={styles.statusRow}>
           <span>📅 {todayStr}</span>
-          {/* 테마가 없을 경우를 대비한 방어 코드 */}
           <span style={{ color: theme?.color || '#3e2723' }}>
             {theme?.label || 'NORMAL'}
           </span>
@@ -42,30 +40,28 @@ export const VillageView: React.FC<VillageViewProps> = ({
           <span>💖 HP {hp}%</span>
           <span>💧 MP {gameState.runtime.mp}/{GAME_CONSTANTS.MAX_MP}</span>
         </div>
-      </div>
+      </div> 
+      {/* 👆 [중요] 여기가 닫혀야 합니다! */}
 
       {/* 🏠 메인 화면 (내 방) */}
       <div style={styles.roomScene}>
         <div style={styles.window}>🪟</div>
         
-        {/* 캐릭터 (둥실둥실 애니메이션) */}
         <div style={styles.characterContainer}>
           <div style={styles.character}>{getJobIcon(gameState.profile.classType)}</div>
           <div style={styles.shadow}></div>
         </div>
 
-        {/* 책상 (상호작용 가능) */}
         <div style={styles.desk} onClick={() => onOpenMenu('inventory')}>
           🎒 <span style={styles.bubble}>Check!</span>
         </div>
 
-        {/* 대화창 */}
         <div style={styles.messageBox}>
           "오늘도 무사히 하루를 넘겨보자."
         </div>
       </div>
 
-      {/* 🕹️ 하단 메뉴 (스케줄러 스타일) */}
+      {/* 🕹️ 하단 메뉴 */}
       <div style={styles.menuGrid}>
         <button onClick={onMoveToWorld} style={styles.btnAdventure}>
           ⚔️ 던전 탐험 (지출하러 가기)
@@ -86,12 +82,12 @@ export const VillageView: React.FC<VillageViewProps> = ({
   );
 };
 
-// 🎨 스타일 정의 (CSS-in-JS)
+// 🎨 스타일 정의
 const styles: Record<string, React.CSSProperties> = {
   container: { 
     display: 'flex', flexDirection: 'column', height: '100%', 
-    padding: '15px', backgroundColor: '#3e2723', // 짙은 갈색 배경
-    fontFamily: '"NeoDungGeunMo", monospace', // 폰트 필수!
+    padding: '15px', backgroundColor: '#3e2723', 
+    fontFamily: '"NeoDungGeunMo", monospace', 
     color: '#fff'
   },
   
