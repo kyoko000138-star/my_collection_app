@@ -10,29 +10,45 @@ interface VillageViewProps {
 }
 
 export const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
+  // [수정] 유저 데이터가 로딩되지 않았을 때 안전하게 처리
   if (!user) {
     return (
-      <div className="text-white text-center mt-20">
-        L O A D I N G . . .
+      <div className="flex items-center justify-center h-full text-white bg-black">
+        <p>L O A D I N G . . .</p>
       </div>
     );
   }
 
-  // --- 기존 로직 계산 ---
-  const currentHpPercent = Math.max(
-    0,
-    Math.min(100, (user.currentBudget / user.maxBudget) * 100)
-  );
+  // --- 통계 및 날짜 계산 ---
+  
+  // 1. HP 퍼센트 계산
+  const currentHpPercent = user.maxBudget > 0 
+    ? Math.max(0, Math.min(100, (user.currentBudget / user.maxBudget) * 100))
+    : 0;
+
+  // 2. [수정] 남은 일수 및 일일 생존 예산 계산 (0으로 나누기 방지)
   const today = new Date();
-  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  const daysLeft = lastDay.getDate() - today.getDate();
-  const dailySurvivalBudget =
-    daysLeft > 0 ? Math.floor(user.currentBudget / daysLeft) : 0;
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  
+  // 이번 달의 마지막 날 구하기 (다음 달의 0일 = 이번 달 말일)
+  const lastDay = new Date(year, month + 1, 0);
+  
+  // 오늘 포함 남은 일수 (말일 - 오늘날짜 + 1)
+  // 예: 오늘 30일, 말일 30일 -> 30-30+1 = 1일 남음
+  const rawDaysLeft = lastDay.getDate() - today.getDate() + 1;
+  
+  // 최소 1일은 남은 것으로 처리 (0으로 나누기 방지)
+  const daysLeft = Math.max(1, rawDaysLeft);
+
+  const dailySurvivalBudget = Math.floor(user.currentBudget / daysLeft);
+  
+  // 3. 루나 페이즈 계산
   const luna = calculateLunaPhase(user.lunaCycle);
 
   return (
     // [전체 컨테이너]
-    <div className="relative w-full h-full overflow-hidden select-none bg-black">
+    <div className="relative w-full h-full overflow-hidden select-none bg-black font-sans">
       {/* 1. [배경 레이어] 픽셀 아트 방 느낌 */}
       <div
         className="absolute inset-0 z-0"
@@ -78,7 +94,7 @@ export const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene })
             "
           </p>
           <div className="text-[10px] text-[#854d0e] mt-1 font-bold">
-            (생존 {daysLeft}일 남음)
+            (이번 달 {daysLeft}일 남음)
           </div>
           <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-[#fff1cc] border-t-2 border-l-2 border-[#422006] rotate-45" />
         </div>
@@ -89,6 +105,7 @@ export const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene })
       {/* (1) 좌측 상단: 상태창 */}
       <div className="absolute top-2 left-2 z-20 w-[160px]">
         <div className="bg-[#eec39a] border-[3px] border-[#8b5a2b] rounded p-2 shadow-[2px_2px_0_#000] relative">
+          {/* 모서리 장식 */}
           <div className="absolute top-1 left-1 w-1 h-1 bg-[#5d4037]" />
           <div className="absolute top-1 right-1 w-1 h-1 bg-[#5d4037]" />
           <div className="absolute bottom-1 left-1 w-1 h-1 bg-[#5d4037]" />
