@@ -1,3 +1,6 @@
+// src/money/constants.ts
+
+// 1. 게임 밸런스 상수
 export const GAME_CONSTANTS = {
   MAX_MP: 30,
   HP_WARNING_THRESHOLD: 30, // 30% 미만 시 경고
@@ -17,7 +20,7 @@ export const GAME_CONSTANTS = {
   
   // 보상 (MP)
   MP_RECOVERY_ACCESS: 1, 
-  MP_RECOVERY_DEFENSE: 1, 
+  MP_RECOVERY_DEFENSE: 3, // 방어 성공 시 회복량
   MP_RECOVERY_QUEST: 2,   
 
   // 정화 및 제작 비용
@@ -41,9 +44,9 @@ export const GAME_CONSTANTS = {
       output: { type: 'EQUIPMENT', id: '잔잔한 장부검', effect: 'MP_MAX_UP' },
     }
   } as const
-}; // <--- 여기가 닫혀야 합니다!
+};
 
-// [NEW] 도감 데이터베이스 (GAME_CONSTANTS 밖으로 나와야 함)
+// 2. 도감 데이터베이스
 export const COLLECTION_DB = {
   JUNK_FOREST: [
     { id: 'junk_forest_01', name: '말라비틀어진 꽃잎', desc: '숲에서 흔히 보이는 시든 꽃잎.' },
@@ -57,6 +60,7 @@ export const COLLECTION_DB = {
   },
 };
 
+// 3. 직업 상수
 export const CLASS_TYPES = {
   GUARDIAN: 'GUARDIAN',   
   SAGE: 'SAGE',           
@@ -72,6 +76,7 @@ export const CLASS_CONSTANTS = {
   ALCHEMIST_GOLD_PER_JUNK: 100,     // 연금술사가 정크 판매 시 얻는 가상 골드
 };
 
+// 4. [NEW] 던전(지출 카테고리) 데이터
 export const DUNGEONS = {
   food: { name: '배달의 숲', desc: '기름진 냄새가 진동합니다.', color: '#22c55e', icon: '🌲' },
   transport: { name: '택시의 사막', desc: '미터기 말이 빠르게 달립니다.', color: '#f59e0b', icon: '🏜️' },
@@ -79,9 +84,10 @@ export const DUNGEONS = {
   etc: { name: '기타 던전', desc: '알 수 없는 곳입니다.', color: '#6366f1', icon: '🕳️' },
 } as const;
 
+// 5. [NEW] 몬스터 데이터 (전투 화면용)
 export const MONSTERS = {
-  food: { name: '야식 슬라임', sprite: '🍕', atk: 20000 },
-  transport: { name: '미터기 미믹', sprite: '🚕', atk: 10000 },
-  shopping: { name: '충동구매 유령', sprite: '👻', atk: 50000 },
-  etc: { name: '텅장 몬스터', sprite: '💸', atk: 5000 },
+  food: { name: '야식 슬라임', sprite: '🍕', hp: 100, color: '#ef4444' },
+  transport: { name: '미터기 미믹', sprite: '🚕', hp: 80, color: '#f59e0b' },
+  shopping: { name: '충동구매 유령', sprite: '👻', hp: 150, color: '#ec4899' },
+  etc: { name: '텅장 몬스터', sprite: '💸', hp: 50, color: '#6366f1' },
 };
