@@ -31,13 +31,18 @@ export const VillageView: React.FC<VillageViewProps> = ({
     <div style={styles.container}>
       {/* 📜 상단 상태바 */}
       <div style={styles.statusBar}>
-  <div style={styles.statusRow}>
-    <span>📅 {todayStr}</span>
-    {/* 테마가 없을 경우를 대비한 방어 코드 (Safe Navigation) */}
-    <span style={{ color: theme?.color || '#3e2723' }}>
-      {theme?.label || 'NORMAL'}
-    </span>
-  </div>
+        <div style={styles.statusRow}>
+          <span>📅 {todayStr}</span>
+          {/* 테마가 없을 경우를 대비한 방어 코드 */}
+          <span style={{ color: theme?.color || '#3e2723' }}>
+            {theme?.label || 'NORMAL'}
+          </span>
+        </div>
+        <div style={styles.statusRow}>
+          <span>💖 HP {hp}%</span>
+          <span>💧 MP {gameState.runtime.mp}/{GAME_CONSTANTS.MAX_MP}</span>
+        </div>
+      </div>
 
       {/* 🏠 메인 화면 (내 방) */}
       <div style={styles.roomScene}>
@@ -109,7 +114,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'absolute', bottom: '60px', left: '50%', transform: 'translateX(-50%)',
     display: 'flex', flexDirection: 'column', alignItems: 'center'
   },
-  character: { fontSize: '60px', animation: 'bounce 2s infinite' }, // 애니메이션은 CSS 파일에 정의 필요 (없으면 정지)
+  character: { fontSize: '60px', animation: 'bounce 2s infinite' },
   shadow: { width: '40px', height: '10px', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '50%', marginTop: '-5px' },
 
   desk: { position: 'absolute', bottom: '30px', right: '30px', fontSize: '30px', cursor: 'pointer' },
