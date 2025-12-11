@@ -5,8 +5,20 @@ import { GAME_CONSTANTS, COLLECTION_DB } from './constants';
 import { checkGuardianShield, getDruidRecoveryBonus } from './moneyClassLogic';
 import { getLunaMode } from './moneyLuna';
 
+// ------------------------------------------------------------------
+// [HELPERS] 유틸리티 및 판정 함수
+// ------------------------------------------------------------------
 
-// src/money/moneyGameLogic.ts 기존 내용 아래에 추가
+const getTodayString = () => new Date().toISOString().split('T')[0];
+
+/**
+ * HP 계산 (0 ~ 100)
+ */
+export const getHp = (current: number, total: number): number => {
+  if (total === 0) return 0;
+  const percentage = (current / total) * 100;
+  return Math.max(0, Math.min(100, Math.floor(percentage)));
+};
 
 /**
  * 🚨 가드 프롬프트(경고) 노출 여부 판단
@@ -42,17 +54,6 @@ export const markGuardPromptShown = (state: UserState): UserState => {
       guardPromptShownToday: true
     }
   };
-};
-// ------------------------------------------------------------------
-// [HELPERS] 유틸리티 함수
-// ------------------------------------------------------------------
-
-const getTodayString = () => new Date().toISOString().split('T')[0];
-
-export const getHp = (current: number, total: number): number => {
-  if (total === 0) return 0;
-  const percentage = (current / total) * 100;
-  return Math.max(0, Math.min(100, Math.floor(percentage)));
 };
 
 /**
@@ -115,6 +116,8 @@ export const checkDailyReset = (state: UserState): UserState => {
       ...state.counters,
       defenseActionsToday: 0,
       junkObtainedToday: 0,
+      guardPromptShownToday: false, // 경고 플래그 리셋
+      dailyTotalSpend: 0, // 오늘 지출액 리셋
       lastDailyResetDate: today,
       // 새로운 날이 시작되었으므로 아직 지출 없음
       hadSpendingToday: false, 
@@ -150,8 +153,9 @@ export const applySpend = (
   // 1. 예산 차감
   newState.budget.current -= amount;
 
-  // 2. 오늘 지출 발생 플래그 ON
+  // 2. 오늘 지출 발생 플래그 ON & 금액 누적
   newState.counters.hadSpendingToday = true;
+  newState.counters.dailyTotalSpend = (newState.counters.dailyTotalSpend || 0) + amount;
 
   // 3. 수호자 패시브 체크
   const isGuarded = checkGuardianShield(state, amount);
@@ -219,7 +223,29 @@ export const applyDefense = (state: UserState): UserState => {
 };
 
 /**
- * 4. 하루 마감(DayEnd)
+ * 4. 정화(Purify) - UI에서 호출하기 위해 필요
+ */
+export const applyPurify = (state: UserState): { newState: UserState, message: string } => {
+  const { PURIFY_COST_MP, PURIFY_COST_JUNK, PURIFY_COST_SALT, PURIFY_OUTPUT_MATERIAL } = GAME_CONSTANTS;
+  const outputMaterialKey = Object.keys(PURIFY_OUTPUT_MATERIAL)[0] as keyof typeof PURIFY_OUTPUT_MATERIAL;
+  const amount = PURIFY_OUTPUT_MATERIAL[outputMaterialKey];
+
+  if (state.runtime.mp < PURIFY_COST_MP || state.inventory.junk < PURIFY_COST_JUNK || state.inventory.salt < PURIFY_COST_SALT) {
+    return { newState: state, message: '정화할 자원(MP, Junk, Salt)이 부족합니다.' };
+  }
+
+  const newState = { ...state };
+  newState.runtime.mp -= PURIFY_COST_MP;
+  newState.inventory.junk -= PURIFY_COST_JUNK;
+  newState.inventory.salt -= PURIFY_COST_SALT;
+  newState.inventory.materials[outputMaterialKey] = 
+    (newState.inventory.materials[outputMaterialKey] || 0) + amount;
+    
+  return { newState, message: `✨ 정화 성공! ${outputMaterialKey} +${amount}` };
+};
+
+/**
+ * 5. 하루 마감(DayEnd)
  * - Natural Dust 지급
  * - 무지출 시 Salt 보상 및 배지 획득
  */
@@ -278,8 +304,7 @@ export const applyDayEnd = (
 
   // 3. 마감 처리
   newState.counters.lastDayEndDate = today;
-  // hadSpendingToday는 여기서 false로 만들어 다음날을 준비하거나, 
-  // checkDailyReset에서 초기화할 수도 있지만, 안전하게 여기서 리셋
+  // 내일을 위해 플래그 초기화
   newState.counters.hadSpendingToday = false; 
 
   return {
