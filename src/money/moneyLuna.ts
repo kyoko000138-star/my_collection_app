@@ -13,8 +13,8 @@ export interface LunaPhaseResult {
   intensity: number; // 0~100 (환경 난이도)
 }
 
-// 로직 함수 (내부 로직은 동일)
-const calculateLunaPhase = (cycle: LunaCycle): LunaPhaseResult => {
+// 1. VillageView에서 사용하는 이름으로 함수 정의 및 export
+export const calculateLunaPhase = (cycle: LunaCycle): LunaPhaseResult => {
   if (!cycle.startDate) {
     return { dayInCycle: 0, phaseName: "Unknown", isPeriod: false, intensity: 0 };
   }
@@ -64,5 +64,6 @@ const calculateLunaPhase = (cycle: LunaCycle): LunaPhaseResult => {
   };
 };
 
-// 핵심: 기존 로직을 'getLunaMode'라는 이름으로 내보냅니다.
+// 2. moneyGameLogic에서 사용하는 이름으로 별칭(Alias) export
+// (같은 함수를 다른 이름으로도 내보내서 양쪽 파일 모두 에러가 없게 함)
 export const getLunaMode = calculateLunaPhase;
