@@ -1,57 +1,64 @@
 // src/money/moneyLuna.ts
-import type { LunaMode } from './types';
 
-const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
+export interface LunaCycle {
+  startDate: string;   // 마지막 생리 시작일 (YYYY-MM-DD)
+  periodLength: number; // 생리 지속 기간 (일)
+  cycleLength: number;  // 주기 (일, 보통 28)
+}
 
-const getDayDiff = (todayStr: string, targetStr: string): number => {
-  const today = new Date(todayStr).getTime();
-  const target = new Date(targetStr).getTime();
-  return Math.floor((target - today) / MILLISECONDS_PER_DAY);
-};
+export interface LunaPhaseResult {
+  dayInCycle: number;
+  phaseName: string; // 표시될 텍스트 (예: "Period", "Follicular")
+  isPeriod: boolean; // 피격(지출) 시 경고 여부
+  intensity: number; // 0~100 (환경 난이도)
+}
 
-// 오늘 기준 루나 모드 계산
-export const getLunaMode = (
-  todayStr: string,
-  nextPeriodDate: string
-): LunaMode => {
-  const diff = getDayDiff(todayStr, nextPeriodDate);
-
-  // REST: 생리 시작일(0) 부터 4일 뒤(-4)까지 -> 총 5일
-  if (diff <= 0 && diff >= -4) {
-    return 'REST';
+export const calculateLunaPhase = (cycle: LunaCycle): LunaPhaseResult => {
+  if (!cycle.startDate) {
+    return { dayInCycle: 0, phaseName: "Unknown", isPeriod: false, intensity: 0 };
   }
 
-  // PMS: 예정일 10일 전(10) 부터 1일 전(1)까지
-  if (diff > 0 && diff <= 10) {
-    return 'PMS';
+  const start = new Date(cycle.startDate);
+  const today = new Date();
+  
+  // 날짜 차이 계산 (밀리초 -> 일)
+  const diffTime = Math.abs(today.getTime() - start.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+  
+  // 현재 주기 내의 일차 (1일 ~ 28일)
+  const dayInCycle = (diffDays % cycle.cycleLength) + 1;
+
+  let phaseName = "";
+  let isPeriod = false;
+  let intensity = 0;
+
+  // 단계 판별 (단순화된 모델)
+  if (dayInCycle <= cycle.periodLength) {
+    // 월경 기 (Menstrual Phase) -> 가장 힘든 시기
+    phaseName = "🩸 Reset (Period)";
+    isPeriod = true;
+    intensity = 80;
+  } else if (dayInCycle <= 14) {
+    // 난포기 (Follicular) -> 활력
+    phaseName = "🌱 Energy (Follicular)";
+    isPeriod = false;
+    intensity = 10;
+  } else if (dayInCycle <= 17) {
+    // 배란기 (Ovulation) -> 충동 구매 주의
+    phaseName = "🔥 Spark (Ovulation)";
+    isPeriod = false;
+    intensity = 40;
+  } else {
+    // 황체기 (Luteal/PMS) -> 우울, 방어력 저하
+    phaseName = "🌑 Shadow (PMS)";
+    isPeriod = false;
+    intensity = 60;
   }
 
-  return 'NORMAL';
-};
-
-// UI 테마 정보
-export const getLunaTheme = (mode: LunaMode) => {
-  switch (mode) {
-    case 'PMS':
-      return {
-        label: '🩸 PMS WARNING',
-        color: '#ef4444',      // Red
-        bgColor: '#450a0a',    // Dark Red Bg
-        message: '충동구매 경보 발령. [회복 포션] 사용이 허가됩니다.',
-      };
-    case 'REST':
-      return {
-        label: '🛌 REST PERIOD',
-        color: '#a78bfa',      // Purple
-        bgColor: '#2e1065',    // Dark Purple Bg
-        message: '휴식 기간입니다. MP 회복량이 2배로 증가합니다.',
-      };
-    default:
-      return {
-        label: '🟢 NORMAL MODE',
-        color: '#10b981',      // Green
-        bgColor: '#111827',    // Default Gray
-        message: '평온한 상태입니다. 정화 루틴을 수행하세요.',
-      };
-  }
+  return {
+    dayInCycle,
+    phaseName,
+    isPeriod,
+    intensity
+  };
 };
