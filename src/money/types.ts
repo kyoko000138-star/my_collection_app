@@ -3,6 +3,27 @@ import { ClassType } from './constants';
 
 export type LunaMode = 'NORMAL' | 'PMS' | 'REST';
 
+// [NEW] 도감 아이템 타입
+export interface CollectionItem {
+  id: string;        // "junk_forest_01", "badge_no_spend_7" 등
+  name: string;      // "말라비틀어진 꽃잎", "절제의 트로피"
+  description: string; // 설명 텍스트
+  obtainedAt: string; // 획득 날짜 (ISO)
+  category: 'JUNK' | 'BADGE' | 'EQUIPMENT';
+}
+
+// [UPDATE] Inventory 구조 확장
+export interface Inventory {
+  junk: number;
+  salt: number;
+  shards: Record<string, number>;
+  materials: Record<string, number>;
+  equipment: string[];
+  
+  // [UPDATE] 문자열 배열 대신 객체 배열로 변경하여 상세 정보 저장
+  collection: CollectionItem[]; 
+}
+
 // 거래 기록
 export interface Transaction {
   id: string;
