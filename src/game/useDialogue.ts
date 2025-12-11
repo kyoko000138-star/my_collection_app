@@ -9,9 +9,6 @@ interface UseDialogueResult {
   next: () => void;
 }
 
-/**
- * 여러 씬에서 공통으로 쓸 수 있는 대화 진행 훅
- */
 export function useDialogue(): UseDialogueResult {
   const [script, setScript] = useState<DialogueScript | null>(null);
   const [index, setIndex] = useState(0);
@@ -31,6 +28,7 @@ export function useDialogue(): UseDialogueResult {
   const next = useCallback(() => {
     if (!script) return;
     const nextIndex = index + 1;
+
     if (nextIndex >= script.lines.length) {
       setVisible(false);
       setScript(null);
@@ -38,6 +36,7 @@ export function useDialogue(): UseDialogueResult {
       if (onComplete) onComplete();
       return;
     }
+
     setIndex(nextIndex);
   }, [script, index, onComplete]);
 
