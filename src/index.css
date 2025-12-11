@@ -17,3 +17,26 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* src/index.css */
+
+@import url('https://cdn.jsdelivr.net/gh/Dalgona/neodgm/neodgm.css');
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'NeoDungGeunMo', sans-serif !important; /* 강제 적용 */
+  background-color: #000; /* 전체 배경 검정 */
+}
+
+/* 둥실둥실 애니메이션 (캐릭터용) */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* 통통 튀는 애니메이션 */
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
