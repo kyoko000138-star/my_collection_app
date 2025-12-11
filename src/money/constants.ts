@@ -71,3 +71,17 @@ export const CLASS_CONSTANTS = {
   DRUID_REST_HEAL: 5,               // 드루이드가 REST 기간에 얻는 추가 MP
   ALCHEMIST_GOLD_PER_JUNK: 100,     // 연금술사가 정크 판매 시 얻는 가상 골드
 };
+
+export const DUNGEONS = {
+  food: { name: '배달의 숲', desc: '기름진 냄새가 진동합니다.', color: '#22c55e', icon: '🌲' },
+  transport: { name: '택시의 사막', desc: '미터기 말이 빠르게 달립니다.', color: '#f59e0b', icon: '🏜️' },
+  shopping: { name: '지름의 시장', desc: '반짝이는 물건이 가득합니다.', color: '#ec4899', icon: '🎪' },
+  etc: { name: '기타 던전', desc: '알 수 없는 곳입니다.', color: '#6366f1', icon: '🕳️' },
+} as const;
+
+export const MONSTERS = {
+  food: { name: '야식 슬라임', sprite: '🍕', atk: 20000 },
+  transport: { name: '미터기 미믹', sprite: '🚕', atk: 10000 },
+  shopping: { name: '충동구매 유령', sprite: '👻', atk: 50000 },
+  etc: { name: '텅장 몬스터', sprite: '💸', atk: 5000 },
+};
