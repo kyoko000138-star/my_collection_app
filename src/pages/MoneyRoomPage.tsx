@@ -283,89 +283,140 @@ export const MoneyRoomPage: React.FC = () => {
 };
 
 // --- Styles (레트로 RPG 스타일 적용) ---
+// 👇 여기부터 styles 객체를 통째로 교체하세요.
 const styles: Record<string, React.CSSProperties> = {
+  // 1. 전체 배경: 숲속 오두막 바닥 느낌 (짙은 나무색 or 흙색)
   container: {
-    maxWidth: '420px', margin: '0 auto', color: '#e5e7eb', minHeight: '100vh',
+    maxWidth: '420px', margin: '0 auto', minHeight: '100vh',
     padding: '20px', display: 'flex', flexDirection: 'column',
-    backgroundColor: '#111827',
+    fontFamily: '"NeoDungGeunMo", sans-serif', // 픽셀 폰트 필수
+    color: '#422006', // 텍스트는 진한 갈색 (가독성 UP)
+    backgroundColor: '#3b302a', // 짙은 갈색 배경
+    // 픽셀 패턴 배경 (체크무늬)
     backgroundImage: `
-      linear-gradient(#1f2937 1px, transparent 1px),
-      linear-gradient(90deg, #1f2937 1px, transparent 1px)
+      linear-gradient(45deg, #463a32 25%, transparent 25%, transparent 75%, #463a32 75%, #463a32),
+      linear-gradient(45deg, #463a32 25%, transparent 25%, transparent 75%, #463a32 75%, #463a32)
     `,
     backgroundSize: '20px 20px',
-    fontFamily: '"NeoDungGeunMo", sans-serif',
-  },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' },
-  date: { fontSize: '20px', textShadow: '2px 2px 0px #000' }, 
-  classBadge: { fontSize: '14px', color: '#9ca3af', marginTop: '4px' },
-  
-  modeBadge: { 
-    padding: '6px 10px', fontSize: '12px', 
-    border: '2px solid', boxShadow: '2px 2px 0px rgba(0,0,0,0.5)',
-    backgroundColor: '#1f2937' 
+    backgroundPosition: '0 0, 10px 10px',
   },
 
-  heroSection: { marginBottom: '25px', textAlign: 'center' },
+  // 2. 헤더: 나무 간판 느낌
+  header: { 
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px',
+    backgroundColor: '#a67c52', // 나무색
+    padding: '10px 15px',
+    border: '4px solid #5d4037', // 진한 나무 테두리
+    boxShadow: '4px 4px 0px rgba(0,0,0,0.5)', // 픽셀 그림자
+    borderRadius: '8px'
+  },
+  date: { fontSize: '18px', fontWeight: 'bold', color: '#fff', textShadow: '2px 2px 0 #000' },
+  classBadge: { fontSize: '12px', color: '#ffe4c4', marginTop: '2px' }, // 크림색 텍스트
+  
+  // 상태 배지: 붉은 보석 느낌
+  modeBadge: { 
+    padding: '6px 10px', fontSize: '12px', color: '#fff', fontWeight: 'bold',
+    backgroundColor: '#be123c', border: '2px solid #fff', 
+    boxShadow: '2px 2px 0px #000', borderRadius: '4px'
+  },
+
+  // 3. 히어로 섹션: 캐릭터가 서있는 무대
+  heroSection: { 
+    marginBottom: '20px', textAlign: 'center',
+    backgroundColor: '#5c4d41', // 캐릭터 발판 색
+    padding: '20px',
+    border: '4px solid #2a231d',
+    borderRadius: '16px',
+    position: 'relative'
+  },
   
   avatarArea: {
-    width: '80px', height: '80px', margin: '0 auto 10px',
-    backgroundColor: '#374151', border: '2px solid #fff',
+    width: '100px', height: '100px', margin: '0 auto 10px',
+    backgroundColor: 'rgba(0,0,0,0.2)', // 그림자 느낌
+    borderRadius: '50%',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    imageRendering: 'pixelated'
+    fontSize: '40px', border: '2px dashed #8d7b68'
   },
 
-  hpLabel: { display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '18px' },
-  
+  // HP Bar: 고전적인 붉은색 + 굵은 테두리
+  hpLabel: { display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '16px', color: '#fff', textShadow: '1px 1px 0 #000' },
   hpBarBg: { 
-    width: '100%', height: '24px', backgroundColor: '#374151', 
-    border: '2px solid #fff', position: 'relative'
+    width: '100%', height: '24px', backgroundColor: '#2a231d', 
+    border: '3px solid #1a1612', borderRadius: '12px', overflow: 'hidden', padding: '2px'
   },
   hpBarFill: { 
-    height: '100%', transition: 'width 0.2s steps(5)', 
+    height: '100%', borderRadius: '8px', 
+    boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.3)' // 입체감
   },
-  budgetDetail: { textAlign: 'right', fontSize: '12px', color: '#9ca3af', marginTop: '6px' },
+  budgetDetail: { textAlign: 'right', fontSize: '12px', color: '#d6c0a6', marginTop: '6px' },
 
-  inputSection: { display: 'flex', gap: '8px', marginBottom: '25px' },
+  // 4. 입력창: 양피지(종이) 느낌
+  inputSection: { 
+    display: 'flex', gap: '8px', marginBottom: '20px',
+    backgroundColor: '#eaddcf', // 종이색
+    padding: '8px',
+    border: '4px solid #8b5a2b', // 나무 테두리
+    borderRadius: '8px',
+    boxShadow: '4px 4px 0px rgba(0,0,0,0.3)'
+  },
   inputAmount: { 
-    flex: 1, padding: '12px', fontSize: '18px', 
-    backgroundColor: '#000', color: '#fff', 
-    border: '2px solid #4b5563', outline: 'none', fontFamily: 'inherit'
+    flex: 1, padding: '10px', fontSize: '18px', 
+    backgroundColor: 'transparent', color: '#422006', 
+    border: 'none', outline: 'none', fontFamily: 'inherit', fontWeight: 'bold',
+    borderBottom: '2px dashed #8b5a2b' // 밑줄
   },
   btnInputHit: { 
     padding: '0 20px', fontSize: '16px', cursor: 'pointer',
-    backgroundColor: '#ef4444', color: 'white', border: '2px solid #fff',
-    boxShadow: '4px 4px 0px #7f1d1d', 
+    backgroundColor: '#ef4444', color: 'white', 
+    border: '3px solid #991b1b', borderRadius: '6px',
+    boxShadow: '0 4px 0 #991b1b', // 눌리는 버튼 효과
+    fontFamily: 'inherit'
   },
 
+  // 5. 스탯 그리드: 아이템 슬롯 느낌
   statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '20px' },
-  
   statBox: { 
-    backgroundColor: '#000', padding: '10px', 
-    border: '2px solid #374151', textAlign: 'center' 
+    backgroundColor: '#d4c5a9', // 밝은 베이지
+    padding: '10px', 
+    border: '3px solid #8b5a2b', 
+    borderRadius: '8px',
+    textAlign: 'center',
+    boxShadow: 'inset 2px 2px 0 rgba(255,255,255,0.5), 2px 2px 0 rgba(0,0,0,0.2)'
   },
-  statLabel: { fontSize: '12px', color: '#9ca3af', marginBottom: '4px' },
+  statLabel: { fontSize: '12px', color: '#785032', marginBottom: '4px', fontWeight: 'bold' },
 
+  // 6. 대화창: 고전 RPG 텍스트 박스
   feedbackArea: { 
     flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', 
     color: '#fff', marginBottom: '25px', 
-    backgroundColor: 'rgba(0,0,0,0.6)', 
-    border: '2px solid #fff', 
-    boxShadow: '0 0 0 2px #000 inset', 
-    padding: '20px', minHeight: '100px', whiteSpace: 'pre-line', fontSize: '16px', lineHeight: '1.6'
+    backgroundColor: '#1e293b', // 짙은 남색 (대화창 국룰)
+    border: '4px double #fff', // 이중 테두리
+    borderRadius: '8px',
+    boxShadow: '0 4px 0 rgba(0,0,0,0.5)',
+    padding: '20px', minHeight: '80px', whiteSpace: 'pre-line', fontSize: '16px', lineHeight: '1.6'
   },
 
+  // 7. 하단 버튼들: 누르고 싶은 픽셀 버튼
   gridActions: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: 'auto' },
-  
   btnAction: { 
-    padding: '15px', backgroundColor: '#374151', color: '#fff', 
-    border: '2px solid #fff', boxShadow: '4px 4px 0px #000',
-    cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit'
+    padding: '15px', fontSize: '14px', fontFamily: 'inherit', cursor: 'pointer',
+    backgroundColor: '#f59e0b', // 호박색 (Stardew UI 느낌)
+    color: '#422006', fontWeight: 'bold',
+    border: '3px solid #b45309', 
+    borderRadius: '8px',
+    boxShadow: '0 4px 0 #b45309, 0 6px 4px rgba(0,0,0,0.3)', // 입체감 극대화
+    transition: 'transform 0.1s', // 클릭 시 눌리는 효과 (CSS active 필요)
   },
+  
+  // 마감 버튼은 특별하게 (파란색)
   btnEndDay: { 
-    padding: '15px', backgroundColor: '#1e3a8a', color: '#fbbf24', 
-    border: '2px solid #fbbf24', boxShadow: '4px 4px 0px #000',
-    cursor: 'pointer', fontSize: '16px', fontFamily: 'inherit',
-    gridColumn: 'span 2' 
+    padding: '15px', fontSize: '16px', fontFamily: 'inherit', cursor: 'pointer',
+    backgroundColor: '#3b82f6', 
+    color: '#fff', fontWeight: 'bold',
+    border: '3px solid #1d4ed8', 
+    borderRadius: '8px',
+    boxShadow: '0 4px 0 #1d4ed8, 0 6px 4px rgba(0,0,0,0.3)',
+    gridColumn: 'span 2'
   },
 };
 
