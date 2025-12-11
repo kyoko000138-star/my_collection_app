@@ -118,3 +118,25 @@ export interface UserState {
   // 거래 내역 (실제 앱에서는 별도 DB로 관리하지만, MVP에선 여기에 포함 가능)
   transactions?: Transaction[]; 
 }
+
+// [NEW] 월말 정산 기록 (History)
+export interface MonthRecord {
+  id: string;         // "2025-12"
+  grade: string;      // "S", "A", "B"...
+  totalSpent: number;
+  finalHp: number;
+  savedJunk: number;  // 매각한 정크 수
+  mvpAsset: string;   // 가장 많이 성장한 건물
+}
+
+// [UPDATE] UserState에 history 및 scene 추가
+export interface UserState {
+  // ... (기존 필드들: profile, budget, stats, assets, counters, inventory, runtime ...)
+  
+  // [NEW] 지난달 기록 보관소
+  history: MonthRecord[];
+
+  // [NEW] 현재 플레이 중인 장면 (저장할 필요는 없지만 관리는 필요)
+  // *참고: 실제 구현 시 scene은 React State로 따로 관리하는 게 낫습니다.
+  // 여기서는 데이터 구조적 완결성을 위해 적어둡니다.
+}
