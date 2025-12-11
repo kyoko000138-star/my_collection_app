@@ -42,31 +42,29 @@ const INITIAL_STATE: UserState = {
   maxMp: 30,
   junk: 0,
   salt: 0,
-  // 🌙 루나 사이클
   lunaCycle: { startDate: '', periodLength: 5, cycleLength: 28 },
-  // 🌱 정원 초기 상태 (NEW)
-  garden: {
-    treeLevel: 1,
-    weedCount: 0,
-    flowerState: 'normal',
-  },
-  // 인벤토리 / 도감 / 대기 거래
   inventory: [],
   collection: [],
   pending: [],
   materials: {},
-  // 자산 건물
-  assets: { fortress: 0, airfield: 0, mansion: 0, tower: 0, warehouse: 0 },
-  // 카운터
+  assets: {
+    fortress: 0,
+    airfield: 0,
+    mansion: 0,
+    tower: 0,
+    warehouse: 0,
+  },
   counters: {
     defenseActionsToday: 0,
     junkObtainedToday: 0,
-    noSpendStreak: 0,
     dailyTotalSpend: 0,
-    guardPromptShownToday: false,
     hadSpendingToday: false,
-    // lastDailyResetDate, lastDayEndDate는 선택 필드라 생략
+    noSpendStreak: 0,
+    guardPromptShownToday: false,
+    lastDailyResetDate: undefined,
+    lastDayEndDate: undefined,
   },
+  lastLoginDate: undefined,
 };
 
 const MoneyRoomPage: React.FC = () => {
@@ -83,10 +81,10 @@ const MoneyRoomPage: React.FC = () => {
   const [scene, setScene] = useState<Scene>(Scene.VILLAGE);
   const [activeDungeon, setActiveDungeon] = useState<string>('etc');
 
-  // 🔁 게임 / 요약 뷰 전환
+  // 🎮 게임 / 📊 요약 뷰 전환
   const [viewMode, setViewMode] = useState<'GAME' | 'SUMMARY'>('GAME');
 
-  // 하루 마감 모달
+  // 하루 마감 리포트
   const [showDailyLog, setShowDailyLog] = useState(false);
 
   // --- Effects ---
@@ -102,7 +100,7 @@ const MoneyRoomPage: React.FC = () => {
   const todayStr = new Date().toISOString().split('T')[0];
   const lunaPhase = calculateLunaPhase(gameState.lunaCycle);
   const theme = getLunaTheme(lunaPhase);
-  const isNewUser = gameState.maxBudget === 0;
+  const isNewUser = gameState.maxBudget === 0; // 예산 0이면 온보딩 유저로 간주
 
   const currentMonsterType =
     scene === Scene.BATTLE
@@ -118,6 +116,7 @@ const MoneyRoomPage: React.FC = () => {
 
   // --- Handlers ---
 
+  // 지출(피격)
   const handleSpend = (amount: number) => {
     const { newState, message } = applySpend(
       gameState,
@@ -132,6 +131,7 @@ const MoneyRoomPage: React.FC = () => {
     }, 100);
   };
 
+  // 방어(의지력 회복)
   const handleGuard = () => {
     const next = applyDefense(gameState);
     setGameState(next);
@@ -141,29 +141,15 @@ const MoneyRoomPage: React.FC = () => {
     }, 100);
   };
 
-  // 🛏 하루 마감 (여관에서 쉬기)
+  // 하루 마감
   const handleDayEnd = () => {
-    // ❗ applyDayEnd는 이제 state 하나만 받도록 변경됨
     const { newState, message } = applyDayEnd(gameState);
     setGameState(newState);
+    if (message) alert(message);
     setShowDailyLog(true);
-    if (message) {
-      alert(message);
-    }
   };
 
-  // 디버그 리셋
-  const handleReset = () => {
-    if (
-      window.confirm(
-        '머니룸 데이터를 모두 초기화할까요?\n(예산/자산/도감 기록이 모두 지워집니다)',
-      )
-    ) {
-      localStorage.removeItem(STORAGE_KEY);
-      window.location.reload();
-    }
-  };
-
+  // 온보딩 완료
   const handleOnboarding = (data: any) => {
     setGameState((prev) => ({
       ...prev,
@@ -180,7 +166,13 @@ const MoneyRoomPage: React.FC = () => {
 
   // --- Render ---
   return (
-    <div style={{ ...styles.appContainer, backgroundColor: theme.bg }}>
+    <div
+      className="money-game-wrapper"
+      style={{
+        ...styles.appContainer,
+        backgroundColor: theme.bg,
+      }}
+    >
       {/* 🎮 게임 / 📊 요약 토글 */}
       <div style={styles.viewToggle}>
         <button
@@ -215,14 +207,12 @@ const MoneyRoomPage: React.FC = () => {
         />
       ) : (
         <>
+          {/* 온보딩 모달 (최초 1회) */}
           {isNewUser && <OnboardingModal onComplete={handleOnboarding} />}
 
+          {/* 마을 / 월드맵 / 배틀 */}
           {scene === Scene.VILLAGE && (
-            <VillageView
-              user={gameState}
-              onChangeScene={setScene}
-              onDayEnd={handleDayEnd}
-            />
+            <VillageView user={gameState} onChangeScene={setScene} />
           )}
 
           {scene === Scene.WORLD_MAP && (
@@ -296,9 +286,25 @@ const MoneyRoomPage: React.FC = () => {
         pending={gameState.pending}
       />
 
-      {/* 디버그 Reset */}
+      {/* 디버그 / 관리 버튼 */}
       <div style={styles.debugArea}>
-        <button type="button" onClick={handleReset}>
+        <button type="button" onClick={handleDayEnd} style={styles.debugButton}>
+          🌙 하루 마감
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (
+              window.confirm(
+                '머니룸 데이터를 모두 초기화할까요?\n(예산/자산/도감 기록이 모두 지워집니다)',
+              )
+            ) {
+              localStorage.removeItem(STORAGE_KEY);
+              window.location.reload();
+            }
+          }}
+          style={styles.debugButton}
+        >
           🔄 Reset
         </button>
       </div>
@@ -310,7 +316,9 @@ const styles: Record<string, React.CSSProperties> = {
   appContainer: {
     maxWidth: '420px',
     margin: '0 auto',
-    minHeight: '100vh',
+    height: '100vh',
+    display: 'flex',
+    flexDirection: 'column',
     color: '#fff',
     fontFamily: '"NeoDungGeunMo", monospace',
     position: 'relative',
@@ -326,7 +334,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 4,
   },
   viewToggleBtn: {
-    padding: '4px 8px',
+    padding: '4px 10px',
     borderRadius: 999,
     border: '1px solid #4b5563',
     fontSize: 11,
@@ -338,8 +346,20 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'absolute',
     bottom: 6,
     right: 6,
-    opacity: 0.4,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    opacity: 0.35,
+    zIndex: 100,
+  },
+  debugButton: {
     fontSize: 10,
+    padding: '4px 6px',
+    borderRadius: 6,
+    border: '1px solid #4b5563',
+    backgroundColor: '#020617',
+    color: '#e5e7eb',
+    cursor: 'pointer',
   },
 };
 
