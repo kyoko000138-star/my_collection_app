@@ -1,7 +1,7 @@
 // src/game/components/DialogueBox.tsx
 import React from 'react';
 import type { DialogueLine } from '../dialogueTypes';
-import { NPC_DEFINITIONS } from '../npcDefinitions'; // 경로 맞게 조정
+import { NPC_DEFINITIONS } from '../npcDefinitions';
 
 interface DialogueBoxProps {
   line: DialogueLine | null;
@@ -21,8 +21,8 @@ const containerStyle: React.CSSProperties = {
 
 const boxStyle: React.CSSProperties = {
   maxWidth: '640px',
-  margin: '0 auto',
-  borderRadius: '14px',
+  margin: '0 auto 4px',
+  borderRadius: 14,
   border: '2px solid #e2d3b5',
   background: 'rgba(15, 12, 8, 0.92)',
   color: '#fdf4de',
@@ -37,7 +37,7 @@ const namePlateStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 6,
   padding: '2px 8px',
-  borderRadius: '999px',
+  borderRadius: 999,
   background: 'rgba(46, 34, 19, 0.96)',
   border: '1px solid #e2d3b5',
   marginBottom: 6,
@@ -63,10 +63,10 @@ function getSpeakerDisplay(line: DialogueLine | null) {
   if (!line) return { name: '', emoji: '' };
 
   if (line.speakerType === 'NPC' && line.speakerId) {
-    const def = (NPC_DEFINITIONS as any)[line.speakerId];
+    const def = NPC_DEFINITIONS[line.speakerId];
     if (def) {
       return {
-        name: def.nameKo ?? def.name ?? '',
+        name: def.nameKo,
         emoji: def.emoji ?? '',
       };
     }
