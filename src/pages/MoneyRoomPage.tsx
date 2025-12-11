@@ -59,7 +59,7 @@ const INITIAL_STATE: UserState = {
 };
 
 const MoneyRoomPage: React.FC = () => {
-  // --- Game State ---
+  // --- State ---
   const [gameState, setGameState] = useState<UserState>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -69,16 +69,13 @@ const MoneyRoomPage: React.FC = () => {
     }
   });
 
-  // 어떤 화면인지 (마을 / 월드맵 / 배틀 / 인벤토리 / 왕국 / 도감)
   const [scene, setScene] = useState<Scene>(Scene.VILLAGE);
-
-  // 상단 탭: 게임 화면 vs 요약 화면
-  const [viewMode, setViewMode] = useState<'GAME' | 'SUMMARY'>('GAME');
-
-  // 현재 선택된 던전
   const [activeDungeon, setActiveDungeon] = useState<string>('etc');
 
-  // 하루 마감 로그 모달
+  // 🔁 게임 / 요약 뷰 전환
+  const [viewMode, setViewMode] = useState<'GAME' | 'SUMMARY'>('GAME');
+
+  // 하루 마감 모달
   const [showDailyLog, setShowDailyLog] = useState(false);
 
   // --- Effects ---
@@ -87,7 +84,6 @@ const MoneyRoomPage: React.FC = () => {
   }, [gameState]);
 
   useEffect(() => {
-    // 날짜 바뀌었으면 counters 초기화 등
     setGameState((prev) => checkDailyReset(prev));
   }, []);
 
@@ -97,7 +93,6 @@ const MoneyRoomPage: React.FC = () => {
   const theme = getLunaTheme(lunaPhase);
   const isNewUser = gameState.maxBudget === 0;
 
-  // 배틀일 때만 오늘의 몬스터 타입 결정
   const currentMonsterType =
     scene === Scene.BATTLE
       ? activeDungeon !== 'etc'
@@ -112,7 +107,6 @@ const MoneyRoomPage: React.FC = () => {
 
   // --- Handlers ---
 
-  // 지출
   const handleSpend = (amount: number) => {
     const { newState, message } = applySpend(
       gameState,
@@ -127,7 +121,6 @@ const MoneyRoomPage: React.FC = () => {
     }, 100);
   };
 
-  // 방어
   const handleGuard = () => {
     const next = applyDefense(gameState);
     setGameState(next);
@@ -137,14 +130,14 @@ const MoneyRoomPage: React.FC = () => {
     }, 100);
   };
 
-  // 하루 마감 (여관에서 쉬기)
+  // 🛏 하루 마감 (여관에서 쉬기)
   const handleDayEnd = () => {
     const { newState } = applyDayEnd(gameState, todayStr);
     setGameState(newState);
     setShowDailyLog(true);
   };
 
-  // 디버그용 전체 리셋
+  // 디버그 리셋
   const handleReset = () => {
     if (
       window.confirm(
@@ -156,7 +149,6 @@ const MoneyRoomPage: React.FC = () => {
     }
   };
 
-  // 온보딩 완료
   const handleOnboarding = (data: any) => {
     setGameState((prev) => ({
       ...prev,
@@ -174,7 +166,7 @@ const MoneyRoomPage: React.FC = () => {
   // --- Render ---
   return (
     <div style={{ ...styles.appContainer, backgroundColor: theme.bg }}>
-      {/* 뷰 전환 탭 (게임 / 요약) */}
+      {/* 🎮 게임 / 📊 요약 토글 */}
       <div style={styles.viewToggle}>
         <button
           type="button"
@@ -200,7 +192,7 @@ const MoneyRoomPage: React.FC = () => {
         </button>
       </div>
 
-      {/* 메인 뷰: 게임 or 요약 */}
+      {/* 메인 컨텐츠 */}
       {viewMode === 'SUMMARY' ? (
         <MoneySummaryView
           user={gameState}
@@ -239,7 +231,7 @@ const MoneyRoomPage: React.FC = () => {
             />
           )}
 
-          {/* 인벤토리 / 자산 / 도감 모달 */}
+          {/* 인벤토리 / 정원(자산) / 도감 모달 */}
           <InventoryModal
             open={scene === Scene.INVENTORY}
             onClose={() => setScene(Scene.VILLAGE)}
@@ -275,7 +267,7 @@ const MoneyRoomPage: React.FC = () => {
         </>
       )}
 
-      {/* 오늘 하루 로그 모달 (게임/요약 모드 상관없이 띄움) */}
+      {/* 하루 마감 리포트 */}
       <DailyLogModal
         open={showDailyLog}
         onClose={() => setShowDailyLog(false)}
@@ -289,7 +281,7 @@ const MoneyRoomPage: React.FC = () => {
         pending={gameState.pending}
       />
 
-      {/* 디버그 Reset 버튼 (설정 페이지 생기면 옮겨도 됨) */}
+      {/* 디버그 Reset */}
       <div style={styles.debugArea}>
         <button type="button" onClick={handleReset}>
           🔄 Reset
@@ -325,6 +317,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     color: '#e5e7eb',
     cursor: 'pointer',
+    backgroundColor: '#020617',
   },
   debugArea: {
     position: 'absolute',
