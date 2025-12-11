@@ -5,6 +5,44 @@ import { GAME_CONSTANTS, COLLECTION_DB } from './constants';
 import { checkGuardianShield, getDruidRecoveryBonus } from './moneyClassLogic';
 import { getLunaMode } from './moneyLuna';
 
+
+// src/money/moneyGameLogic.ts 기존 내용 아래에 추가
+
+/**
+ * 🚨 가드 프롬프트(경고) 노출 여부 판단
+ * 조건:
+ * 1. 오늘 아직 경고를 본 적 없음 (1일 1회 제한)
+ * 2. 고정비가 아님
+ * 3. 금액이 10,000원 이상이거나, 이 지출로 HP가 30% 미만(경고)으로 떨어질 때
+ */
+export const shouldShowGuardPrompt = (state: UserState, amount: number, isFixedCost: boolean): boolean => {
+  if (state.counters.guardPromptShownToday) return false; // 이미 봄
+  if (isFixedCost) return false; // 고정비는 건드리지 않음
+
+  const currentHp = getHp(state.budget.current, state.budget.total);
+  const nextHp = getHp(state.budget.current - amount, state.budget.total);
+  
+  // 조건 A: 고액 지출 (설정 가능, 일단 1만원)
+  const isHighAmount = amount >= 10000;
+  
+  // 조건 B: HP가 안전(>30)했다가 위험(<=30)으로 떨어지는 순간
+  const isCriticalHit = currentHp > GAME_CONSTANTS.HP_WARNING_THRESHOLD && nextHp <= GAME_CONSTANTS.HP_WARNING_THRESHOLD;
+
+  return isHighAmount || isCriticalHit;
+};
+
+/**
+ * 가드 프롬프트 확인 처리 (플래그 true 설정)
+ */
+export const markGuardPromptShown = (state: UserState): UserState => {
+  return {
+    ...state,
+    counters: {
+      ...state.counters,
+      guardPromptShownToday: true
+    }
+  };
+};
 // ------------------------------------------------------------------
 // [HELPERS] 유틸리티 함수
 // ------------------------------------------------------------------
