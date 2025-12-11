@@ -1,8 +1,49 @@
 export const GAME_CONSTANTS = {
   MAX_MP: 30,
   HP_WARNING_THRESHOLD: 30, // 30% 미만 시 경고
+  
+  // Guard Prompt 조건
+  GUARD_PROMPT_MIN_AMOUNT: 10000, // 이 금액 이상일 때만 경고 팝업
 
-  // [NEW] 도감 데이터베이스 (Junk 획득 시 랜덤 매핑용)
+  // 경제 관련
+  JUNK_THRESHOLD: 5000, // 이 금액 이상 지출 시 Junk 획득
+  DAILY_JUNK_LIMIT: 10, // 하루 최대 Junk 획득량
+  DAILY_DEFENSE_LIMIT: 3, // 하루 최대 방어 인정 횟수
+  
+  // 보상 관련
+  DUST_REWARD_PER_DAY: 1,         // 접속 시 Natural Dust 지급량
+  SALT_REWARD_PER_NOSPEND_DAY: 1, // 무지출 시 Salt 지급량
+  LUNA_SHIELD_MONTHLY_LIMIT: 3,   // PMS 기간 자동 방어 횟수
+  
+  // 보상 (MP)
+  MP_RECOVERY_ACCESS: 1, 
+  MP_RECOVERY_DEFENSE: 1, 
+  MP_RECOVERY_QUEST: 2,   
+
+  // 정화 및 제작 비용
+  PURIFY_COST_MP: 1, 
+  PURIFY_COST_JUNK: 1,
+  PURIFY_COST_SALT: 1,
+  EQUIPMENT_COST_PURE_ESSENCE: 3,
+
+  // 정화 결과물 정의
+  PURIFY_OUTPUT_MATERIAL: {
+    'PURE_ESSENCE': 1, 
+  } as const,
+
+  // 쿨타임 (ms 단위)
+  ACCESS_COOLDOWN_MS: 3 * 60 * 60 * 1000, 
+
+  // 제작 레시피
+  CRAFTING_RECIPES: {
+    'MILD_LEDGER_SWORD': {
+      materialCosts: { 'PURE_ESSENCE': 3 },
+      output: { type: 'EQUIPMENT', id: '잔잔한 장부검', effect: 'MP_MAX_UP' },
+    }
+  } as const
+}; // <--- 여기가 닫혀야 합니다!
+
+// [NEW] 도감 데이터베이스 (GAME_CONSTANTS 밖으로 나와야 함)
 export const COLLECTION_DB = {
   JUNK_FOREST: [
     { id: 'junk_forest_01', name: '말라비틀어진 꽃잎', desc: '숲에서 흔히 보이는 시든 꽃잎.' },
@@ -15,46 +56,12 @@ export const COLLECTION_DB = {
     NO_SPEND_7: { id: 'badge_no_spend_7', name: '절제의 미학', desc: '7일 연속 무지출을 달성했다.' },
   },
 };
-  
-  // 경제 관련
-  JUNK_THRESHOLD: 5000, // 이 금액 이상 지출 시 Junk 획득
-  DAILY_JUNK_LIMIT: 10, // 하루 최대 Junk 획득량
-  DAILY_DEFENSE_LIMIT: 3, // 하루 최대 방어 인정 횟수
-  
-  // [NEW] 보상 관련
-  REWARD_NATURAL_DUST: 1, // 마감 시 기본 지급 (Natural Dust)
-  REWARD_SALT_NO_SPEND: 1, // 무지출 성공 시 지급 (Salt)
-  
-  // 쿨타임 (ms 단위)
-  ACCESS_COOLDOWN_MS: 3 * 60 * 60 * 1000, // 3시간
-  
-  // 정화 비용
-  PURIFY_COST_MP: 1, 
-  PURIFY_COST_JUNK: 1,
-  PURIFY_COST_SALT: 1,
-  PURIFY_OUTPUT_MATERIAL: {
-    'PURE_ESSENCE': 1, // 정화 결과물
-  } as const,
-  
-  // 보상 (MP)
-  MP_RECOVERY_ACCESS: 1, 
-  MP_RECOVERY_DEFENSE: 1, 
-  MP_RECOVERY_QUEST: 2,   
-
-  // 제작 레시피 (예시)
-  CRAFTING_RECIPES: {
-    'MILD_LEDGER_SWORD': {
-      materialCosts: { 'PURE_ESSENCE': 3 },
-      output: { type: 'EQUIPMENT', id: '잔잔한 장부검', effect: 'MP_MAX_UP' },
-    }
-  } as const
-};
 
 export const CLASS_TYPES = {
-  GUARDIAN: 'GUARDIAN',   // 수호자
-  SAGE: 'SAGE',           // 현자
-  ALCHEMIST: 'ALCHEMIST', // 연금술사
-  DRUID: 'DRUID',         // 드루이드
+  GUARDIAN: 'GUARDIAN',   
+  SAGE: 'SAGE',           
+  ALCHEMIST: 'ALCHEMIST', 
+  DRUID: 'DRUID',         
 } as const;
 
 export type ClassType = typeof CLASS_TYPES[keyof typeof CLASS_TYPES];
