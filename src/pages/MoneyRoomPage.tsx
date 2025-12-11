@@ -1,6 +1,7 @@
 // src/pages/MoneyRoomPage.tsx
 
 import React, { useState, useEffect } from 'react';
+import { MoneySummaryView } from '../money/components/MoneySummaryView';
 
 // Data & Logic
 import { UserState, Scene } from '../money/types';
@@ -69,9 +70,8 @@ const MoneyRoomPage: React.FC = () => {
   });
 
   const [scene, setScene] = useState<Scene>(Scene.VILLAGE);
+  const [viewMode, setViewMode] = useState<'GAME' | 'SUMMARY'>('GAME');
   const [activeDungeon, setActiveDungeon] = useState<string>('etc');
-
-  // 하루 마감 모달 표시 여부
   const [showDailyLog, setShowDailyLog] = useState(false);
 
   // --- Effects ---
@@ -124,19 +124,19 @@ const MoneyRoomPage: React.FC = () => {
     const next = applyDefense(gameState);
     setGameState(next);
     setTimeout(() => {
-      alert(`🛡️ 방어 성공! 의지력(MP)을 회복했습니다.`);
+      alert('🛡️ 방어 성공! 의지력(MP)을 회복했습니다.');
       setScene(Scene.VILLAGE);
     }, 100);
   };
 
-  // 하루 마감
+  // 하루 마감 (JRPG 여관에서 쉬기 느낌)
   const handleDayEnd = () => {
     const { newState } = applyDayEnd(gameState, todayStr);
     setGameState(newState);
-    setShowDailyLog(true);
+    setShowDailyLog(true); // 요약 모달 띄우기
   };
 
-  // 디버그 리셋
+  // 디버그 리셋 (UI에는 안 보이게, 개발용)
   const handleReset = () => {
     if (
       window.confirm(
@@ -147,6 +147,7 @@ const MoneyRoomPage: React.FC = () => {
       window.location.reload();
     }
   };
+  // 필요하면 F12에서 window.moneyReset() 이런 식으로 노출해줘도 됨
 
   // 온보딩 완료
   const handleOnboarding = (data: any) => {
@@ -166,81 +167,114 @@ const MoneyRoomPage: React.FC = () => {
   // --- Render ---
   return (
     <div style={{ ...styles.appContainer, backgroundColor: theme.bg }}>
-      {isNewUser && <OnboardingModal onComplete={handleOnboarding} />}
-
-      {scene === Scene.VILLAGE && (
-        <VillageView user={gameState} onChangeScene={setScene} />
-      )}
-
-      {scene === Scene.WORLD_MAP && (
-        <WorldMapView
-          onSelectDungeon={(id) => {
-            setActiveDungeon(id);
-            setScene(Scene.BATTLE);
+      {/* 🎮 / 📊 뷰 전환 탭 */}
+      <div style={styles.viewToggle}>
+        <button
+          type="button"
+          onClick={() => setViewMode('GAME')}
+          style={{
+            ...styles.viewToggleBtn,
+            backgroundColor: viewMode === 'GAME' ? '#0f172a' : '#020617',
           }}
-          onBack={() => setScene(Scene.VILLAGE)}
-        />
-      )}
-
-      {scene === Scene.BATTLE && (
-        <BattleView
-          dungeonId={currentMonsterType}
-          playerHp={gameState.currentBudget}
-          maxHp={gameState.maxBudget}
-          onSpend={handleSpend}
-          onGuard={handleGuard}
-          onRun={() => setScene(Scene.WORLD_MAP)}
-        />
-      )}
-
-      <InventoryModal
-        open={scene === Scene.INVENTORY}
-        onClose={() => setScene(Scene.VILLAGE)}
-        junk={gameState.junk}
-        salt={gameState.salt}
-        materials={gameState.materials}
-        equipment={gameState.inventory.map((i) => i.name)}
-        collection={gameState.collection}
-        canPurify={gameState.mp > 0}
-        onPurify={() => {
-          const { newState, message } = applyPurify(gameState);
-          setGameState(newState);
-          alert(message);
-        }}
-        onCraft={() => {
-          const { newState, message } = applyCraftEquipment(gameState);
-          setGameState(newState);
-          alert(message);
-        }}
-      />
-
-      <KingdomModal
-        open={scene === Scene.KINGDOM}
-        onClose={() => setScene(Scene.VILLAGE)}
-        buildings={getAssetBuildingsView(gameState)}
-      />
-
-      <CollectionModal
-        open={scene === Scene.COLLECTION}
-        onClose={() => setScene(Scene.VILLAGE)}
-        collection={gameState.collection}
-      />
-
-      {/* 🌙 하루 마감 + 디버그 Reset 버튼 도크 */}
-      <div style={styles.controlDock}>
-        <button type="button" onClick={handleDayEnd} style={styles.dayEndBtn}>
-          🌙 하루 마감
+        >
+          🎮 게임
         </button>
         <button
           type="button"
-          onClick={handleReset}
-          style={styles.debugButton}
+          onClick={() => setViewMode('SUMMARY')}
+          style={{
+            ...styles.viewToggleBtn,
+            backgroundColor: viewMode === 'SUMMARY' ? '#0f172a' : '#020617',
+          }}
         >
-          Reset
+          📊 요약
         </button>
       </div>
 
-      {/* 오늘 로그 모달 */}
+      {viewMode === 'SUMMARY' ? (
+        // 📊 요약 화면
+        <MoneySummaryView
+          user={gameState}
+          onBackToGame={() => setViewMode('GAME')}
+        />
+      ) : (
+        // 🎮 게임 화면
+        <>
+          {isNewUser && <OnboardingModal onComplete={handleOnboarding} />}
+
+          {scene === Scene.VILLAGE && (
+            <VillageView user={gameState} onChangeScene={setScene} />
+          )}
+
+          {scene === Scene.WORLD_MAP && (
+            <WorldMapView
+              onSelectDungeon={(id) => {
+                setActiveDungeon(id);
+                setScene(Scene.BATTLE);
+              }}
+              onBack={() => setScene(Scene.VILLAGE)}
+            />
+          )}
+
+          {scene === Scene.BATTLE && (
+            <BattleView
+              dungeonId={currentMonsterType}
+              playerHp={gameState.currentBudget}
+              maxHp={gameState.maxBudget}
+              onSpend={handleSpend}
+              onGuard={handleGuard}
+              onRun={() => setScene(Scene.WORLD_MAP)}
+            />
+          )}
+
+          {/* 인벤토리/자산/도감 모달들 */}
+          <InventoryModal
+            open={scene === Scene.INVENTORY}
+            onClose={() => setScene(Scene.VILLAGE)}
+            junk={gameState.junk}
+            salt={gameState.salt}
+            materials={gameState.materials}
+            equipment={gameState.inventory.map((i) => i.name)}
+            collection={gameState.collection}
+            canPurify={gameState.mp > 0}
+            onPurify={() => {
+              const { newState, message } = applyPurify(gameState);
+              setGameState(newState);
+              alert(message);
+            }}
+            onCraft={() => {
+              const { newState, message } = applyCraftEquipment(gameState);
+              setGameState(newState);
+              alert(message);
+            }}
+          />
+
+          <KingdomModal
+            open={scene === Scene.KINGDOM}
+            onClose={() => setScene(Scene.VILLAGE)}
+            buildings={getAssetBuildingsView(gameState)}
+          />
+
+          <CollectionModal
+            open={scene === Scene.COLLECTION}
+            onClose={() => setScene(Scene.VILLAGE)}
+            collection={gameState.collection}
+          />
+
+          {/* 🌙 하루 마감 버튼 (여관에서 쉬기 느낌) */}
+          <div style={styles.controlDock}>
+            <button
+              type="button"
+              onClick={handleDayEnd}
+              style={styles.dayEndBtn}
+            >
+              🌙 하루 마감
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* 오늘 로그 모달 (어느 뷰에서든 공용) */}
       <DailyLogModal
         open={showDailyLog}
         onClose={() => setShowDailyLog(false)}
@@ -268,6 +302,22 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     transition: 'background-color 1s ease',
   },
+  viewToggle: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    zIndex: 40,
+    display: 'flex',
+    gap: 4,
+  },
+  viewToggleBtn: {
+    padding: '4px 8px',
+    borderRadius: 999,
+    border: '1px solid #4b5563',
+    fontSize: 11,
+    color: '#e5e7eb',
+    cursor: 'pointer',
+  },
   controlDock: {
     position: 'absolute',
     bottom: 8,
@@ -286,16 +336,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#f9fafb',
     fontSize: 12,
     cursor: 'pointer',
-  },
-  debugButton: {
-    padding: '4px 8px',
-    borderRadius: 999,
-    border: '1px solid #4b5563',
-    backgroundColor: '#111827',
-    color: '#9ca3af',
-    fontSize: 10,
-    cursor: 'pointer',
-    opacity: 0.7,
   },
 };
 
