@@ -4,6 +4,12 @@ import React from 'react';
 import { UserState, Scene } from '../types';
 import { calculateLunaPhase } from '../moneyLuna';
 
+// src/money/components/VillageView.tsx 맨 위 import들 옆에 추가
+
+import { DialogueBox } from '../../game/components/DialogueBox';
+import { useDialogue } from '../../game/useDialogue';
+import { FIRST_MEET_ANGEL_NORMAL } from '../../game/dialogueScriptsFirstMeet';
+
 // 👉 대화 시스템 관련 import (경로는 프로젝트 구조에 맞게 조정)
 import { DialogueBox } from '../../game/components/DialogueBox';
 import { useDialogue } from '../../game/useDialogue';
