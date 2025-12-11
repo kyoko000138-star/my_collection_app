@@ -54,7 +54,7 @@ export const MoneyRoomPage: React.FC = () => {
   const [feedbackMsg, setFeedbackMsg] = useState<string>("던전에 입장했습니다.");
   const [inputAmount, setInputAmount] = useState<string>('');
 
-  // 모달 상태 (변수명 수정됨)
+  // 모달 상태
   const [isInventoryModalOpen, setIsInventoryModalOpen] = useState(false);
   const [isCollectionOpen, setIsCollectionOpen] = useState(false);
   const [isKingdomOpen, setIsKingdomOpen] = useState(false);
@@ -172,6 +172,7 @@ export const MoneyRoomPage: React.FC = () => {
     <div style={{...styles.container, backgroundColor: theme.bgColor}}>
       {needsOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
 
+      {/* HEADER */}
       <header style={styles.header}>
         <div style={{display:'flex', flexDirection:'column'}}>
           <span style={styles.date}>{todayStr}</span>
@@ -184,7 +185,14 @@ export const MoneyRoomPage: React.FC = () => {
         </span>
       </header>
 
+      {/* HERO SECTION (HP & Avatar) */}
       <section style={styles.heroSection}>
+        {/* [NEW] 캐릭터/몬스터 표시 영역 */}
+        <div style={styles.avatarArea}>
+          {/* 캐릭터 이미지가 있다면 여기에 <img src="..." /> 추가 */}
+          <span style={{fontSize: '40px'}}>👾</span>
+        </div>
+
         <div style={styles.hpLabel}><span>HP (생존력)</span><span>{hp}%</span></div>
         <div style={styles.hpBarBg}>
           <div style={{...styles.hpBarFill, width: `${hp}%`, backgroundColor: getHpColor(hp)}} />
@@ -194,6 +202,7 @@ export const MoneyRoomPage: React.FC = () => {
         </div>
       </section>
 
+      {/* QUICK INPUT */}
       <section style={styles.inputSection}>
         <input 
           type="number" 
@@ -208,6 +217,7 @@ export const MoneyRoomPage: React.FC = () => {
         </button>
       </section>
 
+      {/* STATS GRID */}
       <section style={styles.statsGrid}>
         <div style={styles.statBox}>
           <div style={styles.statLabel}>MP (의지)</div>
@@ -223,13 +233,14 @@ export const MoneyRoomPage: React.FC = () => {
         </div>
       </section>
 
+      {/* FEEDBACK */}
       <div style={{...styles.feedbackArea, borderColor: theme.color}}>
         {feedbackMsg}
       </div>
 
+      {/* FOOTER ACTIONS */}
       <div style={styles.gridActions}>
         <button onClick={() => handleDefense()} style={styles.btnAction}>🛡️ 방어</button>
-        {/* 변수명 수정됨: isInventoryModalOpen */}
         <button onClick={() => setIsInventoryModalOpen(true)} style={styles.btnAction}>🎒 인벤토리</button>
         <button onClick={() => setIsKingdomOpen(true)} style={styles.btnAction}>🏰 내 왕국</button>
         <button onClick={() => setIsCollectionOpen(true)} style={styles.btnAction}>📖 도감</button>
@@ -271,26 +282,23 @@ export const MoneyRoomPage: React.FC = () => {
   );
 };
 
-// src/pages/MoneyRoomPage.tsx 하단의 styles 객체 교체
-
+// --- Styles (레트로 RPG 스타일 적용) ---
 const styles: Record<string, React.CSSProperties> = {
   container: {
     maxWidth: '420px', margin: '0 auto', color: '#e5e7eb', minHeight: '100vh',
     padding: '20px', display: 'flex', flexDirection: 'column',
-    // [NEW] 배경에 격자 무늬 추가 (던전 바닥 느낌)
     backgroundColor: '#111827',
     backgroundImage: `
       linear-gradient(#1f2937 1px, transparent 1px),
       linear-gradient(90deg, #1f2937 1px, transparent 1px)
     `,
     backgroundSize: '20px 20px',
-    fontFamily: '"NeoDungGeunMo", sans-serif', // 폰트 적용 확인
+    fontFamily: '"NeoDungGeunMo", sans-serif',
   },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' },
-  date: { fontSize: '20px', textShadow: '2px 2px 0px #000' }, // 텍스트 그림자
+  date: { fontSize: '20px', textShadow: '2px 2px 0px #000' }, 
   classBadge: { fontSize: '14px', color: '#9ca3af', marginTop: '4px' },
   
-  // [NEW] 픽셀 스타일 배지
   modeBadge: { 
     padding: '6px 10px', fontSize: '12px', 
     border: '2px solid', boxShadow: '2px 2px 0px rgba(0,0,0,0.5)',
@@ -299,27 +307,24 @@ const styles: Record<string, React.CSSProperties> = {
 
   heroSection: { marginBottom: '25px', textAlign: 'center' },
   
-  // [NEW] 아바타 영역 (이미지 들어갈 곳)
   avatarArea: {
     width: '80px', height: '80px', margin: '0 auto 10px',
     backgroundColor: '#374151', border: '2px solid #fff',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    imageRendering: 'pixelated' // 이미지 도트 깨짐 방지
+    imageRendering: 'pixelated'
   },
 
   hpLabel: { display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '18px' },
   
-  // [NEW] 레트로 HP Bar (각진 테두리)
   hpBarBg: { 
     width: '100%', height: '24px', backgroundColor: '#374151', 
     border: '2px solid #fff', position: 'relative'
   },
   hpBarFill: { 
-    height: '100%', transition: 'width 0.2s steps(5)', // 끊기는 애니메이션
+    height: '100%', transition: 'width 0.2s steps(5)', 
   },
   budgetDetail: { textAlign: 'right', fontSize: '12px', color: '#9ca3af', marginTop: '6px' },
 
-  // [NEW] RPG 명령어 입력창 스타일
   inputSection: { display: 'flex', gap: '8px', marginBottom: '25px' },
   inputAmount: { 
     flex: 1, padding: '12px', fontSize: '18px', 
@@ -329,32 +334,28 @@ const styles: Record<string, React.CSSProperties> = {
   btnInputHit: { 
     padding: '0 20px', fontSize: '16px', cursor: 'pointer',
     backgroundColor: '#ef4444', color: 'white', border: '2px solid #fff',
-    boxShadow: '4px 4px 0px #7f1d1d', // 입체 그림자
-    active: { transform: 'translate(2px, 2px)', boxShadow: '2px 2px 0px #7f1d1d' } // 클릭 효과 (JS로 구현 필요하지만 느낌만)
+    boxShadow: '4px 4px 0px #7f1d1d', 
   },
 
   statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '20px' },
   
-  // [NEW] 스탯 박스 (검은 배경 + 흰 테두리)
   statBox: { 
     backgroundColor: '#000', padding: '10px', 
     border: '2px solid #374151', textAlign: 'center' 
   },
   statLabel: { fontSize: '12px', color: '#9ca3af', marginBottom: '4px' },
 
-  // [NEW] 대화창 스타일 (Message Box)
   feedbackArea: { 
     flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', 
     color: '#fff', marginBottom: '25px', 
-    backgroundColor: 'rgba(0,0,0,0.6)', // 반투명 검정
-    border: '2px solid #fff', // 흰색 테두리
-    boxShadow: '0 0 0 2px #000 inset', // 이중 테두리 효과
+    backgroundColor: 'rgba(0,0,0,0.6)', 
+    border: '2px solid #fff', 
+    boxShadow: '0 0 0 2px #000 inset', 
     padding: '20px', minHeight: '100px', whiteSpace: 'pre-line', fontSize: '16px', lineHeight: '1.6'
   },
 
   gridActions: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: 'auto' },
   
-  // [NEW] RPG 버튼 스타일 (각진 버튼)
   btnAction: { 
     padding: '15px', backgroundColor: '#374151', color: '#fff', 
     border: '2px solid #fff', boxShadow: '4px 4px 0px #000',
@@ -364,7 +365,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '15px', backgroundColor: '#1e3a8a', color: '#fbbf24', 
     border: '2px solid #fbbf24', boxShadow: '4px 4px 0px #000',
     cursor: 'pointer', fontSize: '16px', fontFamily: 'inherit',
-    gridColumn: 'span 2' // 맨 아래 꽉 채우기
+    gridColumn: 'span 2' 
   },
 };
 
