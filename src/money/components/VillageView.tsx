@@ -5,9 +5,9 @@ import { UserState, Scene } from '../types';
 import { calculateLunaPhase } from '../moneyLuna';
 
 // 👉 대화 시스템 관련 import
-import { DialogueBox } from '../../game/components/DialogueBox';
-import { useDialogue } from '../../game/useDialogue';
-import { FIRST_MEET_ANGEL_NORMAL } from '../../game/dialogueScriptsFirstMeet';
+//import { DialogueBox } from '../../game/components/DialogueBox';
+//import { useDialogue } from '../../game/useDialogue';
+//import { FIRST_MEET_ANGEL_NORMAL } from '../../game/dialogueScriptsFirstMeet';
 
 interface VillageViewProps {
   user: UserState;
@@ -15,7 +15,7 @@ interface VillageViewProps {
 }
 
 // [중요] export const 하나만 사용
-export const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
+//export const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
   // ✅ 1. 여기! 컴포넌트 선언 바로 아래
   const { currentLine, visible, startScript, next } = useDialogue();
 
