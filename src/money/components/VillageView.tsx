@@ -31,15 +31,13 @@ export const VillageView: React.FC<VillageViewProps> = ({
     <div style={styles.container}>
       {/* 📜 상단 상태바 */}
       <div style={styles.statusBar}>
-        <div style={styles.statusRow}>
-          <span>📅 {todayStr}</span>
-          <span style={{color: theme?.color || '#000'}}>{theme?.label || 'NORMAL'}</span>
-        </div>
-        <div style={styles.statusRow}>
-          <span>💖 HP {hp}%</span>
-          <span>💧 MP {gameState.runtime.mp}/{GAME_CONSTANTS.MAX_MP}</span>
-        </div>
-      </div>
+  <div style={styles.statusRow}>
+    <span>📅 {todayStr}</span>
+    {/* 테마가 없을 경우를 대비한 방어 코드 (Safe Navigation) */}
+    <span style={{ color: theme?.color || '#3e2723' }}>
+      {theme?.label || 'NORMAL'}
+    </span>
+  </div>
 
       {/* 🏠 메인 화면 (내 방) */}
       <div style={styles.roomScene}>
