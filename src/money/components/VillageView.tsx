@@ -4,28 +4,18 @@ import React from 'react';
 import { UserState, Scene } from '../types';
 import { calculateLunaPhase } from '../moneyLuna';
 
-// 👉 대화 시스템 관련 import
-//import { DialogueBox } from '../../game/components/DialogueBox';
-//import { useDialogue } from '../../game/useDialogue';
-//import { FIRST_MEET_ANGEL_NORMAL } from '../../game/dialogueScriptsFirstMeet';
-
 interface VillageViewProps {
   user: UserState;
   onChangeScene: (scene: Scene) => void;
 }
 
-// [중요] export const 하나만 사용
-//export const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
-  // ✅ 1. 여기! 컴포넌트 선언 바로 아래
-  const { currentLine, visible, startScript, next } = useDialogue();
-
-  const handleClickAngel = () => {
-    // TODO: 나중에 NORMAL / BAD 분기 가능
-    startScript(FIRST_MEET_ANGEL_NORMAL);
-  };
-
+export const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
   if (!user) {
-    return <div className="text-white text-center mt-20">L O A D I N G . . .</div>;
+    return (
+      <div className="text-white text-center mt-20">
+        L O A D I N G . . .
+      </div>
+    );
   }
 
   // --- 기존 로직 계산 ---
@@ -58,8 +48,8 @@ interface VillageViewProps {
       >
         {/* 창문 효과 */}
         <div className="absolute top-10 left-1/2 -translate-x-1/2 w-32 h-32 bg-blue-900 border-4 border-amber-900 opacity-80 shadow-inner">
-          <div className="w-full h-1/2 border-b-4 border-amber-900"></div>
-          <div className="absolute top-0 left-1/2 h-full w-1 bg-amber-900 -translate-x-1/2"></div>
+          <div className="w-full h-1/2 border-b-4 border-amber-900" />
+          <div className="absolute top-0 left-1/2 h-full w-1 bg-amber-900 -translate-x-1/2" />
           {/* 달 (Luna 상태) */}
           <div className="absolute top-4 right-4 text-2xl drop-shadow-[0_0_5px_rgba(255,255,100,0.8)]">
             {luna.isPeriod ? '🔴' : '🌙'}
@@ -75,7 +65,7 @@ interface VillageViewProps {
             🧙‍♀️
           </div>
           {/* 그림자 */}
-          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-20 h-4 bg-black opacity-40 rounded-[50%] blur-sm"></div>
+          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-20 h-4 bg-black opacity-40 rounded-[50%] blur-sm" />
         </div>
 
         {/* 대사창 (내적 독백용) */}
@@ -90,17 +80,9 @@ interface VillageViewProps {
           <div className="text-[10px] text-[#854d0e] mt-1 font-bold">
             (생존 {daysLeft}일 남음)
           </div>
-          <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-[#fff1cc] border-t-2 border-l-2 border-[#422006] rotate-45"></div>
+          <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-[#fff1cc] border-t-2 border-l-2 border-[#422006] rotate-45" />
         </div>
       </div>
-
-      {/* ✅ 2. 여기! 마을 화면 어딘가에 엔젤 버튼 */}
-      <button
-        onClick={handleClickAngel}
-        className="absolute top-24 right-4 z-20 bg-[#f9e7c8] border border-[#8b5a2b] rounded px-2 py-1 text-[10px] shadow-md hover:bg-[#ffe7b9]"
-      >
-        👼 천사에게 말 걸기
-      </button>
 
       {/* 3. [UI 레이어 - HUD] */}
 
@@ -201,9 +183,6 @@ interface VillageViewProps {
           </button>
         </div>
       </div>
-
-      {/* ✅ 3. 여기! return의 맨 마지막, 제일 바깥 div 닫기 직전에 */}
-      <DialogueBox line={currentLine} visible={visible} onNext={next} />
     </div>
   );
 };
