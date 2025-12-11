@@ -1,148 +1,51 @@
 // src/money/types.ts
 
-import { ClassType } from './constants';
+// 1. 화면(Scene) 상태 정의
+export enum Scene {
+  VILLAGE = 'VILLAGE',      // 메인 화면 (마을/내 방)
+  WORLD_MAP = 'WORLD_MAP',  // 던전 선택 화면
+  BATTLE = 'BATTLE',        // 지출(전투) 화면
+  INVENTORY = 'INVENTORY',  // 가방/제작
+  KINGDOM = 'KINGDOM',      // 자산 관리
+  COLLECTION = 'COLLECTION' // 도감
+}
 
-// ------------------------------------------------------------------
-// [ENUMS & TYPES] 상수 및 타입 정의
-// ------------------------------------------------------------------
-
-export type Scene = 'TITLE' | 'VILLAGE' | 'WORLDMAP' | 'BATTLE' | 'CRAFTING' | 'MONTH_END';
-
-export type LunaMode = 'NORMAL' | 'PMS' | 'REST';
-
-// ------------------------------------------------------------------
-// [SUB-INTERFACES] 하위 데이터 구조
-// ------------------------------------------------------------------
-
-// 1. 거래 및 대기열
-export interface Transaction {
+// 2. 아이템 타입 정의
+export interface Item {
   id: string;
-  amount: number; 
-  category: string;
-  date: string; // "YYYY-MM-DD"
-  note: string;
-  tags: string[]; 
-  isFixedCost: boolean;
+  name: string;
+  type: 'consumable' | 'equipment' | 'material' | 'junk';
+  count: number;
+  description?: string;
 }
 
-export interface PendingTransaction {
-  id: string;
-  amount?: number; 
-  note: string;
-  createdAt: string;
-}
-
-// 2. 도감 및 수집품
-export interface CollectionItem {
-  id: string;        // "junk_forest_01", "badge_no_spend_7" 등
-  name: string;      // "말라비틀어진 꽃잎"
-  description: string; 
-  obtainedAt: string; // ISO String
-  category: 'JUNK' | 'BADGE' | 'EQUIPMENT';
-}
-
-// 3. 인벤토리
-export interface Inventory {
-  junk: number;
-  salt: number;
-  
-  // 확장성을 위한 Record 타입
-  shards: Record<string, number>; 
-  materials: Record<string, number>;
-  
-  equipment: string[]; // 장착 중인 장비 ID 목록
-  
-  // 도감 시스템 (객체 배열)
-  collection: CollectionItem[]; 
-}
-
-// 4. 자산 (건물 레벨 산정용)
-export interface AssetKingdom {
-  fortress: number;  // 요새 (방어 횟수 등)
-  airfield: number;  // 비행장 (무지출 등)
-  mansion: number;   // 저택 (고정비 관리 등)
-  tower: number;     // 마법탑 (정화 횟수 등)
-  warehouse: number; // 창고 (아이템 획득 등)
-}
-
-// 5. 월말 정산 기록 (History)
-export interface MonthRecord {
-  id: string;         // "2025-12"
-  grade: string;      // "S", "A", "B"...
-  totalSpent: number;
-  finalHp: number;
-  savedJunk: number;  // 매각한 정크 수
-  mvpAsset: string;   // 가장 많이 성장한 건물
-}
-
-// ------------------------------------------------------------------
-// [MAIN INTERFACE] 단일 진실 공급원 (Single Source of Truth)
-// ------------------------------------------------------------------
-
+// 3. 사용자(플레이어) 상태 정의
 export interface UserState {
-  // [SYSTEM] 현재 화면 상태 (저장 및 복구용)
-  scene: Scene;
+  // 기본 정보
+  name: string;
+  level: number;
+  jobTitle: string; // 'Guardian', 'Druid' 등
 
-  // [CORE] 프로필 & 직업
-  profile: {
-    name: string;
-    classType: ClassType | null;
-    level: number;
+  // 핵심 생존 스탯 (돈 = HP, 의지 = MP)
+  currentBudget: number; // 현재 남은 돈 (HP)
+  maxBudget: number;     // 월 예산 (Max HP)
+  mp: number;            // 의지력 (MP) - 참기/방어 시 소모/회복
+  maxMp: number;
+
+  // 자원
+  junk: number; // 지출 시 쌓이는 찌꺼기
+  salt: number; // 절약 시 얻는 정화 소금
+
+  // 루나(생리 주기) 정보
+  lunaCycle: {
+    startDate: string;    // YYYY-MM-DD
+    periodLength: number; // 보통 5~7
+    cycleLength: number;  // 보통 28
   };
 
-  // [SYSTEM] 루나 시스템 (신체 주기)
-  luna: {
-    nextPeriodDate: string; // "YYYY-MM-DD"
-    averageCycle: number;   
-    isTracking: boolean;    
-  };
-
-  // [ECONOMY] 예산 & HP
-  budget: {
-    total: number;      
-    current: number;    
-    fixedCost: number;  
-    startDate: string;  
-  };
-
-  // [STATS] 파이낸셜 스탯
-  stats: {
-    def: number;        
-    creditScore: number; 
-  };
-
-  // [ASSETS] 자산 상태
-  assets: AssetKingdom;
-
-  // [COUNTERS] 각종 카운터 & 플래그
-  counters: {
-    // 일일 리셋 대상
-    defenseActionsToday: number; 
-    junkObtainedToday: number;   
-    guardPromptShownToday: boolean; 
-    dailyTotalSpend: number;        
-    hadSpendingToday: boolean;      
-    
-    // 날짜 추적
-    lastAccessDate: string | null; 
-    lastDailyResetDate: string | null; 
-    lastDayEndDate: string | null;  
-    
-    // 누적 데이터
-    noSpendStreak: number;
-    lunaShieldsUsedThisMonth: number; 
-  };
-
-  // [RUNTIME] 변동이 잦은 값 (MP)
-  runtime: {
-    mp: number; 
-  };
-
-  // [DATA] 인벤토리 & 기록
-  inventory: Inventory;
-  pending: PendingTransaction[];
-  history: MonthRecord[]; // 지난달 기록 보관소
+  // 인벤토리
+  inventory: Item[];
   
-  // 거래 내역 (선택적)
-  transactions?: Transaction[]; 
+  // 기록
+  lastLoginDate?: string;
 }
