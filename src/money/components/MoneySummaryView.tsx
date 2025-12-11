@@ -1,3 +1,5 @@
+// src/money/components/MoneySummaryView.tsx
+
 import React from 'react';
 import { UserState } from '../types';
 import { calculateLunaPhase } from '../moneyLuna';
@@ -11,238 +13,411 @@ export const MoneySummaryView: React.FC<MoneySummaryViewProps> = ({
   user,
   onBackToGame,
 }) => {
+  // --- 기본 스탯 계산 ---
   const hpPercent =
     user.maxBudget > 0
       ? Math.round((user.currentBudget / user.maxBudget) * 100)
       : 0;
+
   const mpPercent =
     user.maxMp > 0 ? Math.round((user.mp / user.maxMp) * 100) : 0;
 
-  const { noSpendStreak, defenseActionsToday, junkObtainedToday } =
-    user.counters;
+  const {
+    noSpendStreak,
+    dailyTotalSpend,
+    defenseActionsToday,
+    junkObtainedToday,
+  } = user.counters;
+
+  // 이번 달 예산 대비 사용/남은 금액 (대략)
+  const usedBudget =
+    user.maxBudget > 0
+      ? Math.max(user.maxBudget - Math.max(user.currentBudget, 0), 0)
+      : 0;
 
   const luna = calculateLunaPhase(user.lunaCycle);
 
-  // 간단 코멘트
-  let hpComment = '';
-  if (hpPercent >= 80) hpComment = '예산 상태가 아주 안정적입니다.';
-  else if (hpPercent >= 50) hpComment = '무난하지만, 작은 누수를 줄이면 좋아요.';
-  else if (hpPercent >= 30) hpComment = '경고 구간. 지출을 더 꼼꼼히 봐야 할 때!';
-  else hpComment = '위험 구간… 무지출/방어 위주로 한 번 조정해 볼까요?';
-
-  const streakComment =
-    noSpendStreak === 0
-      ? '오늘은 아직 무지출 스트릭이 없습니다.'
-      : `${noSpendStreak}일째 무지출을 이어가고 있어요.`;
-
-  const periodLabel = luna.isPeriod ? 'PMS/생리 기간' : '일반 기간';
-
+  // --- UI ---
   return (
-    <div style={styles.wrapper}>
-      {/* 상단 헤더 */}
-      <header style={styles.header}>
-        <div>
-          <div style={styles.headerTitle}>이번 달 머니 로그 요약</div>
+    <div style={styles.container}>
+      {/* 헤더 */}
+      <div style={styles.header}>
+        <button type="button" onClick={onBackToGame} style={styles.backButton}>
+          ← 게임으로
+        </button>
+        <div style={styles.headerTexts}>
+          <div style={styles.headerLabel}>MONEY SUMMARY</div>
+          <h1 style={styles.headerTitle}>이번 달 재무 요약</h1>
           <div style={styles.headerSub}>
-            예산·무지출·방어 상태를 한눈에 보는 화면이에요.
+            소비로가 아니라 <b>절약·저축으로 도파민</b>을 얻기 위한
+            상태판이에요.
           </div>
         </div>
-        <button style={styles.backButton} onClick={onBackToGame}>
-          ← 게임 화면
-        </button>
-      </header>
+      </div>
 
-      {/* 카드 영역 */}
-      <div style={styles.cardsGrid}>
-        {/* 예산 HP 카드 */}
-        <section style={styles.card}>
-          <div style={styles.cardTitle}>예산 HP</div>
-          <div style={styles.bigNumber}>{hpPercent}%</div>
-          <div style={styles.smallText}>
-            남은 예산{' '}
-            <b>{user.currentBudget.toLocaleString()}
-            </b>{' '}
-            G / 총{' '}
-            <b>{user.maxBudget.toLocaleString()}
-            </b>{' '}
-            G
-          </div>
+      {/* 카드 1: 예산 / HP · MP */}
+      <section style={styles.card}>
+        <div style={styles.cardTitleRow}>
+          <span style={styles.cardTitle}>예산 & 상태</span>
+          <span style={styles.cardMeta}>
+            {luna.phaseName} · {luna.isPeriod ? '생리 기간' : '일반일'}
+          </span>
+        </div>
 
-          <div style={styles.progressBarOuter}>
-            <div
-              style={{
-                ...styles.progressBarInner,
-                width: `${Math.min(100, Math.max(0, hpPercent))}%`,
-                background:
-                  hpPercent < 30
-                    ? '#f97373'
-                    : hpPercent < 60
-                    ? '#facc15'
-                    : '#4ade80',
-              }}
-            />
-          </div>
-          <div style={styles.comment}>{hpComment}</div>
-        </section>
-
-        {/* MP / 방어 카드 */}
-        <section style={styles.card}>
-          <div style={styles.cardTitle}>의지력(MP) & 방어</div>
-          <div style={styles.row}>
-            <div>
-              <div style={styles.label}>현재 MP</div>
-              <div style={styles.mediumNumber}>{mpPercent}%</div>
-              <div style={styles.smallText}>
-                {user.mp} / {user.maxMp}
-              </div>
-            </div>
-            <div>
-              <div style={styles.label}>오늘 방어 행동</div>
-              <div style={styles.mediumNumber}>{defenseActionsToday}</div>
-              <div style={styles.smallText}>
-                방어를 많이 쓸수록
-                <br />
-                작은 지출을 막을 수 있어요.
-              </div>
+        <div style={styles.budgetRow}>
+          <div style={styles.budgetBox}>
+            <div style={styles.budgetLabel}>이번 달 예산</div>
+            <div style={styles.budgetValue}>
+              {user.maxBudget.toLocaleString()} G
             </div>
           </div>
-        </section>
-
-        {/* 무지출/정화 카드 */}
-        <section style={styles.card}>
-          <div style={styles.cardTitle}>무지출 & 정화</div>
-          <div style={styles.mediumNumber}>{noSpendStreak}일</div>
-          <div style={styles.smallText}>{streakComment}</div>
-
-          <div style={{ marginTop: 12 }}>
-            <div style={styles.label}>오늘 Junk 획득</div>
-            <div style={styles.smallText}>
-              오늘 발견된 전리품: <b>{junkObtainedToday}</b> 개
-            </div>
-            <div style={{ ...styles.smallText, marginTop: 4 }}>
-              Junk를 모아 정화하면 <b>Pure Essence</b>로 바뀌고,
-              <br />
-              장비 제작 재료가 됩니다.
+          <div style={styles.budgetBox}>
+            <div style={styles.budgetLabel}>지금까지 사용</div>
+            <div style={styles.budgetValue}>{usedBudget.toLocaleString()} G</div>
+          </div>
+          <div style={styles.budgetBox}>
+            <div style={styles.budgetLabel}>남은 예산(HP)</div>
+            <div style={styles.budgetValue}>
+              {user.currentBudget.toLocaleString()} G
             </div>
           </div>
-        </section>
+        </div>
 
-        {/* 환경 카드 (Luna) */}
-        <section style={styles.card}>
-          <div style={styles.cardTitle}>환경 난이도 (Luna)</div>
-          <div style={styles.mediumNumber}>
-            {periodLabel === 'PMS/생리 기간' ? '🔴' : '🌙'} {periodLabel}
+        {/* HP 바 */}
+        <div style={styles.barBlock}>
+          <div style={styles.barLabelRow}>
+            <span>HP (예산 잔량)</span>
+            <span>{hpPercent}%</span>
           </div>
-          <div style={styles.smallText}>
-            몸 상태에 따라 같은 지출도
+          <div style={styles.barTrack}>
+            <div style={{ ...styles.barFillGreen, width: `${hpPercent}%` }} />
+          </div>
+        </div>
+
+        {/* MP 바 */}
+        <div style={styles.barBlock}>
+          <div style={styles.barLabelRow}>
+            <span>MP (의지력)</span>
+            <span>
+              {user.mp} / {user.maxMp}
+            </span>
+          </div>
+          <div style={styles.barTrack}>
+            <div style={{ ...styles.barFillBlue, width: `${mpPercent}%` }} />
+          </div>
+        </div>
+      </section>
+
+      {/* 카드 2: 방어 / 무지출 / Junk */}
+      <section style={styles.card}>
+        <div style={styles.cardTitleRow}>
+          <span style={styles.cardTitle}>오늘의 패턴</span>
+          <span style={styles.cardMeta}>오늘 기준</span>
+        </div>
+
+        <div style={styles.statsGrid}>
+          <div style={styles.statBox}>
+            <div style={styles.statLabel}>오늘 지출 합계</div>
+            <div style={styles.statValue}>
+              {dailyTotalSpend.toLocaleString()} G
+            </div>
+            <div style={styles.statHint}>HP에서 빠져나간 양</div>
+          </div>
+          <div style={styles.statBox}>
+            <div style={styles.statLabel}>방어 행동(Guard)</div>
+            <div style={styles.statValue}>{defenseActionsToday}</div>
+            <div style={styles.statHint}>
+              피격 전에 막아낸 횟수예요.
+            </div>
+          </div>
+          <div style={styles.statBox}>
+            <div style={styles.statLabel}>오늘 획득 Junk</div>
+            <div style={styles.statValue}>{junkObtainedToday}</div>
+            <div style={styles.statHint}>
+              소비의 흔적이자, 나중엔 정화 재료가 돼요.
+            </div>
+          </div>
+          <div style={styles.statBox}>
+            <div style={styles.statLabel}>무지출 스트릭</div>
+            <div style={styles.statValue}>{noSpendStreak}</div>
+            <div style={styles.statHint}>
+              쌓일수록 <b>도파민 보상</b>을 크게 줄 계획!
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 카드 3: 자원 / 인벤 느낌 */}
+      <section style={styles.card}>
+        <div style={styles.cardTitleRow}>
+          <span style={styles.cardTitle}>재료 & 자원</span>
+        </div>
+        <div style={styles.resourceRow}>
+          <div style={styles.resourceBadge}>
+            🧹 Junk <span style={styles.resourceValue}>{user.junk}</span>
+          </div>
+          <div style={styles.resourceBadge}>
+            🧂 Salt <span style={styles.resourceValue}>{user.salt}</span>
+          </div>
+          <div style={styles.resourceBadge}>
+            🧪 Pure Essence{' '}
+            <span style={styles.resourceValue}>
+              {user.materials['PURE_ESSENCE'] || 0}
+            </span>
+          </div>
+        </div>
+        <p style={styles.resourceText}>
+          Junk와 Salt는 <b>정화</b>를 통해 Pure Essence로 바뀌고,
+          나중에는 “절약 장비”나 “배지” 제작에 쓰일 예정이에요.
+        </p>
+      </section>
+
+      {/* 카드 4: 나중에 입력할 기록 */}
+      <section style={styles.card}>
+        <div style={styles.cardTitleRow}>
+          <span style={styles.cardTitle}>나중에 입력할 기록</span>
+          <span style={styles.cardMeta}>
+            최근 {Math.min(user.pending.length, 5)}개만 표시
+          </span>
+        </div>
+        {user.pending.length === 0 ? (
+          <div style={styles.pendingEmpty}>
+            아직 “나중에 입력”으로 저장된 기록이 없어요.
             <br />
-            체감 난이도가 달라질 수 있어요.
+            지출을 메모만 해 두고 싶을 때, 전투 화면의 기능을 붙일 예정이에요.
           </div>
-          <div style={{ ...styles.smallText, marginTop: 8 }}>
-            오늘은 스스로에게{' '}
-            <b>{luna.isPeriod ? '더 관대하게' : '적당히 단호하게'}</b> 대하는
-            날입니다.
+        ) : (
+          <div style={styles.pendingList}>
+            {user.pending.slice(0, 5).map((p) => (
+              <div key={p.id} style={styles.pendingItem}>
+                <div style={styles.pendingNote}>{p.note}</div>
+                <div style={styles.pendingMeta}>
+                  <span>
+                    {p.amount
+                      ? `${p.amount.toLocaleString()}원`
+                      : '금액 미입력'}
+                  </span>
+                  <span>{p.createdAt}</span>
+                </div>
+              </div>
+            ))}
           </div>
-        </section>
+        )}
+      </section>
+
+      {/* 푸터 */}
+      <div style={styles.footer}>
+        <button type="button" onClick={onBackToGame} style={styles.mainButton}>
+          🎮 게임 화면으로 돌아가기
+        </button>
       </div>
     </div>
   );
 };
 
 const styles: Record<string, React.CSSProperties> = {
-  wrapper: {
-    padding: '16px',
-    paddingBottom: '40px',
-    minHeight: '100%',
+  container: {
+    maxWidth: '420px',
+    margin: '0 auto',
+    minHeight: '100vh',
+    padding: '52px 12px 16px',
+    color: '#e5e7eb',
+    fontFamily: '"NeoDungGeunMo", monospace',
     boxSizing: 'border-box',
   },
   header: {
     display: 'flex',
-    justifyContent: 'space-between',
-    gap: 12,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 14,
-    fontWeight: 700,
-  },
-  headerSub: {
-    fontSize: 11,
-    opacity: 0.7,
-    marginTop: 2,
+    gap: 8,
+    marginBottom: 12,
   },
   backButton: {
-    fontSize: 11,
-    padding: '6px 10px',
+    alignSelf: 'flex-start',
+    padding: '4px 8px',
     borderRadius: 999,
     border: '1px solid #4b5563',
     backgroundColor: '#020617',
     color: '#e5e7eb',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  },
-  cardsGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr',
-    gap: 10,
-  },
-  card: {
-    backgroundColor: '#020617',
-    borderRadius: 12,
-    border: '1px solid #1f2937',
-    padding: 12,
-    boxShadow: '0 6px 12px rgba(0,0,0,0.4)',
-  },
-  cardTitle: {
     fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: '0.08em',
-    opacity: 0.7,
-    marginBottom: 6,
+    cursor: 'pointer',
   },
-  bigNumber: {
-    fontSize: 26,
-    fontWeight: 800,
+  headerTexts: {
+    flex: 1,
+  },
+  headerLabel: {
+    fontSize: 10,
+    letterSpacing: '0.18em',
+    textTransform: 'uppercase',
+    color: '#9ca3af',
+    marginBottom: 2,
+  },
+  headerTitle: {
+    fontSize: 18,
+    margin: 0,
     marginBottom: 4,
   },
-  mediumNumber: {
-    fontSize: 18,
-    fontWeight: 700,
-    marginBottom: 2,
-  },
-  label: {
-    fontSize: 10,
-    opacity: 0.7,
-    marginBottom: 2,
-  },
-  smallText: {
+  headerSub: {
     fontSize: 11,
-    opacity: 0.8,
+    color: '#9ca3af',
   },
-  comment: {
-    marginTop: 6,
-    fontSize: 11,
-    lineHeight: 1.4,
+  card: {
+    backgroundColor: 'rgba(15,23,42,0.9)',
+    borderRadius: 16,
+    padding: 12,
+    border: '1px solid #1f2937',
+    marginBottom: 10,
   },
-  progressBarOuter: {
-    marginTop: 8,
-    width: '100%',
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: '#111827',
-    overflow: 'hidden',
-  },
-  progressBarInner: {
-    height: '100%',
-    borderRadius: 999,
-    transition: 'width 0.3s',
-  },
-  row: {
+  cardTitleRow: {
     display: 'flex',
     justifyContent: 'space-between',
-    gap: 12,
-    alignItems: 'flex-start',
+    alignItems: 'baseline',
+    marginBottom: 8,
+  },
+  cardTitle: {
+    fontSize: 13,
+    fontWeight: 600,
+  },
+  cardMeta: {
+    fontSize: 10,
+    color: '#9ca3af',
+  },
+  budgetRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr 1fr',
+    gap: 6,
+    marginBottom: 8,
+  },
+  budgetBox: {
+    backgroundColor: '#020617',
+    borderRadius: 10,
+    padding: 6,
+    border: '1px solid #111827',
+  },
+  budgetLabel: {
+    fontSize: 10,
+    color: '#9ca3af',
+    marginBottom: 2,
+  },
+  budgetValue: {
+    fontSize: 13,
+    fontWeight: 600,
+  },
+  barBlock: {
     marginTop: 4,
   },
+  barLabelRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: 10,
+    marginBottom: 2,
+  },
+  barTrack: {
+    width: '100%',
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: '#020617',
+    overflow: 'hidden',
+  },
+  barFillGreen: {
+    height: '100%',
+    background:
+      'linear-gradient(90deg, rgba(34,197,94,1) 0%, rgba(190,242,100,1) 100%)',
+  },
+  barFillBlue: {
+    height: '100%',
+    background:
+      'linear-gradient(90deg, rgba(59,130,246,1) 0%, rgba(129,140,248,1) 100%)',
+  },
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 6,
+  },
+  statBox: {
+    backgroundColor: '#020617',
+    borderRadius: 10,
+    padding: 8,
+    border: '1px solid #111827',
+  },
+  statLabel: {
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: 600,
+    marginBottom: 2,
+  },
+  statHint: {
+    fontSize: 10,
+    color: '#9ca3af',
+  },
+  resourceRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 6,
+  },
+  resourceBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '4px 8px',
+    borderRadius: 999,
+    border: '1px solid #4b5563',
+    fontSize: 11,
+  },
+  resourceValue: {
+    fontWeight: 600,
+  },
+  resourceText: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  pendingEmpty: {
+    fontSize: 11,
+    color: '#9ca3af',
+    padding: '6px 8px',
+    borderRadius: 10,
+    backgroundColor: '#020617',
+    border: '1px dashed #374151',
+  },
+  pendingList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    maxHeight: 160,
+    overflowY: 'auto',
+  },
+  pendingItem: {
+    borderRadius: 10,
+    backgroundColor: '#020617',
+    border: '1px solid #111827',
+    padding: 8,
+  },
+  pendingNote: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  pendingMeta: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: 10,
+    color: '#9ca3af',
+  },
+  footer: {
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  mainButton: {
+    padding: '8px 16px',
+    borderRadius: 999,
+    border: '1px solid #4b5563',
+    backgroundColor: '#0f172a',
+    color: '#e5e7eb',
+    fontSize: 12,
+    cursor: 'pointer',
+  },
 };
+
+export default MoneySummaryView;
