@@ -264,11 +264,17 @@ const MoneyRoomPage: React.FC = () => {
   );
 };
 
+// src/pages/MoneyRoomPage.tsx 맨 아래 부분
+
 const styles: Record<string, React.CSSProperties> = {
   appContainer: {
     maxWidth: '420px',
     margin: '0 auto',
-    minHeight: '100vh',
+    // [수정] minHeight 대신 height 사용, Flex박스 적용
+    height: '100vh', 
+    display: 'flex',
+    flexDirection: 'column',
+    
     color: '#fff',
     fontFamily: '"NeoDungGeunMo", monospace',
     position: 'relative',
@@ -283,6 +289,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: 4,
     opacity: 0.3,
+    zIndex: 100, // 버튼이 항상 위에 오도록 zIndex 추가
   },
   debugButton: {
     fontSize: 10,
