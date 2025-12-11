@@ -271,27 +271,101 @@ export const MoneyRoomPage: React.FC = () => {
   );
 };
 
+// src/pages/MoneyRoomPage.tsx 하단의 styles 객체 교체
+
 const styles: Record<string, React.CSSProperties> = {
-  container: { maxWidth: '420px', margin: '0 auto', color: '#f3f4f6', minHeight: '100vh', padding: '20px', fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', transition: 'background 0.5s' },
-  header: { display: 'flex', justifyContent: 'space-between', marginBottom: '20px' },
-  date: { fontSize: '18px', fontWeight: 'bold' },
-  classBadge: { fontSize: '12px', color: '#9ca3af', marginTop: '4px' },
-  modeBadge: { padding: '4px 8px', borderRadius: '4px', fontSize: '12px', border: '1px solid', height: 'fit-content' },
-  heroSection: { marginBottom: '25px' },
-  hpLabel: { display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontWeight: 'bold' },
-  hpBarBg: { width: '100%', height: '20px', backgroundColor: '#374151', borderRadius: '10px', overflow: 'hidden' },
-  hpBarFill: { height: '100%', transition: 'all 0.5s ease-out' },
+  container: {
+    maxWidth: '420px', margin: '0 auto', color: '#e5e7eb', minHeight: '100vh',
+    padding: '20px', display: 'flex', flexDirection: 'column',
+    // [NEW] 배경에 격자 무늬 추가 (던전 바닥 느낌)
+    backgroundColor: '#111827',
+    backgroundImage: `
+      linear-gradient(#1f2937 1px, transparent 1px),
+      linear-gradient(90deg, #1f2937 1px, transparent 1px)
+    `,
+    backgroundSize: '20px 20px',
+    fontFamily: '"NeoDungGeunMo", sans-serif', // 폰트 적용 확인
+  },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' },
+  date: { fontSize: '20px', textShadow: '2px 2px 0px #000' }, // 텍스트 그림자
+  classBadge: { fontSize: '14px', color: '#9ca3af', marginTop: '4px' },
+  
+  // [NEW] 픽셀 스타일 배지
+  modeBadge: { 
+    padding: '6px 10px', fontSize: '12px', 
+    border: '2px solid', boxShadow: '2px 2px 0px rgba(0,0,0,0.5)',
+    backgroundColor: '#1f2937' 
+  },
+
+  heroSection: { marginBottom: '25px', textAlign: 'center' },
+  
+  // [NEW] 아바타 영역 (이미지 들어갈 곳)
+  avatarArea: {
+    width: '80px', height: '80px', margin: '0 auto 10px',
+    backgroundColor: '#374151', border: '2px solid #fff',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    imageRendering: 'pixelated' // 이미지 도트 깨짐 방지
+  },
+
+  hpLabel: { display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '18px' },
+  
+  // [NEW] 레트로 HP Bar (각진 테두리)
+  hpBarBg: { 
+    width: '100%', height: '24px', backgroundColor: '#374151', 
+    border: '2px solid #fff', position: 'relative'
+  },
+  hpBarFill: { 
+    height: '100%', transition: 'width 0.2s steps(5)', // 끊기는 애니메이션
+  },
   budgetDetail: { textAlign: 'right', fontSize: '12px', color: '#9ca3af', marginTop: '6px' },
-  inputSection: { display: 'flex', gap: '10px', marginBottom: '25px' },
-  inputAmount: { flex: 1, padding: '15px', borderRadius: '12px', border: 'none', backgroundColor: '#1f2937', color: 'white', fontSize: '18px', fontWeight: 'bold', outline: 'none' },
-  btnInputHit: { padding: '0 25px', borderRadius: '12px', border: 'none', backgroundColor: '#ef4444', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px', boxShadow: '0 4px 0 #b91c1c' },
-  statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' },
-  statBox: { backgroundColor: '#1f2937', padding: '12px', borderRadius: '10px', textAlign: 'center' },
-  statLabel: { fontSize: '11px', color: '#9ca3af', marginBottom: '4px' },
-  feedbackArea: { flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#d1d5db', marginBottom: '25px', border: '1px dashed', borderRadius: '12px', padding: '15px', minHeight: '80px', whiteSpace: 'pre-line' },
+
+  // [NEW] RPG 명령어 입력창 스타일
+  inputSection: { display: 'flex', gap: '8px', marginBottom: '25px' },
+  inputAmount: { 
+    flex: 1, padding: '12px', fontSize: '18px', 
+    backgroundColor: '#000', color: '#fff', 
+    border: '2px solid #4b5563', outline: 'none', fontFamily: 'inherit'
+  },
+  btnInputHit: { 
+    padding: '0 20px', fontSize: '16px', cursor: 'pointer',
+    backgroundColor: '#ef4444', color: 'white', border: '2px solid #fff',
+    boxShadow: '4px 4px 0px #7f1d1d', // 입체 그림자
+    active: { transform: 'translate(2px, 2px)', boxShadow: '2px 2px 0px #7f1d1d' } // 클릭 효과 (JS로 구현 필요하지만 느낌만)
+  },
+
+  statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '20px' },
+  
+  // [NEW] 스탯 박스 (검은 배경 + 흰 테두리)
+  statBox: { 
+    backgroundColor: '#000', padding: '10px', 
+    border: '2px solid #374151', textAlign: 'center' 
+  },
+  statLabel: { fontSize: '12px', color: '#9ca3af', marginBottom: '4px' },
+
+  // [NEW] 대화창 스타일 (Message Box)
+  feedbackArea: { 
+    flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', 
+    color: '#fff', marginBottom: '25px', 
+    backgroundColor: 'rgba(0,0,0,0.6)', // 반투명 검정
+    border: '2px solid #fff', // 흰색 테두리
+    boxShadow: '0 0 0 2px #000 inset', // 이중 테두리 효과
+    padding: '20px', minHeight: '100px', whiteSpace: 'pre-line', fontSize: '16px', lineHeight: '1.6'
+  },
+
   gridActions: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: 'auto' },
-  btnAction: { padding: '15px', borderRadius: '12px', border: 'none', backgroundColor: '#374151', color: '#e5e7eb', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' },
-  btnEndDay: { padding: '15px', borderRadius: '12px', border: '1px solid #fbbf24', backgroundColor: '#1f2937', color: '#fbbf24', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' },
+  
+  // [NEW] RPG 버튼 스타일 (각진 버튼)
+  btnAction: { 
+    padding: '15px', backgroundColor: '#374151', color: '#fff', 
+    border: '2px solid #fff', boxShadow: '4px 4px 0px #000',
+    cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit'
+  },
+  btnEndDay: { 
+    padding: '15px', backgroundColor: '#1e3a8a', color: '#fbbf24', 
+    border: '2px solid #fbbf24', boxShadow: '4px 4px 0px #000',
+    cursor: 'pointer', fontSize: '16px', fontFamily: 'inherit',
+    gridColumn: 'span 2' // 맨 아래 꽉 채우기
+  },
 };
 
 export default MoneyRoomPage;
