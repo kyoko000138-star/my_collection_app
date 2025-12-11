@@ -59,7 +59,7 @@ const INITIAL_STATE: UserState = {
 };
 
 const MoneyRoomPage: React.FC = () => {
-  // --- State ---
+  // --- Game State ---
   const [gameState, setGameState] = useState<UserState>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -69,9 +69,16 @@ const MoneyRoomPage: React.FC = () => {
     }
   });
 
+  // 어떤 화면인지 (마을 / 월드맵 / 배틀 / 인벤토리 / 왕국 / 도감)
   const [scene, setScene] = useState<Scene>(Scene.VILLAGE);
+
+  // 상단 탭: 게임 화면 vs 요약 화면
   const [viewMode, setViewMode] = useState<'GAME' | 'SUMMARY'>('GAME');
+
+  // 현재 선택된 던전
   const [activeDungeon, setActiveDungeon] = useState<string>('etc');
+
+  // 하루 마감 로그 모달
   const [showDailyLog, setShowDailyLog] = useState(false);
 
   // --- Effects ---
@@ -80,6 +87,7 @@ const MoneyRoomPage: React.FC = () => {
   }, [gameState]);
 
   useEffect(() => {
+    // 날짜 바뀌었으면 counters 초기화 등
     setGameState((prev) => checkDailyReset(prev));
   }, []);
 
@@ -87,9 +95,9 @@ const MoneyRoomPage: React.FC = () => {
   const todayStr = new Date().toISOString().split('T')[0];
   const lunaPhase = calculateLunaPhase(gameState.lunaCycle);
   const theme = getLunaTheme(lunaPhase);
-  const isNewUser = gameState.maxBudget === 0; // 예산 0이면 신규 유저로 간주
+  const isNewUser = gameState.maxBudget === 0;
 
-  // 오늘의 몬스터 타입 (배틀 씬일 때만)
+  // 배틀일 때만 오늘의 몬스터 타입 결정
   const currentMonsterType =
     scene === Scene.BATTLE
       ? activeDungeon !== 'etc'
@@ -129,14 +137,14 @@ const MoneyRoomPage: React.FC = () => {
     }, 100);
   };
 
-  // 하루 마감 (JRPG 여관에서 쉬기 느낌)
+  // 하루 마감 (여관에서 쉬기)
   const handleDayEnd = () => {
     const { newState } = applyDayEnd(gameState, todayStr);
     setGameState(newState);
-    setShowDailyLog(true); // 요약 모달 띄우기
+    setShowDailyLog(true);
   };
 
-  // 디버그 리셋 (UI에는 안 보이게, 개발용)
+  // 디버그용 전체 리셋
   const handleReset = () => {
     if (
       window.confirm(
@@ -147,7 +155,6 @@ const MoneyRoomPage: React.FC = () => {
       window.location.reload();
     }
   };
-  // 필요하면 F12에서 window.moneyReset() 이런 식으로 노출해줘도 됨
 
   // 온보딩 완료
   const handleOnboarding = (data: any) => {
@@ -167,14 +174,15 @@ const MoneyRoomPage: React.FC = () => {
   // --- Render ---
   return (
     <div style={{ ...styles.appContainer, backgroundColor: theme.bg }}>
-      {/* 🎮 / 📊 뷰 전환 탭 */}
+      {/* 뷰 전환 탭 (게임 / 요약) */}
       <div style={styles.viewToggle}>
         <button
           type="button"
           onClick={() => setViewMode('GAME')}
           style={{
             ...styles.viewToggleBtn,
-            backgroundColor: viewMode === 'GAME' ? '#0f172a' : '#020617',
+            backgroundColor:
+              viewMode === 'GAME' ? '#0f172a' : 'rgba(15,23,42,0.6)',
           }}
         >
           🎮 게임
@@ -184,26 +192,30 @@ const MoneyRoomPage: React.FC = () => {
           onClick={() => setViewMode('SUMMARY')}
           style={{
             ...styles.viewToggleBtn,
-            backgroundColor: viewMode === 'SUMMARY' ? '#0f172a' : '#020617',
+            backgroundColor:
+              viewMode === 'SUMMARY' ? '#0f172a' : 'rgba(15,23,42,0.6)',
           }}
         >
           📊 요약
         </button>
       </div>
 
+      {/* 메인 뷰: 게임 or 요약 */}
       {viewMode === 'SUMMARY' ? (
-        // 📊 요약 화면
         <MoneySummaryView
           user={gameState}
           onBackToGame={() => setViewMode('GAME')}
         />
       ) : (
-        // 🎮 게임 화면
         <>
           {isNewUser && <OnboardingModal onComplete={handleOnboarding} />}
 
           {scene === Scene.VILLAGE && (
-            <VillageView user={gameState} onChangeScene={setScene} />
+            <VillageView
+              user={gameState}
+              onChangeScene={setScene}
+              onDayEnd={handleDayEnd}
+            />
           )}
 
           {scene === Scene.WORLD_MAP && (
@@ -227,7 +239,7 @@ const MoneyRoomPage: React.FC = () => {
             />
           )}
 
-          {/* 인벤토리/자산/도감 모달들 */}
+          {/* 인벤토리 / 자산 / 도감 모달 */}
           <InventoryModal
             open={scene === Scene.INVENTORY}
             onClose={() => setScene(Scene.VILLAGE)}
@@ -260,21 +272,10 @@ const MoneyRoomPage: React.FC = () => {
             onClose={() => setScene(Scene.VILLAGE)}
             collection={gameState.collection}
           />
-
-          {/* 🌙 하루 마감 버튼 (여관에서 쉬기 느낌) */}
-          <div style={styles.controlDock}>
-            <button
-              type="button"
-              onClick={handleDayEnd}
-              style={styles.dayEndBtn}
-            >
-              🌙 하루 마감
-            </button>
-          </div>
         </>
       )}
 
-      {/* 오늘 로그 모달 (어느 뷰에서든 공용) */}
+      {/* 오늘 하루 로그 모달 (게임/요약 모드 상관없이 띄움) */}
       <DailyLogModal
         open={showDailyLog}
         onClose={() => setShowDailyLog(false)}
@@ -287,6 +288,13 @@ const MoneyRoomPage: React.FC = () => {
         noSpendStreak={gameState.counters.noSpendStreak}
         pending={gameState.pending}
       />
+
+      {/* 디버그 Reset 버튼 (설정 페이지 생기면 옮겨도 됨) */}
+      <div style={styles.debugArea}>
+        <button type="button" onClick={handleReset}>
+          🔄 Reset
+        </button>
+      </div>
     </div>
   );
 };
@@ -318,24 +326,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#e5e7eb',
     cursor: 'pointer',
   },
-  controlDock: {
+  debugArea: {
     position: 'absolute',
-    bottom: 8,
-    right: 8,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-    gap: 4,
-    zIndex: 40,
-  },
-  dayEndBtn: {
-    padding: '6px 10px',
-    borderRadius: 999,
-    border: '1px solid #1f2937',
-    backgroundColor: '#020617',
-    color: '#f9fafb',
-    fontSize: 12,
-    cursor: 'pointer',
+    bottom: 6,
+    right: 6,
+    opacity: 0.4,
+    fontSize: 10,
   },
 };
 
