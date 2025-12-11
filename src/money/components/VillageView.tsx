@@ -4,13 +4,7 @@ import React from 'react';
 import { UserState, Scene } from '../types';
 import { calculateLunaPhase } from '../moneyLuna';
 
-// src/money/components/VillageView.tsx 맨 위 import들 옆에 추가
-
-import { DialogueBox } from '../../game/components/DialogueBox';
-import { useDialogue } from '../../game/useDialogue';
-import { FIRST_MEET_ANGEL_NORMAL } from '../../game/dialogueScriptsFirstMeet';
-
-// 👉 대화 시스템 관련 import (경로는 프로젝트 구조에 맞게 조정)
+// 👉 대화 시스템 관련 import
 import { DialogueBox } from '../../game/components/DialogueBox';
 import { useDialogue } from '../../game/useDialogue';
 import { FIRST_MEET_ANGEL_NORMAL } from '../../game/dialogueScriptsFirstMeet';
@@ -22,11 +16,11 @@ interface VillageViewProps {
 
 // [중요] export const 하나만 사용
 export const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
-  // --- 대화 훅 세팅 ---
+  // ✅ 1. 여기! 컴포넌트 선언 바로 아래
   const { currentLine, visible, startScript, next } = useDialogue();
 
   const handleClickAngel = () => {
-    // TODO: 나중에 조건에 따라 NORMAL / BAD 분기
+    // TODO: 나중에 NORMAL / BAD 분기 가능
     startScript(FIRST_MEET_ANGEL_NORMAL);
   };
 
@@ -100,7 +94,7 @@ export const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene })
         </div>
       </div>
 
-      {/* 👼 테스트용: 천사에게 말 걸기 버튼 (나중에 마을/NPC 위치로 옮겨도 됨) */}
+      {/* ✅ 2. 여기! 마을 화면 어딘가에 엔젤 버튼 */}
       <button
         onClick={handleClickAngel}
         className="absolute top-24 right-4 z-20 bg-[#f9e7c8] border border-[#8b5a2b] rounded px-2 py-1 text-[10px] shadow-md hover:bg-[#ffe7b9]"
@@ -208,7 +202,7 @@ export const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene })
         </div>
       </div>
 
-      {/* ✅ 하단 공용 대화창 */}
+      {/* ✅ 3. 여기! return의 맨 마지막, 제일 바깥 div 닫기 직전에 */}
       <DialogueBox line={currentLine} visible={visible} onNext={next} />
     </div>
   );
