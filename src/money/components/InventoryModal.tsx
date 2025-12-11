@@ -1,256 +1,119 @@
 // src/money/components/InventoryModal.tsx
-import React from 'react';
-import { GAME_CONSTANTS } from '../constants';
+
+import React, { useState } from 'react';
+import { CollectionItem } from '../types';
 
 interface InventoryModalProps {
   open: boolean;
   onClose: () => void;
-
   junk: number;
   salt: number;
-  dust: number;
-  pureEssence: number;
+  materials: Record<string, number>;
   equipment: string[];
-
+  collection: CollectionItem[];
   canPurify: boolean;
-  canCraft: boolean;
-
+  
+  // [NEW] 제작 관련
   onPurify: () => void;
-  onCraft: () => void;
+  onCraft: () => void; // 장비 제작 핸들러
 }
 
-const InventoryModal: React.FC<InventoryModalProps> = ({
-  open,
-  onClose,
-  junk,
-  salt,
-  dust,
-  pureEssence,
-  equipment,
-  canPurify,
-  canCraft,
-  onPurify,
-  onCraft,
+export const InventoryModal: React.FC<InventoryModalProps> = ({
+  open, onClose, junk, salt, materials, equipment, canPurify, onPurify, onCraft
 }) => {
+  const [tab, setTab] = useState<'ITEMS' | 'CRAFT'>('ITEMS');
+
   if (!open) return null;
 
+  const pureEssence = materials['PURE_ESSENCE'] || 0;
+  const hasSword = equipment.includes('잔잔한 장부검');
+  const canCraftSword = pureEssence >= 3;
+
   return (
-    <div style={styles.modalOverlay}>
-      <div style={styles.modalCardLarge}>
-        <h2 style={styles.modalTitle}>인벤토리 · 정화</h2>
+    <div style={styles.backdrop}>
+      <div style={styles.modalContent}>
+        <h2 style={styles.title}>🎒 인벤토리</h2>
 
-        <div style={styles.modalScrollArea}>
-          {/* 정화 루프 */}
-          <section style={styles.purifySection}>
-            <div style={styles.purifyHeader}>
-              <span style={styles.purifyTitle}>정화 루프</span>
-              <span style={styles.purifySubtitle}>
-                Junk + Salt + MP → pureEssence
-              </span>
+        {/* 탭 메뉴 */}
+        <div style={styles.tabs}>
+          <button style={tab === 'ITEMS' ? styles.activeTab : styles.tab} onClick={()=>setTab('ITEMS')}>📦 자원</button>
+          <button style={tab === 'CRAFT' ? styles.activeTab : styles.tab} onClick={()=>setTab('CRAFT')}>⚒️ 제작</button>
+        </div>
+
+        {tab === 'ITEMS' && (
+          <div style={styles.section}>
+            <div style={styles.resourceRow}>
+              <span>📄 Junk</span> <span style={{fontWeight:'bold'}}>{junk}</span>
             </div>
-            <div style={styles.purifyStatsRow}>
-              <span>Junk: {junk}</span>
-              <span>Salt: {salt}</span>
-              <span>Dust: {dust}</span>
-              <span>Essence: {pureEssence}</span>
+            <div style={styles.resourceRow}>
+              <span>🧂 Salt</span> <span style={{fontWeight:'bold'}}>{salt}</span>
             </div>
-            <button
-              onClick={onPurify}
-              disabled={!canPurify}
-              style={{
-                ...styles.btnPurify,
-                opacity: canPurify ? 1 : 0.5,
-                cursor: canPurify ? 'pointer' : 'not-allowed',
-              }}
-            >
-              🔄 정화 1회 (Junk 1 + Salt 1 + MP 1)
+            <div style={styles.resourceRow}>
+              <span>🔮 Pure Essence</span> <span style={{color:'#a78bfa', fontWeight:'bold'}}>{pureEssence}</span>
+            </div>
+            
+            <div style={styles.divider} />
+            
+            <button onClick={onPurify} disabled={!canPurify} style={canPurify ? styles.btnAction : styles.btnDisabled}>
+              🔄 정화 (Junk+Salt+MP 소모)
             </button>
-          </section>
+            <p style={styles.helperText}>정화하여 'Pure Essence'를 얻으세요.</p>
+          </div>
+        )}
 
-          {/* 장비 & 인벤토리 */}
-          <section style={styles.eqSection}>
-            <div style={styles.eqHeader}>
-              <span style={styles.eqTitle}>장비 & 인벤토리</span>
-              <span style={styles.eqSubtitle}>
-                pureEssence {GAME_CONSTANTS.EQUIPMENT_COST_PURE_ESSENCE}개 → 잔잔한 장부검
-              </span>
-            </div>
-            <div style={styles.eqStatsRow}>
-              <span>보유 Essence: {pureEssence}</span>
-              <span>장비 개수: {equipment.length}</span>
-            </div>
-            <div style={styles.eqList}>
-              {equipment.length === 0 ? (
-                <div style={styles.eqEmpty}>아직 제작된 장비가 없습니다.</div>
+        {tab === 'CRAFT' && (
+          <div style={styles.section}>
+            <div style={styles.recipeCard}>
+              <div style={styles.recipeHeader}>
+                <span style={{fontSize:'20px'}}>🗡️ 잔잔한 장부검</span>
+                {hasSword && <span style={styles.ownedBadge}>보유중</span>}
+              </div>
+              <p style={styles.recipeDesc}>기록 시 MP 소모를 줄여주는 마법의 펜촉 검.</p>
+              <div style={styles.costRow}>
+                필요 재료: 🔮 Pure Essence 3개
+              </div>
+              
+              {!hasSword ? (
+                <button 
+                  onClick={onCraft} 
+                  disabled={!canCraftSword}
+                  style={canCraftSword ? styles.btnCraft : styles.btnDisabled}
+                >
+                  {canCraftSword ? "⚒️ 제작하기" : "재료 부족"}
+                </button>
               ) : (
-                equipment.map((name, idx) => (
-                  <div key={`${name}-${idx}`} style={styles.eqItem}>
-                    <span style={styles.eqItemName}>{name}</span>
-                  </div>
-                ))
+                <button disabled style={styles.btnDisabled}>제작 완료</button>
               )}
             </div>
-            <button
-              onClick={onCraft}
-              disabled={!canCraft}
-              style={{
-                ...styles.btnCraft,
-                opacity: canCraft ? 1 : 0.5,
-                cursor: canCraft ? 'pointer' : 'not-allowed',
-              }}
-            >
-              ⚒ 장비 제작 (잔잔한 장부검)
-            </button>
-          </section>
-        </div>
+          </div>
+        )}
 
-        <div style={styles.modalFooterRow}>
-          <button type="button" onClick={onClose} style={styles.btnSecondary}>
-            닫기
-          </button>
-        </div>
+        <button onClick={onClose} style={styles.btnClose}>닫기</button>
       </div>
     </div>
   );
 };
 
 const styles: Record<string, React.CSSProperties> = {
-  modalOverlay: {
-    position: 'fixed',
-    inset: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 50,
-  },
-  modalCardLarge: {
-    width: '100%',
-    maxWidth: '380px',
-    maxHeight: '80vh',
-    backgroundColor: '#020617',
-    borderRadius: '16px',
-    padding: '16px 16px 12px',
-    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-    border: '1px solid #1f2937',
-    color: '#e5e7eb',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  modalTitle: {
-    fontSize: '18px',
-    marginBottom: '8px',
-  },
-  modalScrollArea: {
-    flex: 1,
-    overflowY: 'auto',
-    marginTop: '8px',
-  },
-  modalFooterRow: {
-    marginTop: '12px',
-    display: 'flex',
-    justifyContent: 'flex-end',
-  },
-  btnSecondary: {
-    padding: '8px 12px',
-    borderRadius: '10px',
-    border: '1px solid #4b5563',
-    backgroundColor: '#020617',
-    color: '#e5e7eb',
-    fontSize: '13px',
-    cursor: 'pointer',
-  },
-
-  // 정화 섹션
-  purifySection: {
-    marginBottom: '16px',
-    padding: '12px',
-    borderRadius: '12px',
-    backgroundColor: '#020617',
-    border: '1px solid #374151',
-  },
-  purifyHeader: {
-    marginBottom: '6px',
-  },
-  purifyTitle: {
-    fontSize: '13px',
-    fontWeight: 600,
-  },
-  purifySubtitle: {
-    fontSize: '11px',
-    color: '#9ca3af',
-  },
-  purifyStatsRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontSize: '11px',
-    color: '#e5e7eb',
-    marginTop: '6px',
-    marginBottom: '10px',
-  },
-  btnPurify: {
-    width: '100%',
-    padding: '10px',
-    borderRadius: '10px',
-    border: '1px solid #4b5563',
-    backgroundColor: '#020617',
-    color: '#e5e7eb',
-    fontSize: '13px',
-  },
-
-  // 장비 섹션
-  eqSection: {
-    marginBottom: '8px',
-    padding: '12px',
-    borderRadius: '12px',
-    backgroundColor: '#020617',
-    border: '1px solid #374151',
-  },
-  eqHeader: {
-    marginBottom: '6px',
-  },
-  eqTitle: {
-    fontSize: '13px',
-    fontWeight: 600,
-  },
-  eqSubtitle: {
-    fontSize: '11px',
-    color: '#9ca3af',
-  },
-  eqStatsRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontSize: '11px',
-    color: '#e5e7eb',
-    marginTop: '4px',
-    marginBottom: '8px',
-  },
-  eqList: {
-    maxHeight: '80px',
-    overflowY: 'auto',
-    marginBottom: '8px',
-  },
-  eqEmpty: {
-    fontSize: '11px',
-    color: '#6b7280',
-  },
-  eqItem: {
-    padding: '4px 0',
-    borderTop: '1px solid #111827',
-    fontSize: '12px',
-  },
-  eqItemName: {
-    color: '#e5e7eb',
-  },
-  btnCraft: {
-    width: '100%',
-    padding: '10px',
-    borderRadius: '10px',
-    border: '1px solid #4b5563',
-    backgroundColor: '#020617',
-    color: '#e5e7eb',
-    fontSize: '13px',
-  },
+  backdrop: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { width: '90%', maxWidth: '380px', backgroundColor: '#1f2937', borderRadius: '16px', padding: '20px', color: '#f3f4f6' },
+  title: { textAlign: 'center', marginBottom: '15px' },
+  tabs: { display: 'flex', marginBottom: '20px', borderBottom: '1px solid #374151' },
+  tab: { flex: 1, padding: '10px', background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' },
+  activeTab: { flex: 1, padding: '10px', background: 'none', borderBottom: '2px solid #8b5cf6', color: '#fff', fontWeight: 'bold', cursor: 'pointer' },
+  section: { display: 'flex', flexDirection: 'column', gap: '10px', minHeight: '200px' },
+  resourceRow: { display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#111827', borderRadius: '8px' },
+  divider: { height: '1px', backgroundColor: '#374151', margin: '10px 0' },
+  helperText: { fontSize: '11px', color: '#6b7280', textAlign: 'center' },
+  recipeCard: { backgroundColor: '#111827', padding: '15px', borderRadius: '10px', border: '1px solid #374151' },
+  recipeHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' },
+  ownedBadge: { fontSize: '10px', backgroundColor: '#059669', padding: '2px 6px', borderRadius: '4px' },
+  recipeDesc: { fontSize: '12px', color: '#9ca3af', marginBottom: '10px' },
+  costRow: { fontSize: '12px', color: '#fca5a5', marginBottom: '15px', fontWeight: 'bold' },
+  btnAction: { padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: '#10b981', color: 'white', fontWeight: 'bold', cursor: 'pointer', width: '100%' },
+  btnCraft: { padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: '#8b5cf6', color: 'white', fontWeight: 'bold', cursor: 'pointer', width: '100%' },
+  btnDisabled: { padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: '#374151', color: '#6b7280', cursor: 'not-allowed', width: '100%' },
+  btnClose: { marginTop: '15px', padding: '12px', width: '100%', backgroundColor: 'transparent', border: '1px solid #4b5563', color: '#9ca3af', borderRadius: '8px', cursor: 'pointer' },
 };
 
 export default InventoryModal;
