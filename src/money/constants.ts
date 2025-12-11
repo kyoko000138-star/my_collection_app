@@ -1,6 +1,20 @@
 export const GAME_CONSTANTS = {
   MAX_MP: 30,
   HP_WARNING_THRESHOLD: 30, // 30% 미만 시 경고
+
+  // [NEW] 도감 데이터베이스 (Junk 획득 시 랜덤 매핑용)
+export const COLLECTION_DB = {
+  JUNK_FOREST: [
+    { id: 'junk_forest_01', name: '말라비틀어진 꽃잎', desc: '숲에서 흔히 보이는 시든 꽃잎.' },
+    { id: 'junk_forest_02', name: '반쯤 썩은 도토리', desc: '다람쥐가 숨겨놓고 잊어버린 것 같다.' },
+    { id: 'junk_forest_03', name: '이끼 낀 돌맹이', desc: '아무짝에도 쓸모없어 보이지만 예쁘다.' },
+  ],
+  BADGES: {
+    FIRST_JUNK: { id: 'badge_first_junk', name: '초보 수집가', desc: '첫 번째 Junk를 획득했다.' },
+    NO_SPEND_3: { id: 'badge_no_spend_3', name: '작은 인내', desc: '3일 연속 무지출을 달성했다.' },
+    NO_SPEND_7: { id: 'badge_no_spend_7', name: '절제의 미학', desc: '7일 연속 무지출을 달성했다.' },
+  },
+};
   
   // 경제 관련
   JUNK_THRESHOLD: 5000, // 이 금액 이상 지출 시 Junk 획득
