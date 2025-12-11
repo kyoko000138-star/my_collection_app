@@ -1,41 +1,43 @@
+/* 1. 폰트 불러오기 (가장 윗줄에 배치) */
+@import url('https://cdn.jsdelivr.net/gh/Dalgona/neodgm/neodgm.css');
+
+/* 2. Tailwind (사용 중이라면 유지) */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ── 여기 아래부터는 네가 쓰고 싶은 기본 스타일 넣기 ── */
-
+/* 3. 전역 스타일 초기화 */
 * {
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  background-color: #f7f3ec;
-}
-
-/* 있어도 되고 없어도 됨, 있으면 더 안정적 */
-#root {
-  min-height: 100vh;
-}
-
-/* src/index.css */
-
-@import url('https://cdn.jsdelivr.net/gh/Dalgona/neodgm/neodgm.css');
-
-body {
+html, body {
   margin: 0;
   padding: 0;
-  font-family: 'NeoDungGeunMo', sans-serif !important; /* 강제 적용 */
-  background-color: #000; /* 전체 배경 검정 */
+  width: 100%;
+  min-height: 100vh;
+  
+  /* 앱 전체 배경색 (검정) */
+  background-color: #000; 
+  color: #fff;
+
+  /* 폰트 강제 적용 (중요!) */
+  font-family: 'NeoDungGeunMo', 'Courier New', Courier, monospace !important; 
+  -webkit-font-smoothing: none; /* 도트 폰트가 흐려지지 않게 함 */
 }
 
-/* 둥실둥실 애니메이션 (캐릭터용) */
+/* 스크롤바 숨기기 (모바일 앱 느낌) */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
+
+/* 4. 애니메이션 정의 (둥실둥실, 통통) */
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
 }
 
-/* 통통 튀는 애니메이션 */
 @keyframes bounce {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-5px); }
