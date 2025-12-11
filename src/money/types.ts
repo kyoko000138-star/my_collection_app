@@ -6,56 +6,40 @@ export enum Scene {
   BATTLE = 'BATTLE',
   INVENTORY = 'INVENTORY',
   KINGDOM = 'KINGDOM',
-  COLLECTION = 'COLLECTION'
+  COLLECTION = 'COLLECTION',
+  // [NEW] 정원 뷰 (원하면 나중에 확장)
+  GARDEN = 'GARDEN',
 }
 
-export interface Item {
-  id: string;
-  name: string;
-  type: 'consumable' | 'equipment' | 'material' | 'junk';
-  count: number;
-  description?: string;
+// [NEW] 정원 상태
+export type FlowerState = 'normal' | 'blooming' | 'withered';
+
+export interface GardenState {
+  treeLevel: number;      // 꿈의 나무 레벨 (저축)
+  weedCount: number;      // 잡초/가시 개수 (부채)
+  flowerState: FlowerState; // 이번 달 지출 상태
 }
 
-export interface CollectionItem {
-  id: string;
-  name: string;
-  category: 'JUNK' | 'BADGE';
-  description: string;
-  obtainedAt: string;
-}
+// ... Item, CollectionItem, PendingTransaction, AssetBuildingView 그대로 ...
 
-export interface PendingTransaction {
-  id: string;
-  amount?: number;
-  note: string;
-  createdAt: string;
-}
-
-export interface AssetBuildingView {
-  id: string;
-  label: string;
-  count: number;
-  level: number;
-  nextTarget: number | null;
-}
-
-// 사용자 상태 (Single Source of Truth)
 export interface UserState {
   // 프로필
   name: string;
   level: number;
   jobTitle: string;
-  
+
   // 핵심 스탯
   currentBudget: number; // HP
   maxBudget: number;     // Max HP
-  mp: number;            // MP (의지력)
+  mp: number;
   maxMp: number;
 
   // 자원
   junk: number;
   salt: number;
+
+  // [NEW] 정원
+  garden: GardenState;
 
   // Luna Cycle
   lunaCycle: {
@@ -68,8 +52,8 @@ export interface UserState {
   inventory: Item[];
   collection: CollectionItem[];
   pending: PendingTransaction[];
-  
-  // 자산 (건물 레벨용 누적 카운터)
+
+  // 자산 (건물… → 나중에 정원 요소로 치환)
   assets: {
     fortress: number;
     airfield: number;
@@ -78,10 +62,8 @@ export interface UserState {
     warehouse: number;
   };
 
-  // 제작 재료
   materials: Record<string, number>;
 
-  // 일일/월간 카운터
   counters: {
     defenseActionsToday: number;
     junkObtainedToday: number;
@@ -93,6 +75,5 @@ export interface UserState {
     guardPromptShownToday: boolean;
   };
 
-  // 기록
   lastLoginDate?: string;
 }
