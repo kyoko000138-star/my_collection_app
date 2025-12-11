@@ -42,12 +42,22 @@ const INITIAL_STATE: UserState = {
   maxMp: 30,
   junk: 0,
   salt: 0,
+  // 🌙 루나 사이클
   lunaCycle: { startDate: '', periodLength: 5, cycleLength: 28 },
+  // 🌱 정원 초기 상태 (NEW)
+  garden: {
+    treeLevel: 1,
+    weedCount: 0,
+    flowerState: 'normal',
+  },
+  // 인벤토리 / 도감 / 대기 거래
   inventory: [],
   collection: [],
   pending: [],
   materials: {},
+  // 자산 건물
   assets: { fortress: 0, airfield: 0, mansion: 0, tower: 0, warehouse: 0 },
+  // 카운터
   counters: {
     defenseActionsToday: 0,
     junkObtainedToday: 0,
@@ -55,6 +65,7 @@ const INITIAL_STATE: UserState = {
     dailyTotalSpend: 0,
     guardPromptShownToday: false,
     hadSpendingToday: false,
+    // lastDailyResetDate, lastDayEndDate는 선택 필드라 생략
   },
 };
 
@@ -132,9 +143,13 @@ const MoneyRoomPage: React.FC = () => {
 
   // 🛏 하루 마감 (여관에서 쉬기)
   const handleDayEnd = () => {
-    const { newState } = applyDayEnd(gameState, todayStr);
+    // ❗ applyDayEnd는 이제 state 하나만 받도록 변경됨
+    const { newState, message } = applyDayEnd(gameState);
     setGameState(newState);
     setShowDailyLog(true);
+    if (message) {
+      alert(message);
+    }
   };
 
   // 디버그 리셋
