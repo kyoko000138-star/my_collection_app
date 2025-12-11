@@ -1,5 +1,3 @@
-// src/pages/MoneyRoomPage.tsx
-
 import React, { useState, useEffect } from 'react';
 
 // Types & Constants
@@ -22,7 +20,7 @@ import { OnboardingModal } from '../money/components/OnboardingModal';
 // [KEY] 로컬 스토리지 저장 키
 const STORAGE_KEY = 'money-room-save-v1';
 
-// [MOCK DATA] 초기 데이터 (세이브 파일 없을 때 사용)
+// [MOCK DATA] 초기 데이터
 const INITIAL_STATE: UserState = {
   profile: { name: 'Player 1', classType: CLASS_TYPES.GUARDIAN, level: 1 },
   luna: { nextPeriodDate: '2025-12-25', averageCycle: 28, isTracking: true },
@@ -40,7 +38,7 @@ const INITIAL_STATE: UserState = {
 };
 
 export const MoneyRoomPage: React.FC = () => {
-  // 1. 상태 초기화 (저장된 데이터 불러오기)
+  // 1. 상태 초기화
   const [gameState, setGameState] = useState<UserState>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -56,8 +54,8 @@ export const MoneyRoomPage: React.FC = () => {
   const [feedbackMsg, setFeedbackMsg] = useState<string>("던전에 입장했습니다.");
   const [inputAmount, setInputAmount] = useState<string>('');
 
-  // 모달 상태
-  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  // 모달 상태 (변수명 수정됨)
+  const [isInventoryModalOpen, setIsInventoryModalOpen] = useState(false);
   const [isCollectionOpen, setIsCollectionOpen] = useState(false);
   const [isKingdomOpen, setIsKingdomOpen] = useState(false);
 
@@ -69,31 +67,25 @@ export const MoneyRoomPage: React.FC = () => {
   
   const assetBuildings = getAssetBuildingsView(gameState);
   
-  // 온보딩 필요 여부 체크 (이름이 기본값이면 신규 유저로 간주)
   const needsOnboarding = gameState.profile.name === 'Player 1';
 
-  // 2. 자동 저장 (상태 변경 시)
+  // 2. 자동 저장
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
   }, [gameState]);
 
-  // 3. 일일 리셋 체크 (앱 켤 때)
+  // 3. 일일 리셋
   useEffect(() => {
     setGameState(prev => checkDailyReset(prev));
   }, []);
 
   // --- HANDLERS ---
 
-  // 온보딩 완료 처리
   const handleOnboardingComplete = (data: Partial<UserState>) => {
-    setGameState(prev => ({
-      ...prev,
-      ...data,
-    }));
+    setGameState(prev => ({ ...prev, ...data }));
     setFeedbackMsg(`환영합니다, ${data.profile?.name}님! 던전 공략을 시작합니다.`);
   };
 
-  // 지출 입력
   const handleSpendSubmit = () => {
     const amount = parseInt(inputAmount.replace(/,/g, ''), 10);
     if (!amount || amount <= 0) {
@@ -101,7 +93,6 @@ export const MoneyRoomPage: React.FC = () => {
       return;
     }
 
-    // A. Guard Prompt 체크
     if (shouldShowGuardPrompt(gameState, amount, false)) {
       const nextHp = getHp(gameState.budget.current - amount, gameState.budget.total);
       const confirmMsg = 
@@ -119,14 +110,12 @@ export const MoneyRoomPage: React.FC = () => {
       setGameState(prev => markGuardPromptShown(prev));
     }
 
-    // B. 지출 적용
     const { newState, message } = applySpend(gameState, amount, false);
     setGameState(newState);
     setFeedbackMsg(message);
     setInputAmount('');
   };
 
-  // 방어
   const handleDefense = (customMsg?: string) => {
     if (gameState.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) {
       setFeedbackMsg("오늘의 방어 태세가 이미 한계에 도달했습니다.");
@@ -137,21 +126,18 @@ export const MoneyRoomPage: React.FC = () => {
     setFeedbackMsg(customMsg || `방어 성공. MP가 회복되었습니다.`);
   };
 
-  // 정화
   const handlePurify = () => {
     const { newState, message } = applyPurify(gameState);
     setGameState(newState);
     setFeedbackMsg(message);
   };
 
-  // [NEW] 장비 제작
   const handleCraft = () => {
     const { newState, message } = applyCraftEquipment(gameState);
     setGameState(newState);
     setFeedbackMsg(message);
   };
 
-  // 하루 마감
   const handleDayEnd = () => {
     if (gameState.counters.lastDayEndDate === todayStr) {
       setFeedbackMsg("이미 오늘 마감을 완료했습니다.");
@@ -164,7 +150,6 @@ export const MoneyRoomPage: React.FC = () => {
     setFeedbackMsg(message);
   };
 
-  // 데이터 초기화 (디버깅용)
   const handleResetData = () => {
     if (window.confirm("정말 모든 데이터를 초기화하시겠습니까?")) {
       localStorage.removeItem(STORAGE_KEY);
@@ -185,10 +170,8 @@ export const MoneyRoomPage: React.FC = () => {
 
   return (
     <div style={{...styles.container, backgroundColor: theme.bgColor}}>
-      {/* [NEW] 온보딩 모달 (조건부 렌더링) */}
       {needsOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
 
-      {/* HEADER */}
       <header style={styles.header}>
         <div style={{display:'flex', flexDirection:'column'}}>
           <span style={styles.date}>{todayStr}</span>
@@ -201,7 +184,6 @@ export const MoneyRoomPage: React.FC = () => {
         </span>
       </header>
 
-      {/* HERO SECTION (HP) */}
       <section style={styles.heroSection}>
         <div style={styles.hpLabel}><span>HP (생존력)</span><span>{hp}%</span></div>
         <div style={styles.hpBarBg}>
@@ -212,7 +194,6 @@ export const MoneyRoomPage: React.FC = () => {
         </div>
       </section>
 
-      {/* QUICK INPUT */}
       <section style={styles.inputSection}>
         <input 
           type="number" 
@@ -227,7 +208,6 @@ export const MoneyRoomPage: React.FC = () => {
         </button>
       </section>
 
-      {/* STATS GRID */}
       <section style={styles.statsGrid}>
         <div style={styles.statBox}>
           <div style={styles.statLabel}>MP (의지)</div>
@@ -243,14 +223,13 @@ export const MoneyRoomPage: React.FC = () => {
         </div>
       </section>
 
-      {/* FEEDBACK */}
       <div style={{...styles.feedbackArea, borderColor: theme.color}}>
         {feedbackMsg}
       </div>
 
-      {/* FOOTER ACTIONS */}
       <div style={styles.gridActions}>
         <button onClick={() => handleDefense()} style={styles.btnAction}>🛡️ 방어</button>
+        {/* 변수명 수정됨: isInventoryModalOpen */}
         <button onClick={() => setIsInventoryModalOpen(true)} style={styles.btnAction}>🎒 인벤토리</button>
         <button onClick={() => setIsKingdomOpen(true)} style={styles.btnAction}>🏰 내 왕국</button>
         <button onClick={() => setIsCollectionOpen(true)} style={styles.btnAction}>📖 도감</button>
@@ -283,7 +262,6 @@ export const MoneyRoomPage: React.FC = () => {
         buildings={assetBuildings}
       />
 
-      {/* DEBUG BUTTON */}
       <div style={{textAlign: 'center', marginTop: '30px', opacity: 0.5}}>
         <button onClick={handleResetData} style={{background:'none', border:'none', color:'#4b5563', fontSize:'10px', textDecoration:'underline', cursor:'pointer'}}>
           데이터 초기화 (Reset)
@@ -293,7 +271,6 @@ export const MoneyRoomPage: React.FC = () => {
   );
 };
 
-// --- Styles ---
 const styles: Record<string, React.CSSProperties> = {
   container: { maxWidth: '420px', margin: '0 auto', color: '#f3f4f6', minHeight: '100vh', padding: '20px', fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', transition: 'background 0.5s' },
   header: { display: 'flex', justifyContent: 'space-between', marginBottom: '20px' },
@@ -317,6 +294,4 @@ const styles: Record<string, React.CSSProperties> = {
   btnEndDay: { padding: '15px', borderRadius: '12px', border: '1px solid #fbbf24', backgroundColor: '#1f2937', color: '#fbbf24', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' },
 };
 
-
-// 👇 이 줄을 반드시 추가해주세요!
 export default MoneyRoomPage;
