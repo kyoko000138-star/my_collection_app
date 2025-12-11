@@ -1,16 +1,14 @@
 // src/money/types.ts
 
-// 1. 화면(Scene) 상태 정의
 export enum Scene {
-  VILLAGE = 'VILLAGE',      // 메인 화면 (마을/내 방)
-  WORLD_MAP = 'WORLD_MAP',  // 던전 선택 화면
-  BATTLE = 'BATTLE',        // 지출(전투) 화면
-  INVENTORY = 'INVENTORY',  // 가방/제작
-  KINGDOM = 'KINGDOM',      // 자산 관리
-  COLLECTION = 'COLLECTION' // 도감
+  VILLAGE = 'VILLAGE',
+  WORLD_MAP = 'WORLD_MAP',
+  BATTLE = 'BATTLE',
+  INVENTORY = 'INVENTORY',
+  KINGDOM = 'KINGDOM',
+  COLLECTION = 'COLLECTION'
 }
 
-// 2. 아이템 타입 정의
 export interface Item {
   id: string;
   name: string;
@@ -19,33 +17,82 @@ export interface Item {
   description?: string;
 }
 
-// 3. 사용자(플레이어) 상태 정의
+export interface CollectionItem {
+  id: string;
+  name: string;
+  category: 'JUNK' | 'BADGE';
+  description: string;
+  obtainedAt: string;
+}
+
+export interface PendingTransaction {
+  id: string;
+  amount?: number;
+  note: string;
+  createdAt: string;
+}
+
+export interface AssetBuildingView {
+  id: string;
+  label: string;
+  count: number;
+  level: number;
+  nextTarget: number | null;
+}
+
+// 사용자 상태 (Single Source of Truth)
 export interface UserState {
-  // 기본 정보
+  // 프로필
   name: string;
   level: number;
-  jobTitle: string; // 'Guardian', 'Druid' 등
-
-  // 핵심 생존 스탯 (돈 = HP, 의지 = MP)
-  currentBudget: number; // 현재 남은 돈 (HP)
-  maxBudget: number;     // 월 예산 (Max HP)
-  mp: number;            // 의지력 (MP) - 참기/방어 시 소모/회복
+  jobTitle: string;
+  
+  // 핵심 스탯
+  currentBudget: number; // HP
+  maxBudget: number;     // Max HP
+  mp: number;            // MP (의지력)
   maxMp: number;
 
   // 자원
-  junk: number; // 지출 시 쌓이는 찌꺼기
-  salt: number; // 절약 시 얻는 정화 소금
+  junk: number;
+  salt: number;
 
-  // 루나(생리 주기) 정보
+  // Luna Cycle
   lunaCycle: {
-    startDate: string;    // YYYY-MM-DD
-    periodLength: number; // 보통 5~7
-    cycleLength: number;  // 보통 28
+    startDate: string;
+    periodLength: number;
+    cycleLength: number;
   };
 
-  // 인벤토리
+  // 인벤토리 & 데이터
   inventory: Item[];
+  collection: CollectionItem[];
+  pending: PendingTransaction[];
   
+  // 자산 (건물 레벨용 누적 카운터)
+  assets: {
+    fortress: number;
+    airfield: number;
+    mansion: number;
+    tower: number;
+    warehouse: number;
+  };
+
+  // 제작 재료
+  materials: Record<string, number>;
+
+  // 일일/월간 카운터
+  counters: {
+    defenseActionsToday: number;
+    junkObtainedToday: number;
+    dailyTotalSpend: number;
+    hadSpendingToday: boolean;
+    noSpendStreak: number;
+    lastDailyResetDate?: string;
+    lastDayEndDate?: string;
+    guardPromptShownToday: boolean;
+  };
+
   // 기록
   lastLoginDate?: string;
 }
