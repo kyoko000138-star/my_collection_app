@@ -1,3 +1,5 @@
+// src/pages/MoneyRoomPage.tsx
+
 import React, { useState, useEffect } from 'react';
 
 // Types & Constants
@@ -7,7 +9,7 @@ import { GAME_CONSTANTS, CLASS_TYPES, ClassType } from '../money/constants';
 // Logic Engines
 import { 
   getHp, applySpend, applyDefense, checkDailyReset, applyPurify, applyDayEnd, 
-  shouldShowGuardPrompt, markGuardPromptShown, getAssetBuildingsView 
+  shouldShowGuardPrompt, markGuardPromptShown, getAssetBuildingsView, applyCraftEquipment 
 } from '../money/moneyGameLogic';
 import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
 
@@ -15,14 +17,17 @@ import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
 import { InventoryModal } from '../money/components/InventoryModal';
 import { CollectionModal } from '../money/components/CollectionModal';
 import { KingdomModal } from '../money/components/KingdomModal';
+import { OnboardingModal } from '../money/components/OnboardingModal';
 
-// [MOCK DATA] 초기 데이터
+// [KEY] 로컬 스토리지 저장 키
+const STORAGE_KEY = 'money-room-save-v1';
+
+// [MOCK DATA] 초기 데이터 (세이브 파일 없을 때 사용)
 const INITIAL_STATE: UserState = {
   profile: { name: 'Player 1', classType: CLASS_TYPES.GUARDIAN, level: 1 },
   luna: { nextPeriodDate: '2025-12-25', averageCycle: 28, isTracking: true },
   budget: { total: 1000000, current: 850000, fixedCost: 300000, startDate: '2025-12-01' },
   stats: { def: 50, creditScore: 0 },
-  // [NEW] 자산 초기화
   assets: { fortress: 0, airfield: 0, mansion: 0, tower: 0, warehouse: 0 },
   counters: {
     defenseActionsToday: 0, junkObtainedToday: 0, lastAccessDate: null, lastDailyResetDate: null,
@@ -35,10 +40,20 @@ const INITIAL_STATE: UserState = {
 };
 
 export const MoneyRoomPage: React.FC = () => {
-  const [gameState, setGameState] = useState<UserState>(INITIAL_STATE);
-  const [feedbackMsg, setFeedbackMsg] = useState<string>("던전에 입장했습니다. (금액을 입력하세요)");
-  
-  // 입력 상태
+  // 1. 상태 초기화 (저장된 데이터 불러오기)
+  const [gameState, setGameState] = useState<UserState>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        return { ...INITIAL_STATE, ...JSON.parse(saved) };
+      }
+    } catch (e) {
+      console.error("Save load failed", e);
+    }
+    return INITIAL_STATE;
+  });
+
+  const [feedbackMsg, setFeedbackMsg] = useState<string>("던전에 입장했습니다.");
   const [inputAmount, setInputAmount] = useState<string>('');
 
   // 모달 상태
@@ -46,23 +61,39 @@ export const MoneyRoomPage: React.FC = () => {
   const [isCollectionOpen, setIsCollectionOpen] = useState(false);
   const [isKingdomOpen, setIsKingdomOpen] = useState(false);
 
-  // Derived Values (계산된 값)
+  // Derived Values
   const hp = getHp(gameState.budget.current, gameState.budget.total);
   const todayStr = new Date().toISOString().split('T')[0];
   const currentMode = getLunaMode(todayStr, gameState.luna.nextPeriodDate);
   const theme = getLunaTheme(currentMode);
   
-  // 자산 뷰 데이터 가져오기 (Logic에서 계산)
   const assetBuildings = getAssetBuildingsView(gameState);
+  
+  // 온보딩 필요 여부 체크 (이름이 기본값이면 신규 유저로 간주)
+  const needsOnboarding = gameState.profile.name === 'Player 1';
 
-  // 1. 초기화 (일일 리셋)
+  // 2. 자동 저장 (상태 변경 시)
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
+  }, [gameState]);
+
+  // 3. 일일 리셋 체크 (앱 켤 때)
   useEffect(() => {
     setGameState(prev => checkDailyReset(prev));
   }, []);
 
-  // --- HANDLERS (이벤트 처리) ---
+  // --- HANDLERS ---
 
-  // 지출 처리 (핵심 로직: Guard Prompt -> Spend)
+  // 온보딩 완료 처리
+  const handleOnboardingComplete = (data: Partial<UserState>) => {
+    setGameState(prev => ({
+      ...prev,
+      ...data,
+    }));
+    setFeedbackMsg(`환영합니다, ${data.profile?.name}님! 던전 공략을 시작합니다.`);
+  };
+
+  // 지출 입력
   const handleSpendSubmit = () => {
     const amount = parseInt(inputAmount.replace(/,/g, ''), 10);
     if (!amount || amount <= 0) {
@@ -70,7 +101,7 @@ export const MoneyRoomPage: React.FC = () => {
       return;
     }
 
-    // A. Guard Prompt (경고) 체크
+    // A. Guard Prompt 체크
     if (shouldShowGuardPrompt(gameState, amount, false)) {
       const nextHp = getHp(gameState.budget.current - amount, gameState.budget.total);
       const confirmMsg = 
@@ -80,24 +111,22 @@ export const MoneyRoomPage: React.FC = () => {
         `(취소 시 '방어'로 인정되어 MP가 회복됩니다.)`;
 
       if (!window.confirm(confirmMsg)) {
-        // [취소] -> 방어 성공 처리
         handleDefense("지출 유혹을 방어했습니다! (Guard Success)");
-        setGameState(prev => markGuardPromptShown(prev)); // 오늘 하루 그만 묻기
+        setGameState(prev => markGuardPromptShown(prev));
         setInputAmount('');
         return;
       }
-      // [확인] -> 진행 (경고 플래그만 끄고 아래 로직 수행)
       setGameState(prev => markGuardPromptShown(prev));
     }
 
-    // B. 실제 지출 적용
+    // B. 지출 적용
     const { newState, message } = applySpend(gameState, amount, false);
     setGameState(newState);
     setFeedbackMsg(message);
-    setInputAmount(''); // 입력창 초기화
+    setInputAmount('');
   };
 
-  // 방어 처리
+  // 방어
   const handleDefense = (customMsg?: string) => {
     if (gameState.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) {
       setFeedbackMsg("오늘의 방어 태세가 이미 한계에 도달했습니다.");
@@ -108,14 +137,21 @@ export const MoneyRoomPage: React.FC = () => {
     setFeedbackMsg(customMsg || `방어 성공. MP가 회복되었습니다.`);
   };
 
-  // 정화 처리
+  // 정화
   const handlePurify = () => {
     const { newState, message } = applyPurify(gameState);
     setGameState(newState);
     setFeedbackMsg(message);
   };
 
-  // 마감 처리
+  // [NEW] 장비 제작
+  const handleCraft = () => {
+    const { newState, message } = applyCraftEquipment(gameState);
+    setGameState(newState);
+    setFeedbackMsg(message);
+  };
+
+  // 하루 마감
   const handleDayEnd = () => {
     if (gameState.counters.lastDayEndDate === todayStr) {
       setFeedbackMsg("이미 오늘 마감을 완료했습니다.");
@@ -128,18 +164,37 @@ export const MoneyRoomPage: React.FC = () => {
     setFeedbackMsg(message);
   };
 
+  // 데이터 초기화 (디버깅용)
+  const handleResetData = () => {
+    if (window.confirm("정말 모든 데이터를 초기화하시겠습니까?")) {
+      localStorage.removeItem(STORAGE_KEY);
+      window.location.reload();
+    }
+  };
+
   // UI Helpers
   const getHpColor = (hp: number) => hp > 50 ? '#4ade80' : hp > 30 ? '#facc15' : '#ef4444';
   const canPurify = gameState.runtime.mp >= 1 && gameState.inventory.junk >= 1 && gameState.inventory.salt >= 1;
-  const getClassBadge = (type: ClassType | null) => type === CLASS_TYPES.GUARDIAN ? '🛡️ 수호자' : '👶 모험가';
+  const getClassBadge = (type: ClassType | null) => {
+    if (type === CLASS_TYPES.GUARDIAN) return '🛡️ 수호자';
+    if (type === CLASS_TYPES.SAGE) return '🔮 현자';
+    if (type === CLASS_TYPES.ALCHEMIST) return '💰 연금술사';
+    if (type === CLASS_TYPES.DRUID) return '🌿 드루이드';
+    return '👶 모험가';
+  };
 
   return (
     <div style={{...styles.container, backgroundColor: theme.bgColor}}>
+      {/* [NEW] 온보딩 모달 (조건부 렌더링) */}
+      {needsOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
+
       {/* HEADER */}
       <header style={styles.header}>
         <div style={{display:'flex', flexDirection:'column'}}>
           <span style={styles.date}>{todayStr}</span>
-          <span style={styles.classBadge}>{getClassBadge(gameState.profile.classType)} Lv.{gameState.profile.level}</span>
+          <span style={styles.classBadge}>
+            {getClassBadge(gameState.profile.classType)} Lv.{gameState.profile.level} {gameState.profile.name}
+          </span>
         </div>
         <span style={{...styles.modeBadge, color: theme.color, borderColor: theme.color}}>
           {theme.label}
@@ -157,7 +212,7 @@ export const MoneyRoomPage: React.FC = () => {
         </div>
       </section>
 
-      {/* QUICK INPUT SECTION (NEW) - 실제 입력창 */}
+      {/* QUICK INPUT */}
       <section style={styles.inputSection}>
         <input 
           type="number" 
@@ -188,19 +243,18 @@ export const MoneyRoomPage: React.FC = () => {
         </div>
       </section>
 
-      {/* FEEDBACK AREA */}
+      {/* FEEDBACK */}
       <div style={{...styles.feedbackArea, borderColor: theme.color}}>
         {feedbackMsg}
       </div>
 
-      {/* FOOTER ACTIONS (GRID) */}
+      {/* FOOTER ACTIONS */}
       <div style={styles.gridActions}>
         <button onClick={() => handleDefense()} style={styles.btnAction}>🛡️ 방어</button>
         <button onClick={() => setIsInventoryModalOpen(true)} style={styles.btnAction}>🎒 인벤토리</button>
         <button onClick={() => setIsKingdomOpen(true)} style={styles.btnAction}>🏰 내 왕국</button>
         <button onClick={() => setIsCollectionOpen(true)} style={styles.btnAction}>📖 도감</button>
         
-        {/* 마감 버튼은 크게 */}
         <button 
           onClick={handleDayEnd} 
           disabled={gameState.counters.lastDayEndDate === todayStr}
@@ -210,24 +264,31 @@ export const MoneyRoomPage: React.FC = () => {
         </button>
       </div>
 
-      {/* --- MODALS --- */}
+      {/* MODALS */}
       <InventoryModal
-        open={isInventoryOpen} onClose={() => setIsInventoryOpen(false)}
+        open={isInventoryModalOpen} onClose={() => setIsInventoryModalOpen(false)}
         junk={gameState.inventory.junk} salt={gameState.inventory.salt}
         materials={gameState.inventory.materials} equipment={gameState.inventory.equipment}
         collection={gameState.inventory.collection}
-        canPurify={canPurify} onPurify={handlePurify}
+        canPurify={canPurify} 
+        onPurify={handlePurify}
+        onCraft={handleCraft} 
       />
-      
       <CollectionModal 
         open={isCollectionOpen} onClose={() => setIsCollectionOpen(false)}
         collection={gameState.inventory.collection}
       />
-
       <KingdomModal 
         open={isKingdomOpen} onClose={() => setIsKingdomOpen(false)}
         buildings={assetBuildings}
       />
+
+      {/* DEBUG BUTTON */}
+      <div style={{textAlign: 'center', marginTop: '30px', opacity: 0.5}}>
+        <button onClick={handleResetData} style={{background:'none', border:'none', color:'#4b5563', fontSize:'10px', textDecoration:'underline', cursor:'pointer'}}>
+          데이터 초기화 (Reset)
+        </button>
+      </div>
     </div>
   );
 };
@@ -244,17 +305,13 @@ const styles: Record<string, React.CSSProperties> = {
   hpBarBg: { width: '100%', height: '20px', backgroundColor: '#374151', borderRadius: '10px', overflow: 'hidden' },
   hpBarFill: { height: '100%', transition: 'all 0.5s ease-out' },
   budgetDetail: { textAlign: 'right', fontSize: '12px', color: '#9ca3af', marginTop: '6px' },
-
   inputSection: { display: 'flex', gap: '10px', marginBottom: '25px' },
   inputAmount: { flex: 1, padding: '15px', borderRadius: '12px', border: 'none', backgroundColor: '#1f2937', color: 'white', fontSize: '18px', fontWeight: 'bold', outline: 'none' },
   btnInputHit: { padding: '0 25px', borderRadius: '12px', border: 'none', backgroundColor: '#ef4444', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px', boxShadow: '0 4px 0 #b91c1c' },
-
   statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' },
   statBox: { backgroundColor: '#1f2937', padding: '12px', borderRadius: '10px', textAlign: 'center' },
   statLabel: { fontSize: '11px', color: '#9ca3af', marginBottom: '4px' },
-
   feedbackArea: { flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#d1d5db', marginBottom: '25px', border: '1px dashed', borderRadius: '12px', padding: '15px', minHeight: '80px', whiteSpace: 'pre-line' },
-
   gridActions: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: 'auto' },
   btnAction: { padding: '15px', borderRadius: '12px', border: 'none', backgroundColor: '#374151', color: '#e5e7eb', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' },
   btnEndDay: { padding: '15px', borderRadius: '12px', border: '1px solid #fbbf24', backgroundColor: '#1f2937', color: '#fbbf24', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' },
