@@ -1,3 +1,5 @@
+// src/money/components/WorldMapView.tsx
+
 import React from 'react';
 import { DUNGEONS } from '../constants';
 
@@ -49,11 +51,12 @@ const styles: Record<string, React.CSSProperties> = {
   desc: { textAlign: 'center', color: '#a8a29e', fontSize: '12px', marginBottom: '20px' },
   
   mapArea: { 
-    flex: 1, position: 'relative', backgroundColor: '#292524', 
+    flex: 1, position: 'relative', 
+    // backgroundColor: '#292524',  <-- [삭제됨] 여기가 중복 원인이었습니다.
     borderRadius: '12px', border: '4px solid #44403c', overflow: 'hidden',
     backgroundImage: 'linear-gradient(#292524 2px, transparent 2px), linear-gradient(90deg, #292524 2px, transparent 2px)',
     backgroundSize: '20px 20px',
-    backgroundColor: '#302b27'
+    backgroundColor: '#302b27' // 하나만 남김
   },
   pathSvg: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none' },
   
