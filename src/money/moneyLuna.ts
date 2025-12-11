@@ -13,7 +13,8 @@ export interface LunaPhaseResult {
   intensity: number; // 0~100 (환경 난이도)
 }
 
-export const calculateLunaPhase = (cycle: LunaCycle): LunaPhaseResult => {
+// 로직 함수 (내부 로직은 동일)
+const calculateLunaPhase = (cycle: LunaCycle): LunaPhaseResult => {
   if (!cycle.startDate) {
     return { dayInCycle: 0, phaseName: "Unknown", isPeriod: false, intensity: 0 };
   }
@@ -62,3 +63,6 @@ export const calculateLunaPhase = (cycle: LunaCycle): LunaPhaseResult => {
     intensity
   };
 };
+
+// 핵심: 기존 로직을 'getLunaMode'라는 이름으로 내보냅니다.
+export const getLunaMode = calculateLunaPhase;
