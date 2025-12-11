@@ -1,13 +1,12 @@
 // src/game/dialogueTypes.ts
-
-import type { NpcId } from './npcDefinitions'; // 프로젝트에 맞게 경로 조정
+import type { NpcId } from './npcDefinitions';
 
 export type SpeakerType = 'NPC' | 'SYSTEM' | 'PLAYER';
 
 export interface DialogueLine {
   id: string;
   speakerType: SpeakerType;
-  speakerId?: NpcId;     // NPC일 때만 사용
+  speakerId?: NpcId;     // NPC일 때
   speakerName?: string;  // SYSTEM/PLAYER 이름 커스텀용
   text: string;
   emotion?: 'normal' | 'happy' | 'sad' | 'angry' | 'tsundere';
