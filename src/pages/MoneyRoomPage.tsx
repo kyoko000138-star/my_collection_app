@@ -316,3 +316,7 @@ const styles: Record<string, React.CSSProperties> = {
   btnAction: { padding: '15px', borderRadius: '12px', border: 'none', backgroundColor: '#374151', color: '#e5e7eb', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' },
   btnEndDay: { padding: '15px', borderRadius: '12px', border: '1px solid #fbbf24', backgroundColor: '#1f2937', color: '#fbbf24', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' },
 };
+
+
+// 👇 이 줄을 반드시 추가해주세요!
+export default MoneyRoomPage;
