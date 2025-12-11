@@ -3,6 +3,71 @@ import { GAME_CONSTANTS, COLLECTION_DB, CLASS_TYPES, ClassType } from './constan
 import { checkGuardianShield, getDruidRecoveryBonus } from './moneyClassLogic';
 import { getLunaMode } from './moneyLuna';
 
+
+/**
+ * 🔄 월말 정산 (Month End)
+ * - 현재 상태를 History에 저장
+ * - Junk를 매각하여 다음 달 시드머니(예산 보너스)로 전환
+ * - 레벨/HP/일일카운터 초기화 (자산/인벤토리/직업은 유지)
+ */
+export const applyMonthEnd = (state: UserState): { newState: UserState, message: string } => {
+  const today = new Date();
+  const monthKey = `${today.getFullYear()}-${today.getMonth() + 1}`; // "2025-12"
+
+  // 1. 등급 산정 (임시 로직)
+  const hp = getHp(state.budget.current, state.budget.total);
+  let grade = 'C';
+  if (hp > 80) grade = 'S';
+  else if (hp > 50) grade = 'A';
+  else if (hp > 20) grade = 'B';
+
+  // 2. Junk 매각 (1개당 100원 보너스 예산)
+  const junkCount = state.inventory.junk;
+  const bonusBudget = junkCount * 100; 
+
+  // 3. 기록 생성
+  const record: MonthRecord = {
+    id: monthKey,
+    grade,
+    totalSpent: state.budget.total - state.budget.current,
+    finalHp: hp,
+    savedJunk: junkCount,
+    mvpAsset: '요새', // (추후 로직 고도화 필요)
+  };
+
+  // 4. 다음 달 상태 생성 (Reset & Inherit)
+  const newState: UserState = {
+    ...state,
+    budget: {
+      ...state.budget,
+      current: state.budget.total + bonusBudget, // 예산 리필 + 보너스
+      startDate: getTodayString(),
+    },
+    // HP, MP 등 런타임 스탯 초기화
+    runtime: { mp: GAME_CONSTANTS.MAX_MP },
+    counters: {
+      ...state.counters,
+      defenseActionsToday: 0,
+      junkObtainedToday: 0,
+      dailyTotalSpend: 0,
+      hadSpendingToday: false,
+      isDayEnded: false,
+      lunaShieldsUsedThisMonth: 0, // 월간 카운터 리셋
+    },
+    // 인벤토리: Junk는 매각되어 0됨, 나머지는 유지
+    inventory: {
+      ...state.inventory,
+      junk: 0, 
+    },
+    // 기록 저장
+    history: [...(state.history || []), record],
+  };
+
+  return {
+    newState,
+    message: `📅 ${monthKey} 정산 완료!\n등급: ${grade}\nJunk ${junkCount}개를 매각하여 예산 +${bonusBudget}원 추가됨.`
+  };
+};
 // ------------------------------------------------------------------
 // [SECTION 1] 유틸리티 및 판정 함수 (Helpers)
 // ------------------------------------------------------------------
