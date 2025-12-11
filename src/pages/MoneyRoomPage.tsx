@@ -1,181 +1,204 @@
 import React, { useState, useEffect } from 'react';
 
-// Types & Logic
+// 1. Data & Logic
 import { UserState } from '../money/types';
-import { GAME_CONSTANTS, CLASS_TYPES, ClassType } from '../money/constants';
+import { CLASS_TYPES } from '../money/constants';
 import { 
-  getHp, applySpend, applyDefense, checkDailyReset, applyPurify, applyDayEnd, 
-  shouldShowGuardPrompt, markGuardPromptShown, applyCraftEquipment 
+  getHp, checkDailyReset, applySpend, applyDefense, applyDayEnd, 
+  applyPurify, applyCraftEquipment 
 } from '../money/moneyGameLogic';
-import { getLunaMode, getLunaTheme } from '../money/moneyLuna';
+import { getLunaTheme, getLunaMode } from '../money/moneyLuna';
 
-// Views
+// 2. Views (화면 컴포넌트)
 import { VillageView } from '../money/components/VillageView';
 import { WorldMapView } from '../money/components/WorldMapView';
 import { BattleView } from '../money/components/BattleView';
 
-// Modals
+// 3. Modals (팝업)
 import { InventoryModal } from '../money/components/InventoryModal';
-import { CollectionModal } from '../money/components/CollectionModal';
 import { KingdomModal } from '../money/components/KingdomModal';
+import { CollectionModal } from '../money/components/CollectionModal';
 import { OnboardingModal } from '../money/components/OnboardingModal';
 
-const STORAGE_KEY = 'money-room-save-v1';
+// 저장소 키 (버전 변경 시 키를 바꾸면 초기화됨)
+const STORAGE_KEY = 'money-room-save-v3-adventure'; 
 
+// 초기 데이터 (신규 유저용)
 const INITIAL_STATE: UserState = {
+  scene: 'VILLAGE',
   profile: { name: 'Player 1', classType: CLASS_TYPES.GUARDIAN, level: 1 },
-  luna: { nextPeriodDate: '2025-12-25', averageCycle: 28, isTracking: true },
-  budget: { total: 1000000, current: 850000, fixedCost: 300000, startDate: '2025-12-01' },
-  stats: { def: 50, creditScore: 0 },
+  budget: { total: 500000, current: 500000, fixedCost: 0, startDate: '' },
+  stats: { def: 0, creditScore: 0 },
   assets: { fortress: 0, airfield: 0, mansion: 0, tower: 0, warehouse: 0 },
-  counters: {
-    defenseActionsToday: 0, junkObtainedToday: 0, lastAccessDate: null, lastDailyResetDate: null,
-    noSpendStreak: 3, lunaShieldsUsedThisMonth: 0, dailyTotalSpend: 0, isDayEnded: false,
-    guardPromptShownToday: false, lastDayEndDate: null, hadSpendingToday: false
+  counters: { 
+    defenseActionsToday: 0, junkObtainedToday: 0, noSpendStreak: 0, 
+    dailyTotalSpend: 0, guardPromptShownToday: false, hadSpendingToday: false,
+    lastAccessDate: null, lastDailyResetDate: null, lastDayEndDate: null, 
+    lunaShieldsUsedThisMonth: 0 
   },
-  runtime: { mp: 15 },
-  inventory: { junk: 0, salt: 0, shards: {}, materials: {}, equipment: [], collection: [] },
+  runtime: { mp: 30 },
+  inventory: { junk: 0, salt: 0, materials: {}, equipment: [], shards: {}, collection: [] },
   pending: [],
+  history: [],
+  luna: { nextPeriodDate: '', averageCycle: 28, isTracking: false },
 };
 
-type Scene = 'VILLAGE' | 'WORLDMAP' | 'BATTLE';
-
 const MoneyRoomPage: React.FC = () => {
-  // 1. Init State
+  // --- [State Management] ---
   const [gameState, setGameState] = useState<UserState>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return { ...INITIAL_STATE, ...JSON.parse(saved) };
-    } catch { /* ignore */ }
-    return INITIAL_STATE;
+      return saved ? { ...INITIAL_STATE, ...JSON.parse(saved) } : INITIAL_STATE;
+    } catch { return INITIAL_STATE; }
   });
 
-  // Scene State
-  const [currentScene, setCurrentScene] = useState<Scene>('VILLAGE');
-  const [selectedDungeon, setSelectedDungeon] = useState<string>(''); // 'food', 'transport' etc.
+  const [scene, setScene] = useState<'VILLAGE' | 'WORLDMAP' | 'BATTLE'>('VILLAGE');
+  const [activeDungeon, setActiveDungeon] = useState<string>('etc'); // 선택된 던전 ID
+  const [modal, setModal] = useState<string | null>(null); // 현재 열린 모달
 
-  // Modals
-  const [modals, setModals] = useState({ inventory: false, collection: false, kingdom: false });
-
-  // Derived Values
-  const hp = getHp(gameState.budget.current, gameState.budget.total);
-  const todayStr = new Date().toISOString().split('T')[0];
-  const currentMode = getLunaMode(todayStr, gameState.luna.nextPeriodDate);
-  const theme = getLunaTheme(currentMode);
-  
-  const needsOnboarding = gameState.profile.name === 'Player 1';
-
-  // Persistence
+  // --- [Effect] ---
+  // 1. 자동 저장
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
   }, [gameState]);
 
+  // 2. 일일 리셋 (접속 시)
   useEffect(() => {
     setGameState(prev => checkDailyReset(prev));
   }, []);
 
-  // --- Handlers ---
+  // --- [Helpers] ---
+  const hpPercent = getHp(gameState.budget.current, gameState.budget.total);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const theme = getLunaTheme(getLunaMode(todayStr, gameState.luna.nextPeriodDate));
+  const isNewUser = gameState.profile.name === 'Player 1';
 
+  // --- [Handlers] ---
+
+  // ⚔️ 전투: 지출 (Hit)
   const handleSpend = (amount: number) => {
-    // Guard Prompt Check
-    if (shouldShowGuardPrompt(gameState, amount, false)) {
-      const nextHp = getHp(gameState.budget.current - amount, gameState.budget.total);
-      if (!window.confirm(`⚠️ 위험! HP가 ${hp}% -> ${nextHp}%로 떨어집니다. 진행할까요?`)) {
-        // 취소 -> 방어
-        const next = applyDefense(gameState);
-        setGameState(markGuardPromptShown(next));
-        alert("방어 성공! MP가 회복되었습니다.");
-        setCurrentScene('VILLAGE');
-        return;
-      }
-      setGameState(prev => markGuardPromptShown(prev));
-    }
-
     const { newState, message } = applySpend(gameState, amount, false);
     setGameState(newState);
-    alert(message); // 간단한 피드백
-    setCurrentScene('VILLAGE'); // 마을로 귀환
+    
+    // 전투 종료 연출 (알림 -> 마을 귀환)
+    setTimeout(() => {
+      alert(`💥 [피격] ${amount.toLocaleString()}원 지출!\nHP가 감소했습니다.\n(${message})`);
+      setScene('VILLAGE');
+    }, 100);
   };
 
-  const toggleModal = (key: keyof typeof modals, value: boolean) => {
-    setModals(prev => ({ ...prev, [key]: value }));
+  // 🛡️ 전투: 방어 (Guard)
+  const handleGuard = () => {
+    const next = applyDefense(gameState);
+    setGameState(next);
+    setTimeout(() => {
+      alert(`🛡️ [방어 성공] 지출 유혹을 이겨냈습니다!\nMP가 회복되었습니다.`);
+      setScene('VILLAGE');
+    }, 100);
   };
 
-  // UI Render
+  // 🌙 마을: 하루 마감 (Rest)
+  const handleRest = () => {
+    if (gameState.counters.lastDayEndDate === todayStr) {
+      return alert("이미 오늘 하루를 마감했습니다.");
+    }
+    if (!window.confirm("오늘 하루를 정리하고 휴식하시겠습니까?")) return;
+
+    const { newState, message } = applyDayEnd(gameState, todayStr);
+    setGameState(newState);
+    alert(message);
+  };
+
+  // 🧪 인벤토리: 정화 & 제작
+  const handlePurify = () => {
+    const { newState, message } = applyPurify(gameState);
+    setGameState(newState);
+    alert(message);
+  };
+  const handleCraft = () => {
+    const { newState, message } = applyCraftEquipment(gameState);
+    setGameState(newState);
+    alert(message);
+  };
+
   return (
-    <div style={{...styles.container, backgroundColor: theme.bgColor}}>
-      {needsOnboarding && <OnboardingModal onComplete={d => setGameState(prev => ({...prev, ...d}))} />}
+    <div style={styles.appContainer}>
+      {/* 0. 온보딩 (신규 유저) */}
+      {isNewUser && (
+        <OnboardingModal onComplete={d => setGameState(p => ({ ...p, ...d }))} />
+      )}
 
-      {currentScene === 'VILLAGE' && (
+      {/* 1. 마을 화면 (VILLAGE) */}
+      {scene === 'VILLAGE' && (
         <VillageView 
-          gameState={gameState} hp={hp} todayStr={todayStr} theme={theme}
-          onGoAdventure={() => setCurrentScene('WORLDMAP')}
-          onOpenInventory={() => toggleModal('inventory', true)}
-          onOpenKingdom={() => toggleModal('kingdom', true)}
-          onOpenCollection={() => toggleModal('collection', true)}
-          onDayEnd={() => {
-             const { newState, message } = applyDayEnd(gameState, todayStr);
-             setGameState(newState);
-             alert(message);
-          }}
-          getClassBadge={(t) => t === CLASS_TYPES.GUARDIAN ? '🛡️' : '👶'}
-          getHpColor={(v) => v > 50 ? '#4ade80' : v > 30 ? '#facc15' : '#ef4444'}
+          gameState={gameState} 
+          hp={hpPercent} todayStr={todayStr} theme={theme}
+          onMoveToWorld={() => setScene('WORLDMAP')}
+          onOpenMenu={(menu) => setModal(menu)}
+          onRest={handleRest}
         />
       )}
 
-      {currentScene === 'WORLDMAP' && (
+      {/* 2. 월드맵 화면 (WORLDMAP) */}
+      {scene === 'WORLDMAP' && (
         <WorldMapView 
-          onSelectDungeon={(id) => { setSelectedDungeon(id); setCurrentScene('BATTLE'); }}
-          onBack={() => setCurrentScene('VILLAGE')}
+          onSelectDungeon={(id) => { setActiveDungeon(id); setScene('BATTLE'); }}
+          onBack={() => setScene('VILLAGE')}
         />
       )}
 
-      {currentScene === 'BATTLE' && (
+      {/* 3. 전투 화면 (BATTLE) */}
+      {scene === 'BATTLE' && (
         <BattleView 
-          dungeonName={selectedDungeon}
-          onAttack={handleSpend}
-          onFlee={() => setCurrentScene('WORLDMAP')}
+          dungeonId={activeDungeon}
+          playerHp={gameState.budget.current}
+          maxHp={gameState.budget.total}
+          onSpend={handleSpend}
+          onGuard={handleGuard}
+          onRun={() => setScene('WORLDMAP')}
         />
       )}
 
-      {/* Modals */}
+      {/* 4. 공통 모달 (Inventory, Kingdom, Collection) */}
       <InventoryModal 
-        open={modals.inventory} onClose={() => toggleModal('inventory', false)}
+        open={modal === 'inventory' || modal === 'craft'} 
+        onClose={() => setModal(null)}
         junk={gameState.inventory.junk} salt={gameState.inventory.salt}
         materials={gameState.inventory.materials} equipment={gameState.inventory.equipment}
         collection={gameState.inventory.collection}
         canPurify={gameState.runtime.mp > 0}
-        onPurify={() => {
-          const { newState, message } = applyPurify(gameState);
-          setGameState(newState);
-          alert(message);
-        }}
-        onCraft={() => {
-          const { newState, message } = applyCraftEquipment(gameState);
-          setGameState(newState);
-          alert(message);
-        }}
+        onPurify={handlePurify} onCraft={handleCraft}
       />
       <KingdomModal 
-        open={modals.kingdom} onClose={() => toggleModal('kingdom', false)}
-        buildings={[]} // getAssetBuildingsView(gameState) 결과 넣기
+        open={modal === 'kingdom'} onClose={() => setModal(null)} 
+        buildings={[]} /* TODO: getAssetBuildingsView 연결 필요 */
       />
       <CollectionModal 
-        open={modals.collection} onClose={() => toggleModal('collection', false)}
-        collection={gameState.inventory.collection}
+        open={modal === 'collection'} onClose={() => setModal(null)} 
+        collection={gameState.inventory.collection} 
       />
+      
+      {/* 디버그용 초기화 버튼 */}
+      <div style={styles.debugArea}>
+        <button onClick={() => { localStorage.removeItem(STORAGE_KEY); window.location.reload(); }}>
+          🔄 Reset Data
+        </button>
+      </div>
     </div>
   );
 };
 
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    maxWidth: '420px', margin: '0 auto', color: '#e5e7eb', minHeight: '100vh',
-    padding: '20px', fontFamily: '"NeoDungGeunMo", sans-serif',
-    backgroundColor: '#111827',
-    backgroundImage: `linear-gradient(#1f2937 1px, transparent 1px), linear-gradient(90deg, #1f2937 1px, transparent 1px)`,
-    backgroundSize: '20px 20px',
+const styles = {
+  appContainer: {
+    maxWidth: '420px', margin: '0 auto', minHeight: '100vh',
+    backgroundColor: '#000', color: '#fff',
+    fontFamily: '"NeoDungGeunMo", monospace', // 픽셀 폰트 필수
+    position: 'relative' as const,
+    overflow: 'hidden'
   },
+  debugArea: {
+    position: 'absolute' as const, bottom: '5px', right: '5px', opacity: 0.3
+  }
 };
 
 export default MoneyRoomPage;
