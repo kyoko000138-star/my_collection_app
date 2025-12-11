@@ -1,114 +1,67 @@
+// src/money/components/VillageView.tsx
+
 import React from 'react';
 import { UserState } from '../types';
-import { GAME_CONSTANTS, CLASS_TYPES } from '../constants';
-import { getAssetBuildingsView } from '../moneyGameLogic';
 
 interface VillageViewProps {
   gameState: UserState;
-  hp: number;
-  todayStr: string;
-  theme: any;
-  onGoAdventure: () => void;
-  onOpenInventory: () => void;
-  onOpenKingdom: () => void;
-  onOpenCollection: () => void;
-  onDayEnd: () => void;
-  getClassBadge: (type: any) => string;
-  getHpColor: (hp: number) => string;
+  onMoveToWorld: () => void;
+  onOpenMenu: (menu: string) => void;
+  onRest: () => void;
 }
 
-export const VillageView: React.FC<VillageViewProps> = ({
-  gameState, hp, todayStr, theme,
-  onGoAdventure, onOpenInventory, onOpenKingdom, onOpenCollection, onDayEnd,
-  getClassBadge, getHpColor
+export const VillageView: React.FC<VillageViewProps> = ({ 
+  gameState, onMoveToWorld, onOpenMenu, onRest 
 }) => {
-  const assetBuildings = getAssetBuildingsView(gameState);
-
   return (
-    <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
-      {/* HEADER */}
-      <header style={styles.header}>
-        <div style={{display:'flex', flexDirection:'column'}}>
-          <span style={styles.date}>{todayStr}</span>
-          <span style={styles.classBadge}>
-            {getClassBadge(gameState.profile.classType)} Lv.{gameState.profile.level} {gameState.profile.name}
-          </span>
+    <div style={styles.container}>
+      {/* 상단 정보창 (프메 스타일) */}
+      <div style={styles.statusBar}>
+        <div style={styles.statusRow}>📅 2025년 12월 11일 (맑음)</div>
+        <div style={styles.statusRow}>
+          <span>💖 HP {gameState.budget.current.toLocaleString()}</span>
+          <span>💧 MP {gameState.runtime.mp}</span>
         </div>
-        <span style={{...styles.modeBadge, color: theme.color, borderColor: theme.color}}>
-          {theme.label}
-        </span>
-      </header>
+      </div>
 
-      {/* HERO (Village Mode) */}
-      <section style={styles.heroSection}>
-        <div style={styles.avatarArea}>
-          <span style={{fontSize: '40px'}}>🏡</span>
-        </div>
-        <div style={styles.hpLabel}><span>HP</span><span>{hp}%</span></div>
-        <div style={styles.hpBarBg}>
-          <div style={{...styles.hpBarFill, width: `${hp}%`, backgroundColor: getHpColor(hp)}} />
-        </div>
-        <div style={styles.budgetDetail}>
-          잔액: {gameState.budget.current.toLocaleString()} / {gameState.budget.total.toLocaleString()}
-        </div>
-      </section>
+      {/* 메인 화면 (방 안) */}
+      <div style={styles.roomScene}>
+        <div style={styles.window}>🪟</div>
+        <div style={styles.character}>🧢</div>
+        <div style={styles.desk} onClick={() => onOpenMenu('inventory')}>🎒</div>
+      </div>
 
-      {/* STATS */}
-      <section style={styles.statsGrid}>
-        <div style={styles.statBox}>
-          <div style={styles.statLabel}>MP</div>
-          <div style={{color: '#60a5fa', fontWeight:'bold'}}>{gameState.runtime.mp} / {GAME_CONSTANTS.MAX_MP}</div>
-        </div>
-        <div style={styles.statBox}>
-          <div style={styles.statLabel}>오늘지출</div>
-          <div style={{color: '#fca5a5', fontWeight:'bold'}}>{gameState.counters.dailyTotalSpend.toLocaleString()}</div>
-        </div>
-        <div style={styles.statBox}>
-          <div style={styles.statLabel}>스트릭</div>
-          <div style={{fontWeight:'bold', color: '#fbbf24'}}>{gameState.counters.noSpendStreak}일</div>
-        </div>
-      </section>
-
-      {/* MENU BUTTONS */}
+      {/* 하단 명령 버튼 (스케줄) */}
       <div style={styles.menuGrid}>
-        <button onClick={onGoAdventure} style={styles.btnAdventure}>⚔️ 모험 떠나기 (지출)</button>
+        <button onClick={onMoveToWorld} style={styles.btnBig}>
+          ⚔️ 던전 탐험 (지출하러 가기)
+        </button>
         
         <div style={styles.subGrid}>
-          <button onClick={onOpenInventory} style={styles.btnMenu}>🎒 인벤토리</button>
-          <button onClick={onOpenKingdom} style={styles.btnMenu}>🏰 내 왕국</button>
-          <button onClick={onOpenCollection} style={styles.btnMenu}>📖 도감</button>
+          <button onClick={() => onOpenMenu('craft')} style={styles.btnSmall}>🔨 제작</button>
+          <button onClick={() => onOpenMenu('collection')} style={styles.btnSmall}>📖 도감</button>
+          <button onClick={() => onOpenMenu('kingdom')} style={styles.btnSmall}>🏰 왕국</button>
+          <button onClick={onRest} style={styles.btnRest}>🌙 휴식 (마감)</button>
         </div>
-
-        <button 
-          onClick={onDayEnd} 
-          disabled={gameState.counters.lastDayEndDate === todayStr}
-          style={styles.btnEndDay}
-        >
-          {gameState.counters.lastDayEndDate === todayStr ? "💤 오늘 마감 완료" : "🌙 오늘 마감하기"}
-        </button>
       </div>
     </div>
   );
 };
 
 const styles: Record<string, React.CSSProperties> = {
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
-  date: { fontSize: '20px', textShadow: '2px 2px 0px #000' },
-  classBadge: { fontSize: '12px', color: '#9ca3af', marginTop: '4px' },
-  modeBadge: { padding: '4px 8px', borderRadius: '4px', fontSize: '12px', border: '1px solid', height: 'fit-content' },
-  heroSection: { marginBottom: '25px', textAlign: 'center' },
-  avatarArea: { width: '80px', height: '80px', margin: '0 auto 10px', backgroundColor: '#374151', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  hpLabel: { display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '18px' },
-  hpBarBg: { width: '100%', height: '24px', backgroundColor: '#374151', border: '2px solid #fff' },
-  hpBarFill: { height: '100%', transition: 'width 0.2s steps(5)' },
-  budgetDetail: { textAlign: 'right', fontSize: '12px', color: '#9ca3af', marginTop: '6px' },
-  statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '20px' },
-  statBox: { backgroundColor: '#000', padding: '10px', border: '2px solid #374151', textAlign: 'center' },
-  statLabel: { fontSize: '12px', color: '#9ca3af', marginBottom: '4px' },
+  container: { display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#3e2723', padding: '10px' },
   
-  menuGrid: { display: 'flex', flexDirection: 'column', gap: '10px', marginTop: 'auto' },
-  btnAdventure: { padding: '20px', fontSize: '18px', backgroundColor: '#ef4444', color: 'white', border: '2px solid #fff', boxShadow: '4px 4px 0 #7f1d1d', fontWeight: 'bold', cursor: 'pointer' },
-  subGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' },
-  btnMenu: { padding: '15px', backgroundColor: '#374151', color: '#fff', border: '2px solid #fff', boxShadow: '4px 4px 0 #000', cursor: 'pointer', fontSize: '12px' },
-  btnEndDay: { padding: '15px', backgroundColor: '#1e3a8a', color: '#fbbf24', border: '2px solid #fbbf24', boxShadow: '4px 4px 0 #000', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' },
+  statusBar: { backgroundColor: '#f5f5dc', border: '3px solid #5d4037', borderRadius: '4px', padding: '8px', marginBottom: '10px', fontFamily: '"NeoDungGeunMo", serif', color: '#3e2723' },
+  statusRow: { display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '4px' },
+
+  roomScene: { flex: 1, backgroundColor: '#8d6e63', border: '4px solid #4e342e', borderRadius: '8px', position: 'relative', marginBottom: '10px', backgroundImage: 'radial-gradient(#a1887f 20%, transparent 20%)', backgroundSize: '10px 10px' },
+  window: { position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', fontSize: '40px' },
+  character: { position: 'absolute', bottom: '40px', left: '50%', transform: 'translateX(-50%)', fontSize: '60px', animation: 'float 3s infinite' },
+  desk: { position: 'absolute', bottom: '20px', right: '30px', fontSize: '30px', cursor: 'pointer' },
+
+  menuGrid: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  btnBig: { padding: '15px', backgroundColor: '#b91c1c', color: '#fff', border: '3px solid #7f1d1d', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 0 #7f1d1d' },
+  subGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '5px' },
+  btnSmall: { padding: '10px 0', backgroundColor: '#d4b996', color: '#3e2723', border: '2px solid #8d6e63', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 3px 0 #8d6e63' },
+  btnRest: { padding: '10px 0', backgroundColor: '#1e3a8a', color: '#fbbf24', border: '2px solid #172554', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 3px 0 #172554' },
 };
