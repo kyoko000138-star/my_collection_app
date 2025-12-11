@@ -1,110 +1,120 @@
 // src/money/types.ts
+
 import { ClassType } from './constants';
 
 export type LunaMode = 'NORMAL' | 'PMS' | 'REST';
 
-// [NEW] 도감 아이템 타입
-export interface CollectionItem {
-  id: string;        // "junk_forest_01", "badge_no_spend_7" 등
-  name: string;      // "말라비틀어진 꽃잎", "절제의 트로피"
-  description: string; // 설명 텍스트
-  obtainedAt: string; // 획득 날짜 (ISO)
-  category: 'JUNK' | 'BADGE' | 'EQUIPMENT';
-}
-
-// [UPDATE] Inventory 구조 확장
-export interface Inventory {
-  junk: number;
-  salt: number;
-  shards: Record<string, number>;
-  materials: Record<string, number>;
-  equipment: string[];
-  
-  // [UPDATE] 문자열 배열 대신 객체 배열로 변경하여 상세 정보 저장
-  collection: CollectionItem[]; 
-}
-
-// 거래 기록
+// 1. 거래 및 대기열 기록
 export interface Transaction {
   id: string;
-  amount: number;
+  amount: number; 
   category: string;
-  date: string;   // "YYYY-MM-DD"
+  date: string; // "YYYY-MM-DD"
   note: string;
-  tags: string[];
+  tags: string[]; 
   isFixedCost: boolean;
 }
 
-// 나중에 입력 리스트
 export interface PendingTransaction {
   id: string;
-  amount?: number;
+  amount?: number; 
   note: string;
-  createdAt: string; // ISO 문자열
+  createdAt: string;
 }
 
-// 인벤토리 구조
+// 2. [NEW] 도감 아이템 구조
+export interface CollectionItem {
+  id: string;        // "junk_forest_01", "badge_no_spend_7" 등
+  name: string;      // "말라비틀어진 꽃잎"
+  description: string; 
+  obtainedAt: string; // ISO String
+  category: 'JUNK' | 'BADGE' | 'EQUIPMENT';
+}
+
+// 3. 인벤토리 구조
 export interface Inventory {
   junk: number;
   salt: number;
-  shards: Record<string, number>;
+  
+  // 확장성을 위한 Record 타입
+  shards: Record<string, number>; 
   materials: Record<string, number>;
-  equipment: string[];
-  collection: string[];
+  
+  equipment: string[]; // 장착 중인 장비 ID 목록
+  
+  // [UPDATE] 도감 시스템을 위해 객체 배열로 변경
+  collection: CollectionItem[]; 
 }
 
-// 📌 단일 진실 공급원 (Single Source of Truth)
+// 4. [NEW] 자산 구조 (건물 레벨 산정용 누적치)
+export interface AssetKingdom {
+  fortress: number;  // 요새 (방어 횟수 등)
+  airfield: number;  // 비행장 (무지출 등)
+  mansion: number;   // 저택 (고정비 관리 등)
+  tower: number;     // 마법탑 (정화 횟수 등)
+  warehouse: number; // 창고 (아이템 획득 등)
+}
+
+// 📌 5. 단일 진실 공급원 (Single Source of Truth)
 export interface UserState {
-  // 1. 기본 프로필 & 직업
+  // 프로필 & 직업
   profile: {
     name: string;
     classType: ClassType | null;
     level: number;
   };
 
-  // 2. 루나 시스템 (신체 주기)
+  // 루나 시스템
   luna: {
     nextPeriodDate: string; // "YYYY-MM-DD"
-    averageCycle: number;
-    isTracking: boolean;
+    averageCycle: number;   
+    isTracking: boolean;    
   };
 
-  // 3. 예산 & HP
+  // 예산 & HP
   budget: {
-    total: number;     // 이번 달 총 예산
-    current: number;   // 현재 잔여 예산
-    fixedCost: number; // 고정비 총합
-    startDate: string; // "YYYY-MM-DD"
+    total: number;      
+    current: number;    
+    fixedCost: number;  
+    startDate: string;  
   };
 
-  // 4. 파이낸셜 스탯
+  // 파이낸셜 스탯
   stats: {
-    def: number;
-    creditScore: number;
+    def: number;        
+    creditScore: number; 
   };
 
-  // 5. 일일/주간 카운터
+  // [NEW] 자산 상태 추가
+  assets: AssetKingdom;
+
+  // 카운터 & 플래그 (로직의 핵심)
   counters: {
-    defenseActionsToday: number;    // 오늘 방어 횟수
-    junkObtainedToday: number;      // 오늘 Junk 획득 수
-
-    lastAccessDate: string | null;      // 마지막 접속일
-    lastDailyResetDate: string | null;  // checkDailyReset 마지막 실행일
-
-    noSpendStreak: number;          // 연속 무지출 일수
-    lunaShieldsUsedThisMonth: number;
-
-    // ✅ DayEnd 루프용
-    lastDayEndDate: string | null;  // "오늘 마감하기" 마지막 실행일
-    hadSpendingToday: boolean;      // 오늘 지출 발생 여부
+    // 일일 리셋 대상
+    defenseActionsToday: number; 
+    junkObtainedToday: number;   
+    guardPromptShownToday: boolean; // [NEW] 가드 프롬프트 노출 여부
+    dailyTotalSpend: number;        // [NEW] 오늘 총 지출액
+    hadSpendingToday: boolean;      // [NEW] 오늘 지출 발생 여부 (무지출 판정용)
+    
+    // 날짜 추적
+    lastAccessDate: string | null; 
+    lastDailyResetDate: string | null; 
+    lastDayEndDate: string | null;  // [NEW] 마감 처리한 날짜
+    
+    // 누적 데이터
+    noSpendStreak: number;
+    lunaShieldsUsedThisMonth: number; 
   };
 
-  // 6. 런타임 스탯 (MP)
+  // 런타임 값 (MP)
   runtime: {
-    mp: number;
+    mp: number; 
   };
 
-  // 7. 인벤토리 & 대기열
   inventory: Inventory;
   pending: PendingTransaction[];
+  
+  // 거래 내역 (실제 앱에서는 별도 DB로 관리하지만, MVP에선 여기에 포함 가능)
+  transactions?: Transaction[]; 
 }
