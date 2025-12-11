@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
 
+// [NEW] 장면 타입 정의
+type Scene = 'VILLAGE' | 'WORLDMAP' | 'BATTLE';
+
+export const MoneyRoomPage: React.FC = () => {
+  const [gameState, setGameState] = useState<UserState>(...);
+  const [currentScene, setCurrentScene] = useState<Scene>('VILLAGE'); // 기본: 마을
+
 // Types & Constants
 import { UserState } from '../money/types';
 import { GAME_CONSTANTS, CLASS_TYPES, ClassType } from '../money/constants';
@@ -16,6 +23,49 @@ import { InventoryModal } from '../money/components/InventoryModal';
 import { CollectionModal } from '../money/components/CollectionModal';
 import { KingdomModal } from '../money/components/KingdomModal';
 import { OnboardingModal } from '../money/components/OnboardingModal';
+
+  // 🔄 화면 렌더링 분기
+  return (
+    <div style={styles.container}>
+      
+      {/* 1. 마을 (VILLAGE) - 기존 대시보드 + 정비 기능 */}
+      {currentScene === 'VILLAGE' && (
+        <VillageView 
+          gameState={gameState}
+          onGoAdventure={() => setCurrentScene('WORLDMAP')} 
+          onOpenInventory={() => setIsInventoryOpen(true)}
+          // ... 기타 props
+        />
+      )}
+
+      {/* 2. 월드맵 (WORLDMAP) - 던전(카테고리) 선택 */}
+      {currentScene === 'WORLDMAP' && (
+        <WorldMapView 
+          onSelectDungeon={(category) => {
+            // 카테고리 선택 후 전투 돌입
+            setCurrentScene('BATTLE');
+          }}
+          onBack={() => setCurrentScene('VILLAGE')}
+        />
+      )}
+
+      {/* 3. 전투 (BATTLE) - 실제 지출 입력 (Guard Prompt 포함) */}
+      {currentScene === 'BATTLE' && (
+        <BattleView 
+          onAttack={(amount) => {
+            handleSpendSubmit(amount); // 지출 로직
+            setCurrentScene('VILLAGE'); // 완료 후 복귀
+          }}
+          onFlee={() => setCurrentScene('WORLDMAP')} // 도망
+        />
+      )}
+
+      {/* 모달들은 최상위에 배치 */}
+      <InventoryModal ... />
+      <KingdomModal ... />
+    </div>
+  );
+};
 
 // [KEY] 로컬 스토리지 저장 키
 const STORAGE_KEY = 'money-room-save-v1';
