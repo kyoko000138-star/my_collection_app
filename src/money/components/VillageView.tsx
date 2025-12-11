@@ -1,143 +1,127 @@
+// src/money/components/VillageView.tsx
+
 import React from 'react';
-import { UserState } from '../types';
-import { GAME_CONSTANTS, CLASS_TYPES } from '../constants';
+import { UserState, Scene } from '../types';
+import { calculateLunaPhase } from '../moneyLuna';
 
 interface VillageViewProps {
-  gameState: UserState;
-  hp: number;
-  todayStr: string;
-  theme: any; 
-  onMoveToWorld: () => void;
-  onOpenMenu: (menu: string) => void;
-  onRest: () => void;
+  user: UserState;
+  onChangeScene: (scene: Scene) => void;
 }
 
-export const VillageView: React.FC<VillageViewProps> = ({ 
-  gameState, hp, todayStr, theme, onMoveToWorld, onOpenMenu, onRest 
-}) => {
+const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
+  // 1. 생존 수치 계산 (규칙 C: 현실 숫자 우선)
+  const currentHpPercent = Math.max(0, Math.min(100, (user.currentBudget / user.maxBudget) * 100));
   
-  const getJobIcon = (type: any) => {
-    switch(type) {
-      case CLASS_TYPES.GUARDIAN: return '🛡️';
-      case CLASS_TYPES.SAGE: return '🔮';
-      case CLASS_TYPES.ALCHEMIST: return '💰';
-      case CLASS_TYPES.DRUID: return '🌿';
-      default: return '🧢';
-    }
-  };
+  // 날짜 계산 (남은 일수)
+  const today = new Date();
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const daysLeft = lastDay.getDate() - today.getDate();
+  
+  // 1일 권장 생존 금액 (남은 예산 / 남은 일수)
+  const dailySurvivalBudget = daysLeft > 0 ? Math.floor(user.currentBudget / daysLeft) : 0;
+
+  // Luna 상태 (규칙 B: 환경 난이도 시각화)
+  const luna = calculateLunaPhase(user.lunaCycle);
 
   return (
-    <div style={styles.container}>
-      {/* 📜 상단 상태바 */}
-      <div style={styles.statusBar}>
-        <div style={styles.statusRow}>
-          <span>📅 {todayStr}</span>
-          <span style={{ color: theme?.color || '#3e2723' }}>
-            {theme?.label || 'NORMAL'}
+    <div className="flex flex-col items-center w-full h-full bg-black text-gray-200 relative p-4 animate-fadeIn">
+      
+      {/* --- 1. 상단 정보 (HUD) --- */}
+      <div className="w-full border-2 border-gray-600 rounded p-2 mb-4 bg-gray-900">
+        <div className="flex justify-between items-end mb-1">
+          <span className="text-sm text-gray-400">LV.{user.level} {user.name}</span>
+          <span className="text-xs text-yellow-500">{user.jobTitle}</span>
+        </div>
+        
+        {/* HP Bar (예산) - 가장 중요 */}
+        <div className="relative w-full h-6 bg-gray-800 border border-gray-600 rounded">
+          <div 
+            className={`h-full transition-all duration-500 ${
+              currentHpPercent < 20 ? 'bg-red-600 animate-pulse' : 'bg-green-700'
+            }`}
+            style={{ width: `${currentHpPercent}%` }}
+          />
+          <span className="absolute inset-0 flex items-center justify-center text-xs font-bold shadow-black drop-shadow-md">
+            HP {user.currentBudget.toLocaleString()} / {user.maxBudget.toLocaleString()}
           </span>
         </div>
-        <div style={styles.statusRow}>
-          <span>💖 HP {hp}%</span>
-          <span>💧 MP {gameState.runtime.mp}/{GAME_CONSTANTS.MAX_MP}</span>
-        </div>
-      </div> 
-      {/* 👆 [중요] 여기가 닫혀야 합니다! */}
 
-      {/* 🏠 메인 화면 (내 방) */}
-      <div style={styles.roomScene}>
-        <div style={styles.window}>🪟</div>
-        
-        <div style={styles.characterContainer}>
-          <div style={styles.character}>{getJobIcon(gameState.profile.classType)}</div>
-          <div style={styles.shadow}></div>
-        </div>
-
-        <div style={styles.desk} onClick={() => onOpenMenu('inventory')}>
-          🎒 <span style={styles.bubble}>Check!</span>
-        </div>
-
-        <div style={styles.messageBox}>
-          "오늘도 무사히 하루를 넘겨보자."
+        {/* MP Bar (의지력/Guard 포인트) */}
+        <div className="relative w-full h-2 mt-1 bg-gray-800 rounded">
+          <div 
+            className="h-full bg-blue-600 transition-all duration-500"
+            style={{ width: `${(user.mp / user.maxMp) * 100}%` }}
+          />
         </div>
       </div>
 
-      {/* 🕹️ 하단 메뉴 */}
-      <div style={styles.menuGrid}>
-        <button onClick={onMoveToWorld} style={styles.btnAdventure}>
-          ⚔️ 던전 탐험 (지출하러 가기)
-        </button>
+      {/* --- 2. 메인 비주얼 (내 방) --- */}
+      {/* 규칙 2-4: 접속만으로도 방어 행동이다. 평온한 휴식처 느낌. */}
+      [Image of pixel art cozy dark bedroom with rain window]
+      <div className="flex-1 w-full relative flex items-center justify-center border-2 border-dashed border-gray-700 rounded-lg bg-gray-800 bg-opacity-50 mb-4 overflow-hidden">
         
-        <div style={styles.subGrid}>
-          <button onClick={() => onOpenMenu('inventory')} style={styles.btnMenu}>🎒 가방</button>
-          <button onClick={() => onOpenMenu('craft')} style={styles.btnMenu}>🔨 제작</button>
-          <button onClick={() => onOpenMenu('collection')} style={styles.btnMenu}>📖 도감</button>
-          <button onClick={() => onOpenMenu('kingdom')} style={styles.btnMenu}>🏰 왕국</button>
+        {/* 캐릭터 (중앙) */}
+        <div className="flex flex-col items-center animate-float">
+          <div className="text-6xl mb-2">🧙</div> 
+          {/* 추후 픽셀 아트 이미지로 교체 */}
+          <div className="text-xs text-gray-400 bg-black px-2 rounded-full border border-gray-600">
+             생존 {daysLeft}일 남음
+          </div>
         </div>
 
-        <button onClick={onRest} style={styles.btnRest}>
-          🌙 하루 마감 (휴식)
+        {/* Luna 상태 표시 (창문 밖 날씨/달 처럼 표현) */}
+        <div className="absolute top-2 right-2 text-right">
+            <div className={`text-xs px-2 py-1 rounded border ${luna.isPeriod ? 'border-red-500 text-red-400' : 'border-gray-600 text-gray-500'}`}>
+                Luna: {luna.phaseName}
+            </div>
+            {luna.isPeriod && <div className="text-[10px] text-red-500 blink">⚠️ 환경 난이도 상승</div>}
+        </div>
+      </div>
+
+      {/* --- 3. 생존 가이드 (텍스트) --- */}
+      <div className="w-full text-center mb-6">
+        <p className="text-gray-400 text-sm mb-1">오늘의 생존 한계선</p>
+        <p className="text-2xl text-white font-bold glitch-effect">
+          {dailySurvivalBudget.toLocaleString()} G
+        </p>
+      </div>
+
+      {/* --- 4. 행동 메뉴 (Menu) --- */}
+      <div className="grid grid-cols-2 gap-3 w-full">
+        <button 
+          onClick={() => onChangeScene(Scene.WORLD_MAP)}
+          className="p-4 border-2 border-red-900 bg-red-950 hover:bg-red-900 text-red-200 rounded flex flex-col items-center transition-transform active:scale-95"
+        >
+          <span className="text-2xl mb-1">⚔️</span>
+          <span className="text-sm font-bold">지출(Attack)</span>
+        </button>
+
+        <button 
+          onClick={() => onChangeScene(Scene.INVENTORY)} // 모달 트리거 연결 필요
+          className="p-4 border-2 border-blue-900 bg-blue-950 hover:bg-blue-900 text-blue-200 rounded flex flex-col items-center transition-transform active:scale-95"
+        >
+          <span className="text-2xl mb-1">🎒</span>
+          <span className="text-sm font-bold">가방/정비</span>
+        </button>
+
+        <button 
+          onClick={() => onChangeScene(Scene.KINGDOM)} // 모달 트리거 연결 필요
+          className="p-3 border border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded flex items-center justify-center gap-2"
+        >
+          <span>🏰 자산 관리</span>
+        </button>
+
+        <button 
+          onClick={() => onChangeScene(Scene.COLLECTION)} // 모달 트리거 연결 필요
+          className="p-3 border border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded flex items-center justify-center gap-2"
+        >
+          <span>📖 도감 확인</span>
         </button>
       </div>
+
     </div>
   );
 };
 
-// 🎨 스타일 정의
-const styles: Record<string, React.CSSProperties> = {
-  container: { 
-    display: 'flex', flexDirection: 'column', height: '100%', 
-    padding: '15px', backgroundColor: '#3e2723', 
-    fontFamily: '"NeoDungGeunMo", monospace', 
-    color: '#fff'
-  },
-  
-  statusBar: { 
-    backgroundColor: '#f5f5dc', border: '3px solid #5d4037', borderRadius: '4px', 
-    padding: '10px', marginBottom: '15px', color: '#3e2723',
-    boxShadow: '0 4px 0 rgba(0,0,0,0.3)'
-  },
-  statusRow: { display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '4px', fontWeight: 'bold' },
-
-  roomScene: { 
-    flex: 1, backgroundColor: '#8d6e63', border: '4px solid #4e342e', borderRadius: '8px', 
-    position: 'relative', marginBottom: '15px', 
-    backgroundImage: 'radial-gradient(#a1887f 20%, transparent 20%)', backgroundSize: '10px 10px',
-    boxShadow: 'inset 0 0 20px rgba(0,0,0,0.3)'
-  },
-  window: { position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', fontSize: '40px' },
-  
-  characterContainer: {
-    position: 'absolute', bottom: '60px', left: '50%', transform: 'translateX(-50%)',
-    display: 'flex', flexDirection: 'column', alignItems: 'center'
-  },
-  character: { fontSize: '60px', animation: 'bounce 2s infinite' },
-  shadow: { width: '40px', height: '10px', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '50%', marginTop: '-5px' },
-
-  desk: { position: 'absolute', bottom: '30px', right: '30px', fontSize: '30px', cursor: 'pointer' },
-  bubble: { position: 'absolute', top: '-15px', right: '-10px', fontSize: '10px', backgroundColor: '#fff', color: '#000', padding: '2px 4px', borderRadius: '4px', border: '1px solid #000' },
-  
-  messageBox: {
-    position: 'absolute', bottom: '10px', left: '10px', right: '10px',
-    backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', padding: '8px', borderRadius: '4px',
-    fontSize: '12px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.3)'
-  },
-
-  menuGrid: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  btnAdventure: { 
-    padding: '15px', backgroundColor: '#b91c1c', color: '#fef2f2', 
-    border: '3px solid #7f1d1d', borderRadius: '8px', 
-    fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', 
-    boxShadow: '0 4px 0 #7f1d1d', textShadow: '1px 1px 0 #000'
-  },
-  subGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px' },
-  btnMenu: { 
-    padding: '12px 0', backgroundColor: '#d4b996', color: '#3e2723', 
-    border: '2px solid #8d6e63', borderRadius: '6px', 
-    fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 3px 0 #8d6e63' 
-  },
-  btnRest: { 
-    padding: '12px', backgroundColor: '#1e3a8a', color: '#fbbf24', 
-    border: '3px solid #172554', borderRadius: '8px', 
-    fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 0 #172554' 
-  },
-};
+export default VillageView;
