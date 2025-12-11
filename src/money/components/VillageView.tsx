@@ -1,5 +1,3 @@
-// src/money/components/VillageView.tsx
-
 import React from 'react';
 import { UserState, Scene } from '../types';
 import { calculateLunaPhase } from '../moneyLuna';
@@ -9,8 +7,10 @@ interface VillageViewProps {
   onChangeScene: (scene: Scene) => void;
 }
 
-const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
-  // 1. 생존 수치 계산 (규칙 C: 현실 숫자 우선)
+// [수정 포인트] export default가 아니라 export const로 변경
+export const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
+  
+  // 1. 생존 수치 계산
   const currentHpPercent = Math.max(0, Math.min(100, (user.currentBudget / user.maxBudget) * 100));
   
   // 날짜 계산 (남은 일수)
@@ -18,10 +18,10 @@ const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   const daysLeft = lastDay.getDate() - today.getDate();
   
-  // 1일 권장 생존 금액 (남은 예산 / 남은 일수)
+  // 1일 권장 생존 금액
   const dailySurvivalBudget = daysLeft > 0 ? Math.floor(user.currentBudget / daysLeft) : 0;
 
-  // Luna 상태 (규칙 B: 환경 난이도 시각화)
+  // Luna 상태
   const luna = calculateLunaPhase(user.lunaCycle);
 
   return (
@@ -34,7 +34,7 @@ const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
           <span className="text-xs text-yellow-500">{user.jobTitle}</span>
         </div>
         
-        {/* HP Bar (예산) - 가장 중요 */}
+        {/* HP Bar (예산) */}
         <div className="relative w-full h-6 bg-gray-800 border border-gray-600 rounded">
           <div 
             className={`h-full transition-all duration-500 ${
@@ -47,7 +47,7 @@ const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
           </span>
         </div>
 
-        {/* MP Bar (의지력/Guard 포인트) */}
+        {/* MP Bar (의지력) */}
         <div className="relative w-full h-2 mt-1 bg-gray-800 rounded">
           <div 
             className="h-full bg-blue-600 transition-all duration-500"
@@ -57,20 +57,17 @@ const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
       </div>
 
       {/* --- 2. 메인 비주얼 (내 방) --- */}
-      {/* 규칙 2-4: 접속만으로도 방어 행동이다. 평온한 휴식처 느낌. */}
-      [Image of pixel art cozy dark bedroom with rain window]
       <div className="flex-1 w-full relative flex items-center justify-center border-2 border-dashed border-gray-700 rounded-lg bg-gray-800 bg-opacity-50 mb-4 overflow-hidden">
         
         {/* 캐릭터 (중앙) */}
         <div className="flex flex-col items-center animate-float">
           <div className="text-6xl mb-2">🧙</div> 
-          {/* 추후 픽셀 아트 이미지로 교체 */}
           <div className="text-xs text-gray-400 bg-black px-2 rounded-full border border-gray-600">
              생존 {daysLeft}일 남음
           </div>
         </div>
 
-        {/* Luna 상태 표시 (창문 밖 날씨/달 처럼 표현) */}
+        {/* Luna 상태 표시 */}
         <div className="absolute top-2 right-2 text-right">
             <div className={`text-xs px-2 py-1 rounded border ${luna.isPeriod ? 'border-red-500 text-red-400' : 'border-gray-600 text-gray-500'}`}>
                 Luna: {luna.phaseName}
@@ -98,7 +95,7 @@ const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
         </button>
 
         <button 
-          onClick={() => onChangeScene(Scene.INVENTORY)} // 모달 트리거 연결 필요
+          onClick={() => onChangeScene(Scene.INVENTORY)}
           className="p-4 border-2 border-blue-900 bg-blue-950 hover:bg-blue-900 text-blue-200 rounded flex flex-col items-center transition-transform active:scale-95"
         >
           <span className="text-2xl mb-1">🎒</span>
@@ -106,14 +103,14 @@ const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
         </button>
 
         <button 
-          onClick={() => onChangeScene(Scene.KINGDOM)} // 모달 트리거 연결 필요
+          onClick={() => onChangeScene(Scene.KINGDOM)}
           className="p-3 border border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded flex items-center justify-center gap-2"
         >
           <span>🏰 자산 관리</span>
         </button>
 
         <button 
-          onClick={() => onChangeScene(Scene.COLLECTION)} // 모달 트리거 연결 필요
+          onClick={() => onChangeScene(Scene.COLLECTION)}
           className="p-3 border border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded flex items-center justify-center gap-2"
         >
           <span>📖 도감 확인</span>
@@ -123,5 +120,3 @@ const VillageView: React.FC<VillageViewProps> = ({ user, onChangeScene }) => {
     </div>
   );
 };
-
-export default VillageView;
