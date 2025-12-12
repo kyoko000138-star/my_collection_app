@@ -6,67 +6,47 @@ import {
   checkGuardianShield,
   getDruidRecoveryBonus,
   checkAlchemistBonus,
-} from './moneyClassLogic'; // 경로 확인 필요
+} from './moneyClassLogic';
 import { calculateLunaPhase } from './moneyLuna';
-
-
-const getTodayStringKST = () => {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  return kst.toISOString().split('T')[0];
-};
-
-const getDayOfMonthKST = () => {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  return kst.getUTCDate(); // KST로 이동시킨 뒤 UTCDate로 날짜 얻기
-};
-
-// ✅ 구독 청구 처리: “오늘이 결제일 + 이번달 아직 미청구”면 자동 지출
-export const applySubscriptionChargesIfDue = (state: UserState): { newState: UserState; logs: string[] } => {
-  const today = getTodayStringKST();
-  const day = getDayOfMonthKST();
-
-  const newState = JSON.parse(JSON.stringify(state)) as UserState;
-  const logs: string[] = [];
-
-  if (!newState.subscriptions || newState.subscriptions.length === 0) return { newState, logs };
-
-  for (const s of newState.subscriptions) {
-    if (!s.isActive) continue;
-
-    // 결제일 매칭(1~28 추천. 29~31은 월마다 달라서 별도 정책 필요)
-    if (s.billingDay !== day) continue;
-
-    // 같은 날짜에 이미 청구했으면 패스
-    if (s.lastChargedDate === today) continue;
-
-    // 지출 처리(고정비 = true)
-    const res = applySpend(newState, s.amount, true, 'subscription');
-    Object.assign(newState, res.newState);
-
-    s.lastChargedDate = today;
-    logs.push(`🏰 구독의 탑: ${s.name} -${s.amount.toLocaleString()} 청구`);
-  }
-
-  return { newState, logs };
-};
 
 // --- Helpers ---
 
-// [수정] 한국 시간(KST) 기준 날짜 문자열 반환 (YYYY-MM-DD)
+// 한국 시간(KST) 기준 날짜 문자열 (YYYY-MM-DD)
 const getTodayString = () => {
   const now = new Date();
-  // UTC + 9시간
   const kstDate = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   return kstDate.toISOString().split('T')[0];
 };
 
-// [수정] 한국 시간(KST) 기준 ISO 문자열 반환 (로그용)
+// 한국 시간(KST) 기준 ISO 문자열 (로그용)
 const getNowISOString = () => {
   const now = new Date();
   const kstDate = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   return kstDate.toISOString();
+};
+
+// KST 기준 “일(day of month)”
+const getTodayDayNumberKST = () => {
+  const now = new Date();
+  const kstDate = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return kstDate.getUTCDate();
+};
+
+const ensureGarden = (user: any) => {
+  if (!user.garden) {
+    user.garden = {
+      treeLevel: 0,
+      pondLevel: 0,
+      flowerState: 'normal',
+      weedCount: 0,
+    };
+  }
+};
+
+const ensureStatus = (user: any) => {
+  if (!user.status) {
+    user.status = { mode: 'NORMAL', darkLevel: 0 };
+  }
 };
 
 const addCollectionItem = (
@@ -80,7 +60,7 @@ const addCollectionItem = (
       id: itemData.id,
       name: itemData.name,
       description: itemData.desc,
-      obtainedAt: getNowISOString(), // [수정] KST 적용
+      obtainedAt: getNowISOString(),
       category,
     });
     return true;
@@ -88,42 +68,49 @@ const addCollectionItem = (
   return false;
 };
 
-// [NEW] 정원/아이템용 상수 & 인벤토리 헬퍼
-const GARDEN_ITEM_IDS = {
-  WATER: 'water_can', // 물뿌리개 (무지출 보상)
-  HOE: 'hoe', // 호미 (방어 보상)
-  NUTRIENT: 'nutrient', // 영양제 (나중에 꽃 회복용)
-} as const;
-
-type GardenItemId = (typeof GARDEN_ITEM_IDS)[keyof typeof GARDEN_ITEM_IDS];
-
-const addInventoryItem = (
-  state: UserState,
-  itemId: GardenItemId | string,
-  name: string,
-  count: number = 1,
-) => {
-  if (!state.inventory) return;
-  const idx = state.inventory.findIndex((i) => i.id === itemId);
-  if (idx > -1) {
-    state.inventory[idx].count += count;
-  } else {
-    state.inventory.push({
-      id: itemId,
-      name,
-      type: 'consumable',
-      count,
-    });
-  }
-};
-
 // --- Core Logic ---
 
-// 1. 일일 리셋 & 데일리 몬스터 생성
+// 0. (NEW) 구독/고정비 “오늘 결제일” 자동 청구
+export const applySubscriptionChargesIfDue = (
+  state: UserState,
+): { newState: UserState; logs: string[] } => {
+  const today = getTodayString();
+  const day = getTodayDayNumberKST();
+
+  // 깊은 복사
+  let working = JSON.parse(JSON.stringify(state)) as UserState;
+  const logs: string[] = [];
+
+  if (!Array.isArray(working.subscriptions) || working.subscriptions.length === 0) {
+    return { newState: working, logs };
+  }
+
+  // billingDay는 1~28 권장(29~31은 정책 필요)
+  for (let i = 0; i < working.subscriptions.length; i++) {
+    const s = working.subscriptions[i];
+    if (!s?.isActive) continue;
+    if (s.cycle && s.cycle !== 'MONTHLY') continue; // 지금은 MONTHLY만 자동 처리
+    if (s.billingDay !== day) continue;
+    if (s.lastChargedDate === today) continue;
+
+    const res = applySpend(working, s.amount, true, s.categoryId || 'subscription');
+    working = res.newState;
+
+    // applySpend가 deep copy를 만들기 때문에, 현재 working에서 다시 찍어줘야 안전
+    if (working.subscriptions?.[i]) {
+      working.subscriptions[i].lastChargedDate = today;
+    }
+
+    logs.push(`🏰 구독의 탑: ${s.name} -${s.amount.toLocaleString()} 청구`);
+  }
+
+  return { newState: working, logs };
+};
+
+// 1. 일일 리셋
 export const checkDailyReset = (state: UserState): UserState => {
   const today = getTodayString();
 
-  // 이미 오늘 리셋을 했다면 그대로 반환
   if (state.counters.lastDailyResetDate === today) return state;
 
   const luna = calculateLunaPhase(state.lunaCycle);
@@ -132,7 +119,6 @@ export const checkDailyReset = (state: UserState): UserState => {
     luna.phaseName.includes('Rest') || luna.isPeriod,
   );
 
-  // MP 회복
   const newMp = Math.min(
     state.maxMp,
     state.mp + GAME_CONSTANTS.MP_RECOVERY_ACCESS + druidBonus,
@@ -153,14 +139,17 @@ export const checkDailyReset = (state: UserState): UserState => {
   };
 };
 
-// 2. 지출 (피격)
+// 2. 지출 (피격) + 흑화 모드 반영
 export const applySpend = (
   state: UserState,
   amount: number,
   isFixedCost: boolean,
   categoryId: string = 'etc',
 ): { newState: UserState; message: string } => {
-  const newState = JSON.parse(JSON.stringify(state)) as UserState; // Deep Copy
+  const newState = JSON.parse(JSON.stringify(state)) as UserState;
+  ensureGarden(newState);
+  ensureStatus(newState);
+
   let message = '';
 
   // 기본 데미지 적용
@@ -169,16 +158,16 @@ export const applySpend = (
   newState.counters.dailyTotalSpend += amount;
 
   // 기록(Pending) 추가
-  const dungeonName =
-    DUNGEONS[categoryId as keyof typeof DUNGEONS]?.name || '지출';
+  const dungeonName = (DUNGEONS as any)?.[categoryId]?.name || '지출';
   const newTx: PendingTransaction = {
     id: Date.now().toString(),
     amount,
     note: dungeonName,
-    createdAt: getNowISOString(), // [수정] KST 적용
+    createdAt: getNowISOString(),
+    categoryId,
+    kind: isFixedCost ? 'SPEND' : 'SPEND',
   };
 
-  // 최근 50개 유지
   newState.pending = [newTx, ...newState.pending].slice(0, 50);
 
   // 수호자(Guardian) 체크
@@ -187,22 +176,20 @@ export const applySpend = (
   if (isGuarded) {
     message = `🛡️ [수호자] 심리적 방어 발동! 데미지는 입었지만 의지력은 지켰습니다.`;
   } else {
-    newState.counters.noSpendStreak = 0; // 콤보 끊김
+    newState.counters.noSpendStreak = 0;
 
-    // Junk 획득 로직 (고정비 제외, 일정 금액 이상, 하루 제한 미만)
+    // Junk 획득 로직
     if (
       !isFixedCost &&
       amount >= GAME_CONSTANTS.JUNK_THRESHOLD &&
-      newState.counters.junkObtainedToday <
-        GAME_CONSTANTS.DAILY_JUNK_LIMIT
+      newState.counters.junkObtainedToday < GAME_CONSTANTS.DAILY_JUNK_LIMIT
     ) {
       newState.junk += 1;
       newState.counters.junkObtainedToday += 1;
-      newState.assets.warehouse += 1; // 창고 성장
+      newState.assets.warehouse += 1;
 
       message = `💥 HP -${amount.toLocaleString()}.\nJunk 획득!`;
 
-      // 랜덤 도감 드랍 (20% 확률)
       if (Math.random() < 0.2) {
         const randomIndex = Math.floor(
           Math.random() * COLLECTION_DB.JUNK_FOREST.length,
@@ -216,26 +203,18 @@ export const applySpend = (
     }
   }
 
-  if (isFixedCost) newState.assets.mansion += 1; // 저택 성장
+  if (isFixedCost) newState.assets.mansion += 1;
 
-  // [NEW] 예산 초과 시 정원 패널티
-  if (newState.garden) {
-    const isBudgetOver = newState.currentBudget < 0;
+  // ✅ 흑화 모드: HP가 0 이하로 내려가면 “정원 직격”
+  if (newState.maxBudget > 0 && newState.currentBudget <= 0) {
+    newState.status.mode = 'DARK';
+    newState.status.darkLevel = Math.min(100, (newState.status.darkLevel || 0) + 10);
 
-    if (isBudgetOver) {
-      newState.garden.flowerState = 'withered';
-      if (Math.random() < 0.5) {
-        newState.garden.weedCount = (newState.garden.weedCount || 0) + 1;
-        message += `\n💀 예산을 넘겨서 정원에 잡초가 자라났습니다.`;
-      } else {
-        message += `\n🥀 꽃이 시들어버렸어요. 다음에 다시 가꿔봅시다.`;
-      }
-    } else {
-      // 예산 안에서 쓴 날에는 꽃을 보통 상태로 유지 (이미 blooming이면 그대로)
-      if (newState.garden.flowerState === 'normal') {
-        // 그대로 두거나, 상황에 따라 나중에 로직 추가 가능
-      }
-    }
+    // 정원 타격: 꽃 시들고 잡초 증가(부채/압박 시각화)
+    newState.garden.flowerState = 'withered';
+    newState.garden.weedCount = (newState.garden.weedCount || 0) + 1;
+
+    message += `\n🖤 흑화 모드 발동… 정원이 시들기 시작합니다.`;
   }
 
   return { newState, message };
@@ -243,39 +222,18 @@ export const applySpend = (
 
 // 3. 방어 (MP 회복)
 export const applyDefense = (state: UserState): UserState => {
-  if (
-    state.counters.defenseActionsToday >=
-    GAME_CONSTANTS.DAILY_DEFENSE_LIMIT
-  )
+  if (state.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT)
     return state;
 
-  const newState: UserState = {
+  return {
     ...state,
-    mp: Math.min(
-      state.maxMp,
-      state.mp + GAME_CONSTANTS.MP_RECOVERY_DEFENSE,
-    ),
+    mp: Math.min(state.maxMp, state.mp + GAME_CONSTANTS.MP_RECOVERY_DEFENSE),
     counters: {
       ...state.counters,
       defenseActionsToday: state.counters.defenseActionsToday + 1,
     },
     assets: { ...state.assets, fortress: state.assets.fortress + 1 },
   };
-
-  // [NEW] 방어 성공 시 정원 관련 아이템 드랍(확률)
-  if (newState.garden) {
-    // 30% 확률로 호미 또는 영양제 지급
-    if (Math.random() < 0.3) {
-      const itemId =
-        Math.random() < 0.5
-          ? GARDEN_ITEM_IDS.HOE
-          : GARDEN_ITEM_IDS.NUTRIENT;
-      const name = itemId === GARDEN_ITEM_IDS.HOE ? '호미' : '영양제';
-      addInventoryItem(newState, itemId, name, 1);
-    }
-  }
-
-  return newState;
 };
 
 // 4. 하루 마감
@@ -284,9 +242,12 @@ export const applyDayEnd = (
 ): { newState: UserState; message: string } => {
   const today = getTodayString();
   const newState = JSON.parse(JSON.stringify(state)) as UserState;
+  ensureGarden(newState);
+  ensureStatus(newState);
+
   const logs: string[] = [];
 
-  // Natural Dust (시간이 지나면 쌓이는 먼지)
+  // Natural Dust
   newState.junk += 1;
   logs.push('🧹 Natural Dust +1');
 
@@ -295,26 +256,10 @@ export const applyDayEnd = (
     newState.counters.noSpendStreak += 1;
     newState.salt += 1;
     newState.assets.airfield += 1;
-    logs.push(
-      `✨ 무지출! Salt +1 (Streak: ${newState.counters.noSpendStreak})`,
-    );
-
-    // [NEW] 무지출이면 정원에 물뿌리개 지급 + 꽃 상태 개선
-    if (newState.garden) {
-      addInventoryItem(newState, GARDEN_ITEM_IDS.WATER, '물뿌리개', 1);
-
-      if (newState.garden.flowerState !== 'withered') {
-        newState.garden.flowerState = 'blooming';
-      }
-      logs.push('💧 정원이 촉촉해졌습니다. (물뿌리개 +1)');
-    }
+    logs.push(`✨ 무지출! Salt +1 (Streak: ${newState.counters.noSpendStreak})`);
 
     if (newState.counters.noSpendStreak === 3) {
-      addCollectionItem(
-        newState,
-        COLLECTION_DB.BADGES.NO_SPEND_3,
-        'BADGE',
-      );
+      addCollectionItem(newState, COLLECTION_DB.BADGES.NO_SPEND_3, 'BADGE');
     }
   }
 
@@ -332,32 +277,27 @@ export const applyPurify = (
     salt: GAME_CONSTANTS.PURIFY_COST_SALT,
   };
 
-  if (
-    state.mp < cost.mp ||
-    state.junk < cost.junk ||
-    state.salt < cost.salt
-  ) {
+  if (state.mp < cost.mp || state.junk < cost.junk || state.salt < cost.salt) {
     return { newState: state, message: '자원이 부족합니다.' };
   }
 
-  const newState = { ...state };
+  const newState = JSON.parse(JSON.stringify(state)) as UserState;
+  ensureGarden(newState);
+  ensureStatus(newState);
+
   newState.mp -= cost.mp;
   newState.junk -= cost.junk;
   newState.salt -= cost.salt;
 
-  // 연금술사 보너스
   const isBonus = checkAlchemistBonus(state);
   const amount = isBonus ? 2 : 1;
 
-  newState.materials['PURE_ESSENCE'] =
-    (newState.materials['PURE_ESSENCE'] || 0) + amount;
+  newState.materials['PURE_ESSENCE'] = (newState.materials['PURE_ESSENCE'] || 0) + amount;
   newState.assets.tower += 1;
 
   return {
     newState,
-    message: `✨ 정화 성공!\nPure Essence +${amount} ${
-      isBonus ? '(연금술사 보너스!)' : ''
-    }`,
+    message: `✨ 정화 성공!\nPure Essence +${amount} ${isBonus ? '(연금술사 보너스!)' : ''}`,
   };
 };
 
@@ -367,12 +307,12 @@ export const applyCraftEquipment = (
 ): { newState: UserState; message: string } => {
   const cost = 3;
   if ((state.materials['PURE_ESSENCE'] || 0) < cost)
-    return {
-      newState: state,
-      message: 'Pure Essence가 부족합니다.',
-    };
+    return { newState: state, message: 'Pure Essence가 부족합니다.' };
 
-  const newState = { ...state };
+  const newState = JSON.parse(JSON.stringify(state)) as UserState;
+  ensureGarden(newState);
+  ensureStatus(newState);
+
   newState.materials['PURE_ESSENCE'] -= cost;
   newState.inventory.push({
     id: 'sword_01',
@@ -386,9 +326,7 @@ export const applyCraftEquipment = (
 };
 
 // 7. 자산 뷰 헬퍼
-export const getAssetBuildingsView = (
-  state: UserState,
-): AssetBuildingView[] => {
+export const getAssetBuildingsView = (state: UserState): AssetBuildingView[] => {
   const calc = (cnt: number) => {
     if (cnt >= 100) return { level: 4, nextTarget: null };
     if (cnt >= 30) return { level: 3, nextTarget: 100 };
@@ -397,50 +335,22 @@ export const getAssetBuildingsView = (
   };
 
   return [
-    {
-      id: 'fortress',
-      label: '요새 (방어)',
-      ...calc(state.assets.fortress),
-      count: state.assets.fortress,
-    },
-    {
-      id: 'airfield',
-      label: '비행장 (무지출)',
-      ...calc(state.assets.airfield),
-      count: state.assets.airfield,
-    },
-    {
-      id: 'mansion',
-      label: '저택 (고정비)',
-      ...calc(state.assets.mansion),
-      count: state.assets.mansion,
-    },
-    {
-      id: 'tower',
-      label: '마법탑 (정화)',
-      ...calc(state.assets.tower),
-      count: state.assets.tower,
-    },
-    {
-      id: 'warehouse',
-      label: '창고 (파밍)',
-      ...calc(state.assets.warehouse),
-      count: state.assets.warehouse,
-    },
+    { id: 'fortress', label: '요새 (방어)', ...calc(state.assets.fortress), count: state.assets.fortress },
+    { id: 'airfield', label: '비행장 (무지출)', ...calc(state.assets.airfield), count: state.assets.airfield },
+    { id: 'mansion', label: '저택 (고정비)', ...calc(state.assets.mansion), count: state.assets.mansion },
+    { id: 'tower', label: '마법탑 (정화)', ...calc(state.assets.tower), count: state.assets.tower },
+    { id: 'warehouse', label: '창고 (파밍)', ...calc(state.assets.warehouse), count: state.assets.warehouse },
   ];
 };
 
-// 8. 데일리 몬스터 생성기 (Pending 내역 기반 추론)
+// 8. 데일리 몬스터 생성기
 export const getDailyMonster = (pending: PendingTransaction[]) => {
   let monsterType = 'etc';
   if (pending && pending.length > 0) {
     const lastNote = pending[0].note || '';
-    if (lastNote.includes('배달') || lastNote.includes('식비'))
-      monsterType = 'food';
-    else if (lastNote.includes('택시') || lastNote.includes('교통'))
-      monsterType = 'transport';
-    else if (lastNote.includes('지름') || lastNote.includes('쇼핑'))
-      monsterType = 'shopping';
+    if (lastNote.includes('배달') || lastNote.includes('식비')) monsterType = 'food';
+    else if (lastNote.includes('택시') || lastNote.includes('교통')) monsterType = 'transport';
+    else if (lastNote.includes('지름') || lastNote.includes('쇼핑')) monsterType = 'shopping';
   }
   return monsterType;
 };
