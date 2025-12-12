@@ -1,7 +1,6 @@
-// src/money/components/GardenView.tsx
 import React from 'react';
 import { UserState, Scene } from '../types';
-import { calculateLunaPhase } from '../money/moneyLuna';
+import { calculateLunaPhase } from '../moneyLuna';
 
 interface Props {
   user: UserState;
@@ -14,11 +13,14 @@ export const GardenView: React.FC<Props> = ({ user, onChangeScene, onDayEnd }) =
   const assets = user.assets;
   const luna = calculateLunaPhase(user.lunaCycle);
 
-  // 나무 상태
+  // 나무 상태 이모지 및 크기 계산
   const treeEmoji = treeLevel === 0 ? '🌱' : treeLevel < 3 ? '🌿' : treeLevel < 5 ? '🌳' : '🌲';
+  const treeSize = 40 + (treeLevel * 15);
   
   // 배경 (루나 반영)
-  const skyColor = luna.isPeriod ? 'linear-gradient(#7f1d1d, #fca5a5)' : 'linear-gradient(#60a5fa, #bfdbfe)';
+  const skyColor = luna.isPeriod 
+    ? 'linear-gradient(#7f1d1d, #fca5a5)' 
+    : 'linear-gradient(#60a5fa, #bfdbfe)';
 
   return (
     <div style={{...styles.container, background: skyColor}}>
@@ -36,9 +38,16 @@ export const GardenView: React.FC<Props> = ({ user, onChangeScene, onDayEnd }) =
         {Array.from({length: 6}).map((_,i) => <span key={i}>I</span>)}
       </div>
 
-      {/* 3. 중앙 꿈의 나무 */}
+      {/* 3. 중앙 꿈의 나무 (수정된 부분: style 문법 오류 수정) */}
       <div style={styles.tree}>
-        <div style={{fontSize: `${40 + treeLevel*15}px`, filter:'drop-shadow(0 10px 5px rgba(0,0,0,0.3))`}}>{treeEmoji}</div>
+        <div 
+          style={{
+            fontSize: `${treeSize}px`, 
+            filter: 'drop-shadow(0 10px 5px rgba(0,0,0,0.3))'
+          }}
+        >
+          {treeEmoji}
+        </div>
       </div>
 
       {/* 4. 잡초 및 꽃 */}
