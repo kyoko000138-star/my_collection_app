@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { UserState } from '../types';
-import { calculateLunaPhase } from '../money/moneyLuna';
+// [수정] 경로 변경: '../money/moneyLuna' -> '../moneyLuna'
+import { calculateLunaPhase } from '../moneyLuna';
 
 interface Props {
   user: UserState;
