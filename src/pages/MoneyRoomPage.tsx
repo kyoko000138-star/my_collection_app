@@ -1,7 +1,8 @@
 // src/pages/MoneyRoomPage.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MoneySummaryView } from '../money/components/MoneySummaryView';
+
 
 // Data & Logic
 import { UserState, Scene } from '../money/types';
