@@ -4,28 +4,23 @@
 // Scene Definition
 // -------------------------
 export enum Scene {
-  GARDEN = 'GARDEN',           // [Main] 자산의 정원 (홈 화면)
-  MY_ROOM = 'MY_ROOM',         // [Menu] 마이룸 (상태창)
-  VILLAGE_MAP = 'VILLAGE_MAP', // [Hub] 마을 지도 (이동 거점)
-  LIBRARY = 'LIBRARY',         // [Feature] 도서관 (구독/기록)
-  WORLD_MAP = 'WORLD_MAP',     // [Adventure] 던전 선택
-  FIELD = 'FIELD',             // [Adventure] 실시간 탐험
-  BATTLE = 'BATTLE',           // [Action] 지출 입력 (전투)
-  INVENTORY = 'INVENTORY',     // [Menu] 가방
-  KINGDOM = 'KINGDOM',         // [Menu] 자산 현황 (파일명 유지)
-  COLLECTION = 'COLLECTION',   // [Menu] 도감
-  SUBSCRIPTION = 'SUBSCRIPTION' // [Modal] 구독 관리
+  GARDEN = 'GARDEN',
+  MY_ROOM = 'MY_ROOM',
+  VILLAGE_MAP = 'VILLAGE_MAP',
+  LIBRARY = 'LIBRARY',
+  WORLD_MAP = 'WORLD_MAP',
+  FIELD = 'FIELD',
+  BATTLE = 'BATTLE',
+  INVENTORY = 'INVENTORY',
+  KINGDOM = 'KINGDOM',
+  COLLECTION = 'COLLECTION',
+  SUBSCRIPTION = 'SUBSCRIPTION'
 }
 
 // -------------------------
-// Assets (정원 테마로 리뉴얼)
+// Assets
 // -------------------------
-export type AssetBuildingId = 
-  | 'fence'        // 방어 (구 요새) -> 울타리
-  | 'greenhouse'   // 무지출 (구 비행장) -> 온실
-  | 'mansion'      // 고정비 (구 저택) -> 저택
-  | 'fountain'     // 정화 (구 마법탑) -> 정화의 분수
-  | 'barn';        // 파밍 (구 창고) -> 헛간
+export type AssetBuildingId = 'fence' | 'greenhouse' | 'mansion' | 'fountain' | 'barn';
 
 export interface AssetBuildingsState {
   fence: number;
@@ -44,18 +39,27 @@ export interface AssetBuildingView {
 }
 
 // -------------------------
-// Field Objects (탐험용)
+// Field & Shadows (NEW)
 // -------------------------
 export interface FieldObject {
   id: string;
-  x: number; // 0~100%
-  y: number; // 0~100%
+  x: number;
+  y: number;
   type: 'JUNK' | 'HERB' | 'CHEST';
   isCollected: boolean;
 }
 
+export interface ShadowMonster {
+  id: string;
+  amount: number;      // 지출 금액
+  category: string;    // 카테고리
+  createdAt: string;
+  x: number;           // 필드 좌표 X
+  y: number;           // 필드 좌표 Y
+}
+
 // -------------------------
-// Inventory & Items
+// Inventory
 // -------------------------
 export type ItemType = 'consumable' | 'equipment' | 'material' | 'junk' | 'decor';
 
@@ -69,7 +73,7 @@ export interface Item {
 }
 
 // -------------------------
-// Garden (비주얼 상태)
+// Garden
 // -------------------------
 export type FlowerState = 'blooming' | 'normal' | 'withered';
 export interface GardenState {
@@ -170,6 +174,9 @@ export interface UserState {
   assets: AssetBuildingsState;
   counters: UserCounters;
   subscriptions: SubscriptionPlan[];
+  
+  // [NEW] 해결되지 않은 그림자들
+  unresolvedShadows: ShadowMonster[];
 
   lastLoginDate?: string;
 }
