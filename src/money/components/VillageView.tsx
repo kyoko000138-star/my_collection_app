@@ -20,6 +20,69 @@ export const VillageView: React.FC<VillageViewProps> = ({
   onChangeScene,
   onDayEnd,
 }) => {
+
+
+
+  // VillageView.tsx 스타일 부분 수정 제안
+
+const styles = {
+  // 전체 배경: 어두운 던전 느낌 or 잔디 느낌
+  container: {
+    width: '100%', height: '100%',
+    backgroundColor: '#2d3748', // 어두운 남색
+    // 도트 패턴 (CSS로 구현)
+    backgroundImage: 'radial-gradient(#4a5568 15%, transparent 16%)',
+    backgroundSize: '16px 16px', 
+    position: 'relative',
+    color: '#fff',
+    fontFamily: '"NeoDungGeunMo", monospace', // 폰트 필수
+  },
+
+  // 캐릭터 (이모지 대신 픽셀 느낌 확대)
+  characterSprite: {
+    fontSize: '80px',
+    filter: 'drop-shadow(4px 4px 0px rgba(0,0,0,0.5))', // 그림자도 딱딱하게
+    animation: 'bounce 2s infinite', // 둥실둥실
+  },
+
+  // 대화창 (RPG 스타일)
+  dialogBox: {
+    position: 'absolute', bottom: '120px', left: '10px', right: '10px',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)', // 반투명 검정
+    border: '4px solid #fff', // 흰색 굵은 테두리
+    borderRadius: '8px',
+    padding: '16px',
+    color: '#fff',
+    fontSize: '16px',
+    lineHeight: '1.6',
+    boxShadow: '0 8px 0 rgba(0,0,0,0.3)',
+  },
+
+  // 하단 메뉴 (2x2 그리드)
+  controllerArea: {
+    position: 'absolute', bottom: '10px', left: '10px', right: '10px',
+    display: 'grid', 
+    gridTemplateColumns: '1fr 1fr', 
+    gap: '8px',
+    padding: '8px',
+    backgroundColor: '#4a5568',
+    border: '4px solid #cbd5e0',
+    borderRadius: '4px'
+  },
+  
+  // 버튼 스타일
+  rpgButton: {
+    backgroundColor: '#3182ce', // 파판 파란색
+    color: 'white',
+    border: '2px solid #bee3f8', // 밝은 테두리
+    boxShadow: 'inset -3px -3px 0 rgba(0,0,0,0.4)', // 입체감
+    padding: '12px',
+    fontFamily: 'inherit',
+    fontSize: '14px',
+    cursor: 'pointer',
+    textAlign: 'left' as 'left', // 텍스트 왼쪽 정렬 (고전 느낌)
+  }
+};
   // --- 대화 훅 세팅 ---
   const { currentLine, visible, startScript, next } = useDialogue();
 
