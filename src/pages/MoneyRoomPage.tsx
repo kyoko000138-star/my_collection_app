@@ -17,6 +17,11 @@ import {
   getDailyMonster,
 } from '../money/moneyGameLogic';
 import { calculateLunaPhase, getLunaTheme } from '../money/moneyLuna';
+import {
+  applyRepayment,
+  applySavings,
+  checkMentalCare,
+} from '../money/moneyHealthyLogic';
 
 // Views
 import { VillageView } from '../money/components/VillageView';
@@ -43,29 +48,31 @@ const INITIAL_STATE: UserState = {
   junk: 0,
   salt: 0,
   lunaCycle: { startDate: '', periodLength: 5, cycleLength: 28 },
+  // 🌱 정원 기본값
+  garden: {
+    treeLevel: 1,
+    weedCount: 0,
+    flowerState: 'normal',
+  },
   inventory: [],
   collection: [],
   pending: [],
   materials: {},
-  assets: {
-    fortress: 0,
-    airfield: 0,
-    mansion: 0,
-    tower: 0,
-    warehouse: 0,
-  },
+  assets: { fortress: 0, airfield: 0, mansion: 0, tower: 0, warehouse: 0 },
   counters: {
     defenseActionsToday: 0,
     junkObtainedToday: 0,
-    dailyTotalSpend: 0,
-    hadSpendingToday: false,
     noSpendStreak: 0,
+    dailyTotalSpend: 0,
     guardPromptShownToday: false,
+    hadSpendingToday: false,
     lastDailyResetDate: undefined,
     lastDayEndDate: undefined,
   },
   lastLoginDate: undefined,
 };
+
+type SpendMode = 'spend' | 'debt' | 'saving';
 
 const MoneyRoomPage: React.FC = () => {
   // --- State ---
@@ -84,7 +91,10 @@ const MoneyRoomPage: React.FC = () => {
   // 🎮 게임 / 📊 요약 뷰 전환
   const [viewMode, setViewMode] = useState<'GAME' | 'SUMMARY'>('GAME');
 
-  // 하루 마감 리포트
+  // 💳 지출 모드 (일반 / 상환 / 저축)
+  const [spendMode, setSpendMode] = useState<SpendMode>('spend');
+
+  // 하루 마감 모달
   const [showDailyLog, setShowDailyLog] = useState(false);
 
   // --- Effects ---
@@ -100,7 +110,7 @@ const MoneyRoomPage: React.FC = () => {
   const todayStr = new Date().toISOString().split('T')[0];
   const lunaPhase = calculateLunaPhase(gameState.lunaCycle);
   const theme = getLunaTheme(lunaPhase);
-  const isNewUser = gameState.maxBudget === 0; // 예산 0이면 온보딩 유저로 간주
+  const isNewUser = gameState.maxBudget === 0;
 
   const currentMonsterType =
     scene === Scene.BATTLE
@@ -116,22 +126,49 @@ const MoneyRoomPage: React.FC = () => {
 
   // --- Handlers ---
 
-  // 지출(피격)
+  // 💸 지출/상환/저축 공통 처리
   const handleSpend = (amount: number) => {
-    const { newState, message } = applySpend(
-      gameState,
+    if (!amount || amount <= 0) return;
+
+    let resultState = gameState;
+    const messages: string[] = [];
+
+    // 1) 공통: 지출 데미지 + Junk 처리
+    const spendRes = applySpend(
+      resultState,
       amount,
       false,
-      activeDungeon,
+      activeDungeon || 'etc',
     );
-    setGameState(newState);
+    resultState = spendRes.newState;
+    messages.push(spendRes.message);
+
+    // 2) 모드별 추가 보상/정원 처리
+    if (spendMode === 'debt') {
+      const { newState, msg } = applyRepayment(resultState, amount);
+      resultState = newState;
+      messages.push(msg);
+    } else if (spendMode === 'saving') {
+      const { newState, msg } = applySavings(resultState, amount);
+      resultState = newState;
+      messages.push(msg);
+    } else {
+      // 일반 지출일 때만 멘탈 케어 체크
+      const care = checkMentalCare(resultState);
+      if (care === 'gardener_tea_time') {
+        messages.push(
+          '🍵 정원사가 따뜻한 차를 준비했어요. 오늘은 나를 조금 더 아껴줘요.',
+        );
+      }
+    }
+
+    setGameState(resultState);
     setTimeout(() => {
-      alert(message);
+      alert(messages.join('\n'));
       setScene(Scene.VILLAGE);
     }, 100);
   };
 
-  // 방어(의지력 회복)
   const handleGuard = () => {
     const next = applyDefense(gameState);
     setGameState(next);
@@ -141,15 +178,28 @@ const MoneyRoomPage: React.FC = () => {
     }, 100);
   };
 
-  // 하루 마감
+  // 🛏 하루 마감 (여관에서 쉬기)
   const handleDayEnd = () => {
     const { newState, message } = applyDayEnd(gameState);
     setGameState(newState);
-    if (message) alert(message);
     setShowDailyLog(true);
+    if (message) {
+      alert(message);
+    }
   };
 
-  // 온보딩 완료
+  // 디버그 리셋
+  const handleReset = () => {
+    if (
+      window.confirm(
+        '머니룸 데이터를 모두 초기화할까요?\n(예산/자산/도감 기록이 모두 지워집니다)',
+      )
+    ) {
+      localStorage.removeItem(STORAGE_KEY);
+      window.location.reload();
+    }
+  };
+
   const handleOnboarding = (data: any) => {
     setGameState((prev) => ({
       ...prev,
@@ -166,13 +216,7 @@ const MoneyRoomPage: React.FC = () => {
 
   // --- Render ---
   return (
-    <div
-      className="money-game-wrapper"
-      style={{
-        ...styles.appContainer,
-        backgroundColor: theme.bg,
-      }}
-    >
+    <div style={{ ...styles.appContainer, backgroundColor: theme.bg }}>
       {/* 🎮 게임 / 📊 요약 토글 */}
       <div style={styles.viewToggle}>
         <button
@@ -199,6 +243,57 @@ const MoneyRoomPage: React.FC = () => {
         </button>
       </div>
 
+      {/* 💳 지출 모드 토글 (GAME 모드일 때만 표시) */}
+      {viewMode === 'GAME' && (
+        <div style={styles.modeToggle}>
+          <button
+            type="button"
+            onClick={() => setSpendMode('spend')}
+            style={{
+              ...styles.modeButton,
+              backgroundColor:
+                spendMode === 'spend'
+                  ? '#f97316'
+                  : 'rgba(15,23,42,0.85)',
+              borderColor:
+                spendMode === 'spend' ? '#fdba74' : '#4b5563',
+            }}
+          >
+            💸 일반 지출
+          </button>
+          <button
+            type="button"
+            onClick={() => setSpendMode('debt')}
+            style={{
+              ...styles.modeButton,
+              backgroundColor:
+                spendMode === 'debt'
+                  ? '#16a34a'
+                  : 'rgba(15,23,42,0.85)',
+              borderColor:
+                spendMode === 'debt' ? '#4ade80' : '#4b5563',
+            }}
+          >
+            💳 대출/할부 상환
+          </button>
+          <button
+            type="button"
+            onClick={() => setSpendMode('saving')}
+            style={{
+              ...styles.modeButton,
+              backgroundColor:
+                spendMode === 'saving'
+                  ? '#0ea5e9'
+                  : 'rgba(15,23,42,0.85)',
+              borderColor:
+                spendMode === 'saving' ? '#7dd3fc' : '#4b5563',
+            }}
+          >
+            💰 저축/이체
+          </button>
+        </div>
+      )}
+
       {/* 메인 컨텐츠 */}
       {viewMode === 'SUMMARY' ? (
         <MoneySummaryView
@@ -207,12 +302,14 @@ const MoneyRoomPage: React.FC = () => {
         />
       ) : (
         <>
-          {/* 온보딩 모달 (최초 1회) */}
           {isNewUser && <OnboardingModal onComplete={handleOnboarding} />}
 
-          {/* 마을 / 월드맵 / 배틀 */}
           {scene === Scene.VILLAGE && (
-            <VillageView user={gameState} onChangeScene={setScene} />
+            <VillageView
+              user={gameState}
+              onChangeScene={setScene}
+              onDayEnd={handleDayEnd}
+            />
           )}
 
           {scene === Scene.WORLD_MAP && (
@@ -286,25 +383,9 @@ const MoneyRoomPage: React.FC = () => {
         pending={gameState.pending}
       />
 
-      {/* 디버그 / 관리 버튼 */}
+      {/* 디버그 Reset */}
       <div style={styles.debugArea}>
-        <button type="button" onClick={handleDayEnd} style={styles.debugButton}>
-          🌙 하루 마감
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (
-              window.confirm(
-                '머니룸 데이터를 모두 초기화할까요?\n(예산/자산/도감 기록이 모두 지워집니다)',
-              )
-            ) {
-              localStorage.removeItem(STORAGE_KEY);
-              window.location.reload();
-            }
-          }}
-          style={styles.debugButton}
-        >
+        <button type="button" onClick={handleReset}>
           🔄 Reset
         </button>
       </div>
@@ -316,9 +397,7 @@ const styles: Record<string, React.CSSProperties> = {
   appContainer: {
     maxWidth: '420px',
     margin: '0 auto',
-    height: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
+    minHeight: '100vh',
     color: '#fff',
     fontFamily: '"NeoDungGeunMo", monospace',
     position: 'relative',
@@ -334,7 +413,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 4,
   },
   viewToggleBtn: {
-    padding: '4px 10px',
+    padding: '4px 8px',
     borderRadius: 999,
     border: '1px solid #4b5563',
     fontSize: 11,
@@ -342,24 +421,32 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     backgroundColor: '#020617',
   },
+  // 💳 지출 모드 토글
+  modeToggle: {
+    position: 'absolute',
+    top: 40,
+    left: 8,
+    right: 8,
+    zIndex: 35,
+    display: 'flex',
+    gap: 4,
+    justifyContent: 'center',
+  },
+  modeButton: {
+    padding: '4px 6px',
+    borderRadius: 999,
+    border: '1px solid #4b5563',
+    fontSize: 10,
+    color: '#e5e7eb',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
   debugArea: {
     position: 'absolute',
     bottom: 6,
     right: 6,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-    opacity: 0.35,
-    zIndex: 100,
-  },
-  debugButton: {
+    opacity: 0.4,
     fontSize: 10,
-    padding: '4px 6px',
-    borderRadius: 6,
-    border: '1px solid #4b5563',
-    backgroundColor: '#020617',
-    color: '#e5e7eb',
-    cursor: 'pointer',
   },
 };
 
