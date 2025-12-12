@@ -1,19 +1,52 @@
 // src/money/moneyLuna.ts
 
-export interface LunaCycle {
-  startDate: string;   // 마지막 생리 시작일 (YYYY-MM-DD)
-  periodLength: number; // 생리 지속 기간 (일)
-  cycleLength: number;  // 주기 (일, 보통 28)
-}
+import { LunaCycle } from './types';
 
 export interface LunaPhaseResult {
   dayInCycle: number;
-  phaseName: string; // 표시될 텍스트 (예: "Period", "Follicular")
-  isPeriod: boolean; // 피격(지출) 시 경고 여부
-  intensity: number; // 0~100 (환경 난이도)
+  phaseName: string;
+  isPeriod: boolean;
+  intensity: number;
+  daysUntilNext?: number; // 다음 예정일까지 남은 일수
 }
 
-// 1. 주기 계산 로직
+// --------------------------------------------------------
+// 1. 평균 주기 계산기 (AI 예측 로직)
+// --------------------------------------------------------
+export const recalculateCycle = (history: string[]): number => {
+  // 데이터가 2개 미만이면 계산 불가 -> 기본값 28일 반환
+  if (!history || history.length < 2) return 28;
+
+  // 날짜순 정렬 (오름차순)
+  const sortedDates = [...history].sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  
+  // 최근 5개만 사용 (너무 옛날 데이터는 배제)
+  const recentDates = sortedDates.slice(-5);
+
+  let totalDays = 0;
+  let gapCount = 0;
+
+  for (let i = 1; i < recentDates.length; i++) {
+    const prev = new Date(recentDates[i - 1]);
+    const curr = new Date(recentDates[i]);
+    const diffTime = Math.abs(curr.getTime() - prev.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // 비정상적인 데이터(10일 미만, 60일 초과)는 제외 (노이즈 필터링)
+    if (diffDays > 10 && diffDays < 60) {
+      totalDays += diffDays;
+      gapCount++;
+    }
+  }
+
+  if (gapCount === 0) return 28;
+  
+  return Math.round(totalDays / gapCount);
+};
+
+// --------------------------------------------------------
+// 2. 현재 상태 및 예측 계산
+// --------------------------------------------------------
 export const calculateLunaPhase = (cycle: LunaCycle): LunaPhaseResult => {
   if (!cycle.startDate) {
     return { dayInCycle: 0, phaseName: "Unknown", isPeriod: false, intensity: 0 };
@@ -22,81 +55,79 @@ export const calculateLunaPhase = (cycle: LunaCycle): LunaPhaseResult => {
   const start = new Date(cycle.startDate);
   const today = new Date();
   
-  // 날짜 차이 계산 (밀리초 -> 일)
-  const diffTime = Math.abs(today.getTime() - start.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
-  // 현재 주기 내의 일차 (1일 ~ 28일)
-  const dayInCycle = (diffDays % cycle.cycleLength) + 1;
-  
+  // 오늘 날짜 보정 (시간 제거)
+  today.setHours(0, 0, 0, 0);
+  start.setHours(0, 0, 0, 0);
+
+  const diffTime = today.getTime() - start.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  // 현재 주기 일차 (1일 ~ )
+  // 만약 diffDays가 음수라면(미래 날짜 입력 등), 1일차로 처리
+  const dayInCycle = diffDays >= 0 ? (diffDays % cycle.cycleLength) + 1 : 1;
+
+  // 다음 예정일 계산
+  const nextDate = new Date(start);
+  nextDate.setDate(start.getDate() + cycle.cycleLength);
+  const timeUntilNext = nextDate.getTime() - today.getTime();
+  const daysUntilNext = Math.ceil(timeUntilNext / (1000 * 60 * 60 * 24));
+
   let phaseName = "";
   let isPeriod = false;
   let intensity = 0;
 
-  // 단계 판별
   if (dayInCycle <= cycle.periodLength) {
-    // 월경 기 (Menstrual Phase) -> 붉은 경고
     phaseName = "🩸 Reset (Period)";
     isPeriod = true;
     intensity = 80;
   } else if (dayInCycle <= 14) {
-    // 난포기 (Follicular) -> 안정/회복
     phaseName = "🌱 Energy (Follicular)";
     isPeriod = false;
     intensity = 10;
   } else if (dayInCycle <= 17) {
-    // 배란기 (Ovulation) -> 충동/유혹
     phaseName = "🔥 Spark (Ovulation)";
     isPeriod = false;
     intensity = 40;
   } else {
-    // 황체기 (Luteal/PMS) -> 우울/그림자
+    // 황체기(PMS) 구간: 예정일이 가까워질수록 강도 높임
     phaseName = "🌑 Shadow (PMS)";
     isPeriod = false;
-    intensity = 60;
+    // 예정일 3일 전부터는 intensity 70 (경고)
+    intensity = daysUntilNext <= 3 ? 70 : 50; 
   }
 
   return {
     dayInCycle,
     phaseName,
     isPeriod,
-    intensity
+    intensity,
+    daysUntilNext
   };
 };
 
-// 2. 별칭 Export (다른 파일 호환성용)
-export const getLunaMode = calculateLunaPhase;
-
-// 3. 테마 색상 및 메시지 반환 함수
-// MoneyRoomPage에서 배경색 등을 결정할 때 사용합니다.
-export const getLunaTheme = (phase: LunaPhaseResult) => {
-  if (phase.isPeriod) {
-    return { 
-      bg: '#1a0505', // 아주 어두운 붉은색
-      accent: '#ef4444', 
-      message: '⚠️ 생체 시스템 경고: 방어력 저하 구간' 
-    };
-  }
-  if (phase.phaseName.includes('PMS')) {
-    return { 
-      bg: '#0f172a', // 어두운 남색 (우울)
-      accent: '#64748b', 
-      message: '🌑 심리적 시야 감소: 충동 억제력 약화' 
-    };
-  }
-  if (phase.phaseName.includes('Ovulation')) {
-    return { 
-      bg: '#270a1f', // 어두운 보라색 (유혹)
-      accent: '#d946ef', 
-      message: '🔥 호르몬 과부하: 소비 욕구 증가 주의' 
-    };
+// --------------------------------------------------------
+// 3. 게임 내 알림 메시지 생성기 (Alert System)
+// --------------------------------------------------------
+export const getLunaAlertMessage = (result: LunaPhaseResult): string | null => {
+  if (result.isPeriod) {
+    return "🩸 [붉은 달] 현재 방어력이 저하된 상태입니다. 무리한 지출을 피하세요.";
   }
   
-  // 기본 (난포기 등)
-  return { 
-    bg: '#0c0a09', // 기본 검정
-    accent: '#22c55e', // 초록
-    message: '🌱 바이오 리듬 안정: 계획 실행 최적기' 
-  };
+  if (result.daysUntilNext !== undefined) {
+    if (result.daysUntilNext <= 3 && result.daysUntilNext > 0) {
+      return `🌑 [경고] 붉은 달이 ${result.daysUntilNext}일 뒤에 떠오릅니다. 비상금을 확보하세요.`;
+    }
+    if (result.daysUntilNext === 0) {
+      return `🌑 [임박] 오늘 밤, 붉은 달이 시작될 수 있습니다.`;
+    }
+  }
+  
+  if (result.phaseName.includes("Ovulation")) {
+    return "🔥 [주의] 충동 구매 욕구가 강해지는 시기입니다.";
+  }
+
+  return null;
 };
-[cite_start]``` [cite: 433, 434, 435, 436, 437, 438, 439, 440, 441, 442, 443, 444, 445, 446, 447, 448, 449, 450, 451, 452, 453]
+
+// 별칭 Export
+export const getLunaMode = calculateLunaPhase;
