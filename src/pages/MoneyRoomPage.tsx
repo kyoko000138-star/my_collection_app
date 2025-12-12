@@ -17,11 +17,7 @@ import {
   getDailyMonster,
 } from '../money/moneyGameLogic';
 import { calculateLunaPhase, getLunaTheme } from '../money/moneyLuna';
-import {
-  applyRepayment,
-  applySavings,
-  checkMentalCare,
-} from '../money/moneyHealthyLogic';
+import { applyRepayment, applySavings } from '../money/moneyHealthyLogic';
 
 // Views
 import { VillageView } from '../money/components/VillageView';
@@ -37,6 +33,8 @@ import DailyLogModal from '../money/components/DailyLogModal';
 
 const STORAGE_KEY = 'money-room-save-v5-full';
 
+type SpendMode = 'NORMAL' | 'REPAY' | 'SAVE';
+
 const INITIAL_STATE: UserState = {
   name: 'Player 1',
   level: 1,
@@ -48,12 +46,6 @@ const INITIAL_STATE: UserState = {
   junk: 0,
   salt: 0,
   lunaCycle: { startDate: '', periodLength: 5, cycleLength: 28 },
-  // 🌱 정원 기본값
-  garden: {
-    treeLevel: 1,
-    weedCount: 0,
-    flowerState: 'normal',
-  },
   inventory: [],
   collection: [],
   pending: [],
@@ -66,13 +58,18 @@ const INITIAL_STATE: UserState = {
     dailyTotalSpend: 0,
     guardPromptShownToday: false,
     hadSpendingToday: false,
-    lastDailyResetDate: undefined,
-    lastDayEndDate: undefined,
+    // 이 필드들은 dailyReset/applyDayEnd에서 채워짐
+    lastDailyResetDate: undefined as any,
+    lastDayEndDate: undefined as any,
   },
-  lastLoginDate: undefined,
+  // 정원 필드가 types에 추가돼 있다면 여기도 맞춰서 채워줌
+  garden: {
+    treeLevel: 1,
+    pondLevel: 0,
+    flowerState: 'normal',
+    weedCount: 0,
+  } as any,
 };
-
-type SpendMode = 'spend' | 'debt' | 'saving';
 
 const MoneyRoomPage: React.FC = () => {
   // --- State ---
@@ -88,11 +85,11 @@ const MoneyRoomPage: React.FC = () => {
   const [scene, setScene] = useState<Scene>(Scene.VILLAGE);
   const [activeDungeon, setActiveDungeon] = useState<string>('etc');
 
-  // 🎮 게임 / 📊 요약 뷰 전환
+  // 🎮 게임 / 📊 요약 전환
   const [viewMode, setViewMode] = useState<'GAME' | 'SUMMARY'>('GAME');
 
-  // 💳 지출 모드 (일반 / 상환 / 저축)
-  const [spendMode, setSpendMode] = useState<SpendMode>('spend');
+  // 💳 지출 모드 (일반 / 대출·할부 상환 / 저축·이체)
+  const [spendMode, setSpendMode] = useState<SpendMode>('NORMAL');
 
   // 하루 마감 모달
   const [showDailyLog, setShowDailyLog] = useState(false);
@@ -126,46 +123,37 @@ const MoneyRoomPage: React.FC = () => {
 
   // --- Handlers ---
 
-  // 💸 지출/상환/저축 공통 처리
+  // 공통 지출 처리 (지출 / 상환 / 저축)
   const handleSpend = (amount: number) => {
-    if (!amount || amount <= 0) return;
-
-    let resultState = gameState;
-    const messages: string[] = [];
-
-    // 1) 공통: 지출 데미지 + Junk 처리
-    const spendRes = applySpend(
-      resultState,
+    // 1단계: 실제 돈은 모두 지출로 처리 (예산 감소, Junk 등 기존 로직 유지)
+    const { newState: spentState, message: spendMsg } = applySpend(
+      gameState,
       amount,
-      false,
-      activeDungeon || 'etc',
+      // 상환/저축은 '고정비' 느낌이라 true, 일반 지출은 false
+      spendMode !== 'NORMAL',
+      activeDungeon,
     );
-    resultState = spendRes.newState;
-    messages.push(spendRes.message);
 
-    // 2) 모드별 추가 보상/정원 처리
-    if (spendMode === 'debt') {
-      const { newState, msg } = applyRepayment(resultState, amount);
-      resultState = newState;
-      messages.push(msg);
-    } else if (spendMode === 'saving') {
-      const { newState, msg } = applySavings(resultState, amount);
-      resultState = newState;
-      messages.push(msg);
-    } else {
-      // 일반 지출일 때만 멘탈 케어 체크
-      const care = checkMentalCare(resultState);
-      if (care === 'gardener_tea_time') {
-        messages.push(
-          '🍵 정원사가 따뜻한 차를 준비했어요. 오늘은 나를 조금 더 아껴줘요.',
-        );
-      }
+    let nextState = spentState;
+    const msgParts: string[] = [spendMsg];
+
+    // 2단계: 건강한 지출 보상 로직
+    if (spendMode === 'REPAY') {
+      const { newState, msg } = applyRepayment(nextState, amount);
+      nextState = newState;
+      msgParts.push(msg);
+    } else if (spendMode === 'SAVE') {
+      const { newState, msg } = applySavings(nextState, amount);
+      nextState = newState;
+      msgParts.push(msg);
     }
 
-    setGameState(resultState);
+    setGameState(nextState);
+
     setTimeout(() => {
-      alert(messages.join('\n'));
+      alert(msgParts.join('\n\n'));
       setScene(Scene.VILLAGE);
+      setSpendMode('NORMAL'); // 한 턴 끝나면 기본값으로 복귀
     }, 100);
   };
 
@@ -180,12 +168,9 @@ const MoneyRoomPage: React.FC = () => {
 
   // 🛏 하루 마감 (여관에서 쉬기)
   const handleDayEnd = () => {
-    const { newState, message } = applyDayEnd(gameState);
+    const { newState } = applyDayEnd(gameState);
     setGameState(newState);
     setShowDailyLog(true);
-    if (message) {
-      alert(message);
-    }
   };
 
   // 디버그 리셋
@@ -195,8 +180,8 @@ const MoneyRoomPage: React.FC = () => {
         '머니룸 데이터를 모두 초기화할까요?\n(예산/자산/도감 기록이 모두 지워집니다)',
       )
     ) {
-      localStorage.removeItem(STORAGE_KEY);
-      window.location.reload();
+        localStorage.removeItem(STORAGE_KEY);
+        window.location.reload();
     }
   };
 
@@ -243,50 +228,38 @@ const MoneyRoomPage: React.FC = () => {
         </button>
       </div>
 
-      {/* 💳 지출 모드 토글 (GAME 모드일 때만 표시) */}
-      {viewMode === 'GAME' && (
-        <div style={styles.modeToggle}>
+      {/* 💸 지출 모드 토글 (배틀 화면에서만 노출) */}
+      {viewMode === 'GAME' && scene === Scene.BATTLE && (
+        <div style={styles.spendToggle}>
           <button
             type="button"
-            onClick={() => setSpendMode('spend')}
+            onClick={() => setSpendMode('NORMAL')}
             style={{
-              ...styles.modeButton,
+              ...styles.spendToggleBtn,
               backgroundColor:
-                spendMode === 'spend'
-                  ? '#f97316'
-                  : 'rgba(15,23,42,0.85)',
-              borderColor:
-                spendMode === 'spend' ? '#fdba74' : '#4b5563',
+                spendMode === 'NORMAL' ? '#f97316' : 'rgba(15,23,42,0.8)',
             }}
           >
-            💸 일반 지출
+            🍽 일반 지출
           </button>
           <button
             type="button"
-            onClick={() => setSpendMode('debt')}
+            onClick={() => setSpendMode('REPAY')}
             style={{
-              ...styles.modeButton,
+              ...styles.spendToggleBtn,
               backgroundColor:
-                spendMode === 'debt'
-                  ? '#16a34a'
-                  : 'rgba(15,23,42,0.85)',
-              borderColor:
-                spendMode === 'debt' ? '#4ade80' : '#4b5563',
+                spendMode === 'REPAY' ? '#0f172a' : 'rgba(15,23,42,0.8)',
             }}
           >
             💳 대출/할부 상환
           </button>
           <button
             type="button"
-            onClick={() => setSpendMode('saving')}
+            onClick={() => setSpendMode('SAVE')}
             style={{
-              ...styles.modeButton,
+              ...styles.spendToggleBtn,
               backgroundColor:
-                spendMode === 'saving'
-                  ? '#0ea5e9'
-                  : 'rgba(15,23,42,0.85)',
-              borderColor:
-                spendMode === 'saving' ? '#7dd3fc' : '#4b5563',
+                spendMode === 'SAVE' ? '#0f172a' : 'rgba(15,23,42,0.8)',
             }}
           >
             💰 저축/이체
@@ -333,7 +306,7 @@ const MoneyRoomPage: React.FC = () => {
             />
           )}
 
-          {/* 인벤토리 / 정원(자산) / 도감 모달 */}
+          {/* 인벤토리 / 자산 / 도감 모달 */}
           <InventoryModal
             open={scene === Scene.INVENTORY}
             onClose={() => setScene(Scene.VILLAGE)}
@@ -421,22 +394,20 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     backgroundColor: '#020617',
   },
-  // 💳 지출 모드 토글
-  modeToggle: {
+  // 배틀 씬 전용 지출 모드 토글
+  spendToggle: {
     position: 'absolute',
-    top: 40,
+    top: 44,
     left: 8,
-    right: 8,
-    zIndex: 35,
+    zIndex: 39,
     display: 'flex',
-    gap: 4,
-    justifyContent: 'center',
+    gap: 6,
   },
-  modeButton: {
-    padding: '4px 6px',
+  spendToggleBtn: {
+    padding: '4px 10px',
     borderRadius: 999,
     border: '1px solid #4b5563',
-    fontSize: 10,
+    fontSize: 11,
     color: '#e5e7eb',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
