@@ -96,6 +96,7 @@ export const BattleView: React.FC<BattleViewProps> = ({
   );
 };
 
+// 👇 이 부분이 빠져있으면 에러가 납니다!
 const styles: Record<string, React.CSSProperties> = {
   container: { display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#1a0505' },
   scene: { flex: 1, position: 'relative', background: 'linear-gradient(#2d3748 50%, #1a202c 50%)' },
@@ -104,15 +105,12 @@ const styles: Record<string, React.CSSProperties> = {
   hpBarBg: { width: '100px', height: '8px', backgroundColor: '#555', margin: '5px auto', borderRadius: 4 },
   hpBarFill: { height: '100%', backgroundColor: '#ef4444', borderRadius: 4, transition: 'width 0.3s' },
   nameTag: { backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '12px', padding: '2px 6px', borderRadius: 4 },
-  
   playerArea: { position: 'absolute', bottom: '10%', left: '20%', textAlign: 'center' },
   mpTag: { color: '#60a5fa', fontWeight: 'bold', fontSize: '14px', textShadow: '1px 1px 0 #000' },
-
   console: { height: '140px', backgroundColor: '#000', borderTop: '4px solid #fff', padding: '10px' },
   logBox: { color: '#fff', fontSize: '14px', marginBottom: '10px', minHeight: '20px' },
   cmdGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' },
   waitMsg: { color: '#a0aec0', textAlign: 'center', marginTop: '20px' },
-
   btnAttack: { backgroundColor: '#ef4444', color: '#fff', border: '2px solid #fff', borderRadius: 8, padding: '10px', cursor: 'pointer', fontWeight: 'bold' },
   btnDefend: { backgroundColor: '#3b82f6', color: '#fff', border: '2px solid #fff', borderRadius: 8, padding: '10px', cursor: 'pointer' },
   btnItem: { backgroundColor: '#f59e0b', color: '#fff', border: '2px solid #fff', borderRadius: 8, padding: '10px', cursor: 'pointer' },
