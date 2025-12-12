@@ -10,7 +10,8 @@ export enum Scene {
   INVENTORY = 'INVENTORY',
   KINGDOM = 'KINGDOM',
   COLLECTION = 'COLLECTION',
-
+  SUBSCRIPTION = 'SUBSCRIPTION', // [NEW] 구독 관리 화면 추가
+  
   // 확장(옵션)
   GARDEN = 'GARDEN',
   MY_ROOM = 'MY_ROOM',
@@ -34,7 +35,6 @@ export interface Item {
 // Collection
 // -------------------------
 export type CollectionCategory = 'JUNK' | 'BADGE';
-
 export interface CollectionItem {
   id: string;
   name: string;
@@ -95,19 +95,18 @@ export interface AssetBuildingView {
 // Garden (정원 = 결과 화면)
 // -------------------------
 export type FlowerState = 'blooming' | 'normal' | 'withered';
-
 export interface GardenState {
   treeLevel: number; // 꿈의 나무(저축)
   pondLevel: number; // 비상금 연못(옵션)
   flowerState: FlowerState;
   weedCount: number; // 잡초(부채/과소비)
+  decorations?: { id: string; x: number; y: number; obtainedAt: string }[];
 }
 
 // -------------------------
 // 흑화 모드
 // -------------------------
 export type PlayerMode = 'NORMAL' | 'DARK';
-
 export interface PlayerStatus {
   mode: PlayerMode;
   darkLevel: number; // 0~100 (연출/패널티 단계에 사용)
@@ -137,7 +136,6 @@ export interface SubscriptionPlan {
 // NPC(확장용)
 // -------------------------
 export type NpcId = 'angel' | 'demon' | 'gardener' | 'curator';
-
 export interface DialogueLine {
   speaker: NpcId | 'system';
   text: string;
@@ -163,6 +161,7 @@ export interface UserState {
   name: string;
   level: number;
   jobTitle: string;
+  seedPackets?: number; // [NEW] 씨앗 봉투
 
   currentBudget: number; // HP
   maxBudget: number;
@@ -186,7 +185,7 @@ export interface UserState {
   assets: AssetBuildingsState;
 
   counters: UserCounters;
-
+  
   // ✅ 고정비/구독
   subscriptions: SubscriptionPlan[];
 
