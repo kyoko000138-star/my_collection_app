@@ -1,5 +1,24 @@
 // src/money/types.ts
 
+// src/money/types.ts
+
+export enum Scene {
+  GARDEN = 'GARDEN',
+  MY_ROOM = 'MY_ROOM',
+  VILLAGE_MAP = 'VILLAGE_MAP',
+  LIBRARY = 'LIBRARY',
+  WORLD_MAP = 'WORLD_MAP',
+  FIELD = 'FIELD',
+  BATTLE = 'BATTLE',
+  INVENTORY = 'INVENTORY',
+  KINGDOM = 'KINGDOM',
+  COLLECTION = 'COLLECTION',
+  SUBSCRIPTION = 'SUBSCRIPTION',
+  FORGE = 'FORGE', // [NEW] 대장간
+  SHOP = 'SHOP',   // [NEW] 잡화점
+  SETTINGS = 'SETTINGS'
+}
+
 // -------------------------
 // Scene Definition
 // -------------------------
