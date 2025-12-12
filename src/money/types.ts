@@ -1,33 +1,7 @@
 // src/money/types.ts
 
-export type PlayerMode = 'NORMAL' | 'DARK';
-status: PlayerStatus;
-
-export interface SubscriptionPlan {
-  id: string;           // uuid or Date.now()
-  name: string;         // 넷플릭스, 유튜브뮤직, 클라우드 등
-  amount: number;       // 결제 금액
-  billingDay: number;   // 매달 결제일 (1~28 권장)
-  cycle: BillingCycle;  // 기본 MONTHLY
-  isActive: boolean;
-
-  // 관리용 메타
-  startedAt?: string;       // YYYY-MM-DD
-  lastChargedDate?: string; // YYYY-MM-DD (이번 달 이미 청구됐는지 체크)
-  note?: string;
-
-  // 월드맵/던전 연결용(선택)
-  categoryId?: string; // 'subscription' 같은 던전 id
-}
-
-export interface PlayerStatus {
-  mode: PlayerMode;
-  // 흑화 정도(선택): 월말에 더 잘 흔들리는 연출/패널티 단계에 사용
-  darkLevel: number; // 0~100
-}
-
 // -------------------------
-// Scene (장면)
+// Scene
 // -------------------------
 export enum Scene {
   VILLAGE = 'VILLAGE',
@@ -37,13 +11,13 @@ export enum Scene {
   KINGDOM = 'KINGDOM',
   COLLECTION = 'COLLECTION',
 
-  // ✅ 룰북 확장(옵션): 정원/내방 등 "새 씬"을 붙일 때 사용
+  // 확장(옵션)
   GARDEN = 'GARDEN',
   MY_ROOM = 'MY_ROOM',
 }
 
 // -------------------------
-// Core Item / Inventory
+// Inventory
 // -------------------------
 export type ItemType = 'consumable' | 'equipment' | 'material' | 'junk' | 'decor';
 
@@ -52,14 +26,12 @@ export interface Item {
   name: string;
   type: ItemType;
   count: number;
-
-  // 확장용(선택)
   rarity?: 'COMMON' | 'RARE' | 'EPIC';
   desc?: string;
 }
 
 // -------------------------
-// Collection (도감)
+// Collection
 // -------------------------
 export type CollectionCategory = 'JUNK' | 'BADGE';
 
@@ -67,38 +39,34 @@ export interface CollectionItem {
   id: string;
   name: string;
   description: string;
-  obtainedAt: string; // ISO string (KST로 저장해도 ok)
+  obtainedAt: string; // ISO
   category: CollectionCategory;
-
-  // 확장용(선택)
-  source?: string; // 어디서 얻었는지(던전/이벤트 등)
+  source?: string;
 }
 
 // -------------------------
-// Logs (최근 기록/Pending)
+// Pending logs
 // -------------------------
 export interface PendingTransaction {
   id: string;
   amount?: number;
   note: string;
-  createdAt: string; // ISO string
-
-  // 확장용(선택)
-  categoryId?: string; // food/transport/...
+  createdAt: string; // ISO
+  categoryId?: string;
   kind?: 'SPEND' | 'SAVING' | 'REPAY' | 'INCOME' | 'ETC';
 }
 
 // -------------------------
-// Luna (주기/테마용)
+// Luna
 // -------------------------
 export interface LunaCycle {
-  startDate: string; // YYYY-MM-DD 권장
+  startDate: string; // YYYY-MM-DD
   periodLength: number;
   cycleLength: number;
 }
 
 // -------------------------
-// Assets (기존 “건물 카운트” 시스템 유지)
+// Buildings / Assets
 // -------------------------
 export interface AssetBuildingsState {
   fortress: number;
@@ -124,19 +92,49 @@ export interface AssetBuildingView {
 }
 
 // -------------------------
-// Garden (룰북 핵심: “정원 = 결과 화면”)
+// Garden (정원 = 결과 화면)
 // -------------------------
 export type FlowerState = 'blooming' | 'normal' | 'withered';
 
 export interface GardenState {
-  treeLevel: number; // 꿈의 나무(저축): 1~5
-  pondLevel: number; // 비상금 연못: 0~3 (혹은 0~5 등 추후 조정)
-  flowerState: FlowerState; // 생활의 꽃(지출 상태)
+  treeLevel: number; // 꿈의 나무(저축)
+  pondLevel: number; // 비상금 연못(옵션)
+  flowerState: FlowerState;
   weedCount: number; // 잡초(부채/과소비)
 }
 
 // -------------------------
-// NPC (룰북: 4 NPC)
+// 흑화 모드
+// -------------------------
+export type PlayerMode = 'NORMAL' | 'DARK';
+
+export interface PlayerStatus {
+  mode: PlayerMode;
+  darkLevel: number; // 0~100 (연출/패널티 단계에 사용)
+}
+
+// -------------------------
+// 구독(고정비)
+// -------------------------
+export type BillingCycle = 'MONTHLY' | 'YEARLY';
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  amount: number;
+  billingDay: number; // 1~28 권장
+  cycle: BillingCycle;
+  isActive: boolean;
+
+  startedAt?: string; // YYYY-MM-DD
+  lastChargedDate?: string; // YYYY-MM-DD (중복청구 방지)
+  note?: string;
+
+  categoryId?: string; // 'subscription' 등
+}
+
+// -------------------------
+// NPC(확장용)
 // -------------------------
 export type NpcId = 'angel' | 'demon' | 'gardener' | 'curator';
 
@@ -146,17 +144,8 @@ export interface DialogueLine {
   mood?: 'neutral' | 'warm' | 'worried' | 'stern' | 'playful';
 }
 
-export interface NpcDefinition {
-  id: NpcId;
-  nameKo: string;
-  nameEn: string;
-  emoji: string;
-  color: string; // 대화창 이름표 색
-  description: string;
-}
-
 // -------------------------
-// User State (게임 세이브 핵심)
+// User state
 // -------------------------
 export interface UserCounters {
   defenseActionsToday: number;
@@ -166,51 +155,40 @@ export interface UserCounters {
   noSpendStreak: number;
   guardPromptShownToday: boolean;
 
-  // 날짜(옵션)
   lastDailyResetDate?: string; // YYYY-MM-DD
   lastDayEndDate?: string; // YYYY-MM-DD
 }
 
 export interface UserState {
-
-  status: PlayerStatus;
-  subscriptions: SubscriptionPlan[];
-  
-  // 프로필
   name: string;
   level: number;
-  jobTitle: string; // CLASS_TYPES 값 그대로(문자열)
+  jobTitle: string;
 
-  // 핵심 스탯
   currentBudget: number; // HP
   maxBudget: number;
-  mp: number; // MP(의지력)
+
+  mp: number;
   maxMp: number;
 
-  // 자원
   junk: number;
   salt: number;
 
-  // ✅ 룰북 핵심: 정원 상태(저축/부채/지출 시각화)
   garden: GardenState;
+  status: PlayerStatus;
 
-  // 루나/주기
   lunaCycle: LunaCycle;
 
-  // 인벤토리/도감/기록
   inventory: Item[];
   collection: CollectionItem[];
   pending: PendingTransaction[];
 
-  // 제작 재료
   materials: Record<string, number>;
-
-  // 기존 건물(자산) 시스템
   assets: AssetBuildingsState;
 
-  // 카운터(일일)
   counters: UserCounters;
 
-  // 기록(옵션)
+  // ✅ 고정비/구독
+  subscriptions: SubscriptionPlan[];
+
   lastLoginDate?: string;
 }
