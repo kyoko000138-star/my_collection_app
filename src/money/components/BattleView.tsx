@@ -1,109 +1,120 @@
 // src/money/components/BattleView.tsx
 
-import React, { useState, useEffect, useRef } from 'react';
-import { MONSTERS } from '../constants';
+import React, { useState, useEffect } from 'react';
+import { MonsterStat } from '../types';
 
 interface BattleViewProps {
-  dungeonId: string;
-  playerHp: number;
-  maxHp: number;
-  onSpend: (amount: number) => void;
-  onGuard: () => void;
+  monster: MonsterStat;
+  playerMp: number;
+  onWin: () => void;
   onRun: () => void;
+  onConsumeMp: (amount: number) => void;
 }
 
 export const BattleView: React.FC<BattleViewProps> = ({ 
-  dungeonId, playerHp, maxHp, onSpend, onGuard, onRun 
+  monster, playerMp, onWin, onRun, onConsumeMp 
 }) => {
-  const [phase, setPhase] = useState<'APPEAR' | 'COMMAND' | 'SPEND_INPUT'>('APPEAR');
-  const [amount, setAmount] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [enemyHp, setEnemyHp] = useState(monster.hp);
+  const [log, setLog] = useState<string>(`야생의 ${monster.name} 등장!`);
+  const [isPlayerTurn, setIsPlayerTurn] = useState(true);
+  const [anim, setAnim] = useState('');
 
-  const monster = MONSTERS[dungeonId as keyof typeof MONSTERS] || MONSTERS.etc;
-  const hpPercent = maxHp > 0 ? (playerHp / maxHp) * 100 : 0;
-
+  // 적 턴 처리
   useEffect(() => {
-    const timer = setTimeout(() => setPhase('COMMAND'), 1500);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!isPlayerTurn && enemyHp > 0) {
+      setTimeout(() => {
+        setLog(`${monster.name}의 공격! (심리적 타격)`);
+        setAnim('shake');
+        setTimeout(() => {
+          setAnim('');
+          setIsPlayerTurn(true);
+        }, 800);
+      }, 1000);
+    }
+  }, [isPlayerTurn, enemyHp]);
 
-  useEffect(() => {
-    if (phase === 'SPEND_INPUT' && inputRef.current) inputRef.current.focus();
-  }, [phase]);
-
-  const handleSubmit = () => {
-    const val = parseInt(amount.replace(/,/g, ''), 10);
-    if (!val || val <= 0) return alert('금액을 입력해주세요.');
-    onSpend(val);
+  // 공격 (정화)
+  const handleAttack = () => {
+    if (playerMp < 1) {
+      setLog("의지력(MP)이 부족합니다!");
+      return;
+    }
+    onConsumeMp(1); // MP 소모
+    const dmg = Math.floor(Math.random() * 10) + 10;
+    const nextHp = Math.max(0, enemyHp - dmg);
+    setEnemyHp(nextHp);
+    setLog(`정화의 빛! ${dmg} 데미지!`);
+    setAnim('attack');
+    
+    if (nextHp <= 0) {
+      setTimeout(() => onWin(), 1000);
+    } else {
+      setIsPlayerTurn(false);
+    }
   };
 
   return (
     <div style={styles.container}>
-      <div style={styles.scene}>
-        <div style={styles.monsterArea}>
-          <div style={{fontSize: '80px', animation: 'bounce 1s infinite'}}>{monster.sprite}</div>
-          <div style={styles.monsterName}>{monster.name}</div>
-        </div>
-        
-        <div style={styles.statusBox}>
-          <div style={{fontSize:'12px'}}>내 예산(HP)</div>
+      {/* 전투 화면 */}
+      <div style={{...styles.scene, animation: anim === 'shake' ? 'shake 0.5s' : ''}}>
+        {/* 적 */}
+        <div style={styles.enemyArea}>
+          <div style={styles.enemySprite}>{monster.sprite}</div>
           <div style={styles.hpBarBg}>
-            <div style={{...styles.hpBarFill, width: `${Math.max(0, hpPercent)}%`}} />
+            <div style={{...styles.hpBarFill, width: `${(enemyHp/monster.maxHp)*100}%`}} />
           </div>
-          <div style={{textAlign:'right', fontSize:'12px'}}>{playerHp.toLocaleString()}</div>
+          <div style={styles.nameTag}>{monster.name} (HP {enemyHp})</div>
+        </div>
+
+        {/* 나 */}
+        <div style={styles.playerArea}>
+          <div style={{fontSize:'50px'}}>🧙‍♀️</div>
+          <div style={styles.mpTag}>MP {playerMp}</div>
         </div>
       </div>
 
-      <div style={styles.panel}>
-        <div style={styles.messageBox}>
-          {phase === 'APPEAR' && `야생의 ${monster.name}(이)가 나타났다!`}
-          {phase === 'COMMAND' && `지출의 유혹이 느껴진다...`}
-          {phase === 'SPEND_INPUT' && `얼마를 사용하여 기록(격퇴)하시겠습니까?`}
-        </div>
-
-        {phase === 'COMMAND' && (
-          <div style={styles.btnGrid}>
-            <button onClick={() => setPhase('SPEND_INPUT')} style={styles.btnAttack}>💸 지출 기록</button>
-            <button onClick={onGuard} style={styles.btnGuard}>🛡️ 방어 (절약)</button>
-            <button onClick={onRun} style={styles.btnRun}>🏃 도망치기</button>
+      {/* 로그 & 커맨드 */}
+      <div style={styles.console}>
+        <div style={styles.logBox}>{log}</div>
+        
+        {isPlayerTurn ? (
+          <div style={styles.cmdGrid}>
+            <button onClick={handleAttack} style={styles.btnAttack}>⚔️ 정화 (MP 1)</button>
+            <button style={styles.btnDefend}>🛡️ 방어</button>
+            <button style={styles.btnItem}>🎒 도구</button>
+            <button onClick={onRun} style={styles.btnRun}>🏃 도망</button>
           </div>
-        )}
-
-        {phase === 'SPEND_INPUT' && (
-          <div style={styles.inputArea}>
-            <input 
-              ref={inputRef}
-              type="number" 
-              placeholder="금액 입력"
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-              style={styles.input}
-            />
-            <button onClick={handleSubmit} style={styles.btnConfirm}>확인</button>
-            <button onClick={() => setPhase('COMMAND')} style={styles.btnCancel}>취소</button>
-          </div>
+        ) : (
+          <div style={styles.waitMsg}>적의 턴...</div>
         )}
       </div>
+      
+      <style>{`
+        @keyframes shake { 0% { transform: translate(0,0); } 25% { transform: translate(5px,0); } 75% { transform: translate(-5px,0); } 100% { transform: translate(0,0); } }
+      `}</style>
     </div>
   );
 };
 
 const styles: Record<string, React.CSSProperties> = {
-  container: { display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#2d3748' },
-  scene: { flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(#1a202c, #2d3748)' },
-  monsterArea: { textAlign: 'center', marginBottom: '40px' },
-  monsterName: { marginTop: '10px', color: '#fff', fontWeight: 'bold', backgroundColor: 'rgba(0,0,0,0.5)', padding: '4px 10px', borderRadius: '10px' },
-  statusBox: { position: 'absolute', bottom: '10px', left: '10px', right: '10px', backgroundColor: '#171717', padding: '10px', borderRadius: '8px', border: '2px solid #fff', color: '#fff' },
-  hpBarBg: { width: '100%', height: '8px', backgroundColor: '#333', borderRadius: '4px', margin: '4px 0' },
-  hpBarFill: { height: '100%', backgroundColor: '#4ade80', borderRadius: '4px' },
-  panel: { padding: '15px', backgroundColor: '#000', borderTop: '4px solid #fff' },
-  messageBox: { color: '#fff', marginBottom: '15px', minHeight: '20px' },
-  btnGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' },
-  btnAttack: { padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: '2px solid #fff', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' },
-  btnGuard: { padding: '12px', backgroundColor: '#3b82f6', color: '#fff', border: '2px solid #fff', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' },
-  btnRun: { padding: '12px', backgroundColor: '#4b5563', color: '#fff', border: '2px solid #fff', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' },
-  inputArea: { display: 'flex', gap: '10px' },
-  input: { flex: 1, padding: '10px', fontSize: '16px' },
-  btnConfirm: { padding: '10px 20px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px' },
-  btnCancel: { padding: '10px 20px', backgroundColor: '#4b5563', color: '#fff', border: 'none', borderRadius: '4px' }
+  container: { display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#1a0505' },
+  scene: { flex: 1, position: 'relative', background: 'linear-gradient(#2d3748 50%, #1a202c 50%)' },
+  enemyArea: { position: 'absolute', top: '20%', right: '20%', textAlign: 'center' },
+  enemySprite: { fontSize: '80px', filter: 'drop-shadow(0 0 10px #ef4444)' },
+  hpBarBg: { width: '100px', height: '8px', backgroundColor: '#555', margin: '5px auto', borderRadius: 4 },
+  hpBarFill: { height: '100%', backgroundColor: '#ef4444', borderRadius: 4, transition: 'width 0.3s' },
+  nameTag: { backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '12px', padding: '2px 6px', borderRadius: 4 },
+  
+  playerArea: { position: 'absolute', bottom: '10%', left: '20%', textAlign: 'center' },
+  mpTag: { color: '#60a5fa', fontWeight: 'bold', fontSize: '14px', textShadow: '1px 1px 0 #000' },
+
+  console: { height: '140px', backgroundColor: '#000', borderTop: '4px solid #fff', padding: '10px' },
+  logBox: { color: '#fff', fontSize: '14px', marginBottom: '10px', minHeight: '20px' },
+  cmdGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' },
+  waitMsg: { color: '#a0aec0', textAlign: 'center', marginTop: '20px' },
+
+  btnAttack: { backgroundColor: '#ef4444', color: '#fff', border: '2px solid #fff', borderRadius: 8, padding: '10px', cursor: 'pointer', fontWeight: 'bold' },
+  btnDefend: { backgroundColor: '#3b82f6', color: '#fff', border: '2px solid #fff', borderRadius: 8, padding: '10px', cursor: 'pointer' },
+  btnItem: { backgroundColor: '#f59e0b', color: '#fff', border: '2px solid #fff', borderRadius: 8, padding: '10px', cursor: 'pointer' },
+  btnRun: { backgroundColor: '#4b5563', color: '#fff', border: '2px solid #fff', borderRadius: 8, padding: '10px', cursor: 'pointer' },
 };
