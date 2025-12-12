@@ -9,6 +9,49 @@ import {
 } from './moneyClassLogic'; // 경로 확인 필요
 import { calculateLunaPhase } from './moneyLuna';
 
+
+const getTodayStringKST = () => {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().split('T')[0];
+};
+
+const getDayOfMonthKST = () => {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return kst.getUTCDate(); // KST로 이동시킨 뒤 UTCDate로 날짜 얻기
+};
+
+// ✅ 구독 청구 처리: “오늘이 결제일 + 이번달 아직 미청구”면 자동 지출
+export const applySubscriptionChargesIfDue = (state: UserState): { newState: UserState; logs: string[] } => {
+  const today = getTodayStringKST();
+  const day = getDayOfMonthKST();
+
+  const newState = JSON.parse(JSON.stringify(state)) as UserState;
+  const logs: string[] = [];
+
+  if (!newState.subscriptions || newState.subscriptions.length === 0) return { newState, logs };
+
+  for (const s of newState.subscriptions) {
+    if (!s.isActive) continue;
+
+    // 결제일 매칭(1~28 추천. 29~31은 월마다 달라서 별도 정책 필요)
+    if (s.billingDay !== day) continue;
+
+    // 같은 날짜에 이미 청구했으면 패스
+    if (s.lastChargedDate === today) continue;
+
+    // 지출 처리(고정비 = true)
+    const res = applySpend(newState, s.amount, true, 'subscription');
+    Object.assign(newState, res.newState);
+
+    s.lastChargedDate = today;
+    logs.push(`🏰 구독의 탑: ${s.name} -${s.amount.toLocaleString()} 청구`);
+  }
+
+  return { newState, logs };
+};
+
 // --- Helpers ---
 
 // [수정] 한국 시간(KST) 기준 날짜 문자열 반환 (YYYY-MM-DD)
