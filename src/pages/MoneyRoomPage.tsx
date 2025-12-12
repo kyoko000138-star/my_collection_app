@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { UserState, Scene } from '../types';
-import { calculateLunaPhase } from '../moneyLuna';
+import { calculateLunaPhase, getLunaTheme } from '../money/moneyLuna';
 
 // 대화 시스템
 import { DialogueBox } from '../game/components/DialogueBox';
