@@ -1,7 +1,7 @@
 // src/money/components/SubscriptionModal.tsx
 
 import React, { useState } from 'react';
-import { SubscriptionPlan, BillingCycle } from '../types';
+import { SubscriptionPlan } from '../types';
 
 interface Props {
   open: boolean;
@@ -49,7 +49,7 @@ export const SubscriptionModal: React.FC<Props> = ({ open, onClose, plans, onAdd
   return (
     <div style={styles.overlay}>
       <div style={styles.card}>
-        <h2 style={styles.title}>🏰 고정비 관리소</h2>
+        <h2 style={styles.title}>📜 고정비 관리소</h2>
         <p style={styles.desc}>매달 "자동으로" 생명력(예산)을 가져가는 계약들입니다.</p>
 
         {view === 'LIST' && (
