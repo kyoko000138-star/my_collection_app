@@ -334,7 +334,7 @@ const styles: Record<string, React.CSSProperties> = {
   appContainer: {
     maxWidth: '420px',
     margin: '0 auto',
-    minHeight: '100vh',
+    height: '100vh',
     color: '#fff',
     fontFamily: '"NeoDungGeunMo", monospace',
     position: 'relative',
