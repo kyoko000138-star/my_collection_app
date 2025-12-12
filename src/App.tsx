@@ -48,6 +48,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const isHome = location.pathname === '/';
+  
+  // ✅ 수정 1: 머니룸 페이지인지 확인
+  const isMoneyRoom = location.pathname === '/money-room';
 
   return (
     <div className="min-h-screen w-full flex justify-center bg-[#f0f0f0] py-0 sm:py-8">
@@ -60,7 +63,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           color: ${theme.colors.ink};
           -webkit-font-smoothing: antialiased;
         }
+        /* 스크롤바 숨기기 (선택사항) */
         ::-webkit-scrollbar { display: none; }
+        
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
@@ -73,14 +78,18 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           width: '100%',
           maxWidth: '420px',
           backgroundColor: theme.colors.bg,
-          minHeight: '100vh',
-          height: '100%',
+          
+          // ✅ 수정 2: 전체 높이를 부모(body)에 맞춰 100%로 고정
+          height: '100%', 
+          
           boxShadow:
             '0 0 0 1px rgba(0,0,0,0.02), 0 30px 60px -15px rgba(0,0,0,0.1)',
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'hidden',
+          
+          // ✅ 수정 3: 겉 껍데기는 스크롤 금지 (내부 main만 스크롤)
+          overflow: 'hidden', 
         }}
       >
         {/* 홈이 아닐 때만 상단 바 */}
@@ -92,10 +101,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               alignItems: 'center',
               backgroundColor: 'rgba(255, 255, 255, 0.9)',
               backdropFilter: 'blur(10px)',
-              position: 'sticky',
-              top: 0,
+              // sticky 대신 상단 고정 효과를 위해 zIndex 유지
               zIndex: 50,
               borderBottom: `1px solid ${theme.colors.border}`,
+              flexShrink: 0, // 헤더 크기 고정
             }}
           >
             <button
@@ -131,10 +140,16 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         {/* 메인 영역 */}
         <main
           style={{
-            flex: 1,
+            flex: 1, // 남은 공간 꽉 채우기
             padding: isHome ? '0' : '24px',
+            position: 'relative',
             zIndex: 1,
-            overflowY: 'auto',
+            
+            // ✅ 수정 4: 머니룸이면 스크롤 막고(게임화면), 아니면 스크롤 허용(auto)
+            overflowY: isMoneyRoom ? 'hidden' : 'auto',
+            
+            // 모바일 터치 스크롤 부드럽게
+            WebkitOverflowScrolling: 'touch',
           }}
         >
           {children}
@@ -334,7 +349,7 @@ const HomePage: React.FC = () => {
           path="/money-room"
           />
       </CategorySection>
-  
+   
 
       <CategorySection title="Healing" icon={Moon}>
         <MinimalCard
