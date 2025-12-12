@@ -1,5 +1,4 @@
 // src/pages/MoneyRoomPage.tsx
-
 import React, { useEffect, useMemo, useState } from 'react';
 import { MoneySummaryView } from '../money/components/MoneySummaryView';
 
@@ -17,7 +16,6 @@ import {
   getDailyMonster,
 } from '../money/moneyGameLogic';
 import { calculateLunaPhase, getLunaTheme } from '../money/moneyLuna';
-import { applyRepayment, applySavings } from '../money/moneyHealthyLogic';
 
 // Views
 import { VillageView } from '../money/components/VillageView';
@@ -31,19 +29,15 @@ import { CollectionModal } from '../money/components/CollectionModal';
 import { OnboardingModal } from '../money/components/OnboardingModal';
 import DailyLogModal from '../money/components/DailyLogModal';
 
+// ✅ NEW: Weather + Gacha
+import { getKSTDateString, getMoneyWeather, getWeatherMeta } from '../money/moneyWeather';
+import { WeatherOverlay } from '../money/components/WeatherOverlay';
+import { RewardModal } from '../money/components/RewardModal';
+import { DECOR_EMOJI, pullGacha, RewardItem } from '../money/rewardData';
+
 const STORAGE_KEY = 'money-room-save-v5-full';
 
-type SpendMode = 'NORMAL' | 'REPAY' | 'SAVE';
-
-// ✅ 구버전 세이브에도 garden이 없으면 런타임에서 터져서, 안전하게 채워줌
-const ensureGarden = (s: any) => {
-  if (!s.garden) {
-    s.garden = { treeLevel: 1, pondLevel: 1, flowerState: 'normal', weedCount: 0 };
-  }
-  return s;
-};
-
-const INITIAL_STATE: UserState = ({
+const INITIAL_STATE: UserState = {
   name: 'Player 1',
   level: 1,
   jobTitle: CLASS_TYPES.GUARDIAN,
@@ -53,6 +47,13 @@ const INITIAL_STATE: UserState = ({
   maxMp: 30,
   junk: 0,
   salt: 0,
+  seedPackets: 0, // ✅ NEW
+  garden: {
+    treeLevel: 0,
+    weedCount: 0,
+    flowerState: 'normal',
+    decorations: [],
+  }, // ✅ NEW
   lunaCycle: { startDate: '', periodLength: 5, cycleLength: 28 },
   inventory: [],
   collection: [],
@@ -66,53 +67,34 @@ const INITIAL_STATE: UserState = ({
     dailyTotalSpend: 0,
     guardPromptShownToday: false,
     hadSpendingToday: false,
-    lastDailyResetDate: undefined as any,
-    lastDayEndDate: undefined as any,
+    lastDailyResetDate: '',
+    lastDayEndDate: '',
   },
-  // @ts-ignore
-  garden: { treeLevel: 1, pondLevel: 1, flowerState: 'normal', weedCount: 0 },
-  lastLoginDate: undefined,
-} as any) as UserState;
+};
 
-const hydrateState = (savedRaw: any): UserState => {
-  const base = JSON.parse(JSON.stringify(INITIAL_STATE)) as any;
-  if (!savedRaw || typeof savedRaw !== 'object') return base;
-
-  const merged: any = { ...base, ...savedRaw };
-  merged.lunaCycle = { ...base.lunaCycle, ...(savedRaw.lunaCycle || {}) };
-  merged.assets = { ...base.assets, ...(savedRaw.assets || {}) };
-  merged.counters = { ...base.counters, ...(savedRaw.counters || {}) };
-  merged.materials = { ...(base.materials || {}), ...(savedRaw.materials || {}) };
-
-  merged.inventory = Array.isArray(savedRaw.inventory) ? savedRaw.inventory : base.inventory;
-  merged.collection = Array.isArray(savedRaw.collection) ? savedRaw.collection : base.collection;
-  merged.pending = Array.isArray(savedRaw.pending) ? savedRaw.pending : base.pending;
-
-  ensureGarden(merged);
-  return merged as UserState;
+const deepMergeSave = (base: UserState, saved: Partial<UserState>): UserState => {
+  return {
+    ...base,
+    ...saved,
+    lunaCycle: { ...base.lunaCycle, ...(saved.lunaCycle || {}) },
+    assets: { ...base.assets, ...(saved.assets || {}) },
+    counters: { ...base.counters, ...(saved.counters || {}) },
+    garden: { ...base.garden, ...(saved.garden || {}), decorations: saved.garden?.decorations ?? base.garden.decorations },
+    inventory: Array.isArray(saved.inventory) ? saved.inventory : base.inventory,
+    collection: Array.isArray(saved.collection) ? saved.collection : base.collection,
+    pending: Array.isArray(saved.pending) ? saved.pending : base.pending,
+    materials: saved.materials || base.materials,
+    seedPackets: typeof saved.seedPackets === 'number' ? saved.seedPackets : base.seedPackets,
+  };
 };
 
 const MoneyRoomPage: React.FC = () => {
-  // ✅ iOS Safari에서 100vh/100%가 흔들리는 문제 해결: 실제 픽셀 높이로 고정
-  const [viewportH, setViewportH] = useState<number>(() => {
-    if (typeof window === 'undefined') return 0;
-    return window.innerHeight || 0;
-  });
-
-  useEffect(() => {
-    const onResize = () => setViewportH(window.innerHeight || 0);
-    window.addEventListener('resize', onResize);
-    window.addEventListener('orientationchange', onResize);
-    return () => {
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('orientationchange', onResize);
-    };
-  }, []);
-
   const [gameState, setGameState] = useState<UserState>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? hydrateState(JSON.parse(saved)) : INITIAL_STATE;
+      const savedRaw = localStorage.getItem(STORAGE_KEY);
+      if (!savedRaw) return INITIAL_STATE;
+      const saved = JSON.parse(savedRaw) as Partial<UserState>;
+      return deepMergeSave(INITIAL_STATE, saved);
     } catch {
       return INITIAL_STATE;
     }
@@ -121,23 +103,34 @@ const MoneyRoomPage: React.FC = () => {
   const [scene, setScene] = useState<Scene>(Scene.VILLAGE);
   const [activeDungeon, setActiveDungeon] = useState<string>('etc');
 
+  // 🔁 게임 / 요약 뷰 전환
   const [viewMode, setViewMode] = useState<'GAME' | 'SUMMARY'>('GAME');
-  const [spendMode, setSpendMode] = useState<SpendMode>('NORMAL');
 
+  // 하루 마감 모달
   const [showDailyLog, setShowDailyLog] = useState(false);
 
+  // ✅ 씨앗봉투(가챠) 모달
+  const [rewardOpen, setRewardOpen] = useState(false);
+  const [lastReward, setLastReward] = useState<RewardItem | null>(null);
+
+  // --- Effects ---
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
   }, [gameState]);
 
   useEffect(() => {
-    setGameState((prev: any) => checkDailyReset(ensureGarden(prev)));
+    setGameState((prev) => checkDailyReset(deepMergeSave(INITIAL_STATE, prev)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const lunaPhase = useMemo(() => calculateLunaPhase(gameState.lunaCycle), [gameState.lunaCycle]);
-  const theme = useMemo(() => getLunaTheme(lunaPhase), [lunaPhase]);
+  // --- Memo ---
+  const todayStr = useMemo(() => getKSTDateString(), []);
+  const lunaPhase = calculateLunaPhase(gameState.lunaCycle);
+  const theme = getLunaTheme(lunaPhase);
   const isNewUser = gameState.maxBudget === 0;
+
+  const weather = getMoneyWeather(gameState);
+  const weatherMeta = getWeatherMeta(weather);
 
   const currentMonsterType =
     scene === Scene.BATTLE
@@ -151,87 +144,134 @@ const MoneyRoomPage: React.FC = () => {
       ? Math.round((gameState.currentBudget / gameState.maxBudget) * 100)
       : 0;
 
-  const handleReset = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setGameState(INITIAL_STATE);
-    setScene(Scene.VILLAGE);
-    setActiveDungeon('etc');
-    setSpendMode('NORMAL');
-    setViewMode('GAME');
-    setShowDailyLog(false);
-  };
+  // --- Reward apply helper ---
+  const applyRewardToState = (state: UserState, reward: RewardItem): UserState => {
+    const next = JSON.parse(JSON.stringify(state)) as UserState;
+    next.seedPackets = Math.max(0, (next.seedPackets || 0) - 1);
 
-  const handleSpend = (amount: number) => {
-    if (!amount || amount <= 0) return;
+    // DECOR → garden.decorations에 좌표 저장
+    if (reward.type === 'DECOR') {
+      if (!next.garden) next.garden = { treeLevel: 0, weedCount: 0, flowerState: 'normal', decorations: [] };
+      if (!next.garden.decorations) next.garden.decorations = [];
 
-    let next: any = ensureGarden(JSON.parse(JSON.stringify(gameState)));
-    const msgs: string[] = [];
-
-    // ✅ 상환/저축은 고정비처럼 처리해 Junk 드랍/파밍에서 분리
-    const { newState: spentState, message } = applySpend(
-      next,
-      amount,
-      spendMode !== 'NORMAL',
-      activeDungeon,
-    );
-    next = ensureGarden(spentState);
-    msgs.push(message);
-
-    if (spendMode === 'REPAY') {
-      const r = applyRepayment(next, amount);
-      next = ensureGarden(r.newState);
-      msgs.push(r.msg);
-    } else if (spendMode === 'SAVE') {
-      const s = applySavings(next, amount);
-      next = ensureGarden(s.newState);
-      msgs.push(s.msg);
+      next.garden.decorations.push({
+        id: reward.id,
+        x: Math.floor(12 + Math.random() * 76),  // 12~88
+        y: Math.floor(35 + Math.random() * 45),  // 35~80
+        obtainedAt: new Date().toISOString(),
+      });
+      return next;
     }
 
-    setGameState(next);
+    // ITEM → inventory
+    if (reward.type === 'ITEM') {
+      if (!next.inventory) next.inventory = [];
+      const idx = next.inventory.findIndex((i: any) => i.id === reward.id);
+      if (idx >= 0) next.inventory[idx].count = (next.inventory[idx].count || 1) + 1;
+      else next.inventory.push({ id: reward.id, name: reward.name, type: 'consumable', count: 1 });
+      return next;
+    }
+
+    // MATERIAL → materials
+    if (reward.type === 'MATERIAL') {
+      if (!next.materials) next.materials = {};
+      next.materials[reward.id] = (next.materials[reward.id] || 0) + 1;
+      return next;
+    }
+
+    // BADGE → collection
+    if (reward.type === 'BADGE') {
+      if (!next.collection) next.collection = [];
+      const exists = next.collection.some((c: any) => c.id === reward.id);
+      if (!exists) {
+        next.collection.push({
+          id: reward.id,
+          name: reward.name,
+          description: reward.desc,
+          obtainedAt: new Date().toISOString(),
+          category: 'BADGE',
+        });
+      }
+      return next;
+    }
+
+    return next;
+  };
+
+  // --- Handlers ---
+  const handleSpend = (amount: number) => {
+    const { newState, message } = applySpend(gameState, amount, false, activeDungeon);
+    setGameState(deepMergeSave(INITIAL_STATE, newState));
     setTimeout(() => {
-      alert(msgs.join('\n\n'));
+      alert(message);
       setScene(Scene.VILLAGE);
-      setSpendMode('NORMAL');
     }, 100);
   };
 
   const handleGuard = () => {
     const next = applyDefense(gameState);
-    setGameState(next);
+    setGameState(deepMergeSave(INITIAL_STATE, next));
     setTimeout(() => {
       alert('🛡️ 방어 성공! 의지력(MP)을 회복했습니다.');
       setScene(Scene.VILLAGE);
     }, 100);
   };
 
+  // 🛏 하루 마감
   const handleDayEnd = () => {
-    const { newState } = applyDayEnd(gameState);
-    setGameState(newState);
+    const { newState, message } = applyDayEnd(gameState);
+    let next = deepMergeSave(INITIAL_STATE, newState);
+
+    // ✅ 무지출 보상: 씨앗 봉투 +1 (룰북의 “절약 도파민” 장치로 직결) 
+    if (!gameState.counters.hadSpendingToday) {
+      next.seedPackets = (next.seedPackets || 0) + 1;
+    }
+
+    setGameState(next);
     setShowDailyLog(true);
+
+    // 로그 메시지도 보고 싶으면 alert(message) 추가해도 됨
+    // alert(message);
+  };
+
+  const handleReset = () => {
+    if (
+      window.confirm(
+        '머니룸 데이터를 모두 초기화할까요?\n(예산/자산/도감 기록이 모두 지워집니다)',
+      )
+    ) {
+      localStorage.removeItem(STORAGE_KEY);
+      window.location.reload();
+    }
   };
 
   const handleOnboarding = (data: any) => {
-    setGameState((prev: any) => {
-      const next = {
-        ...prev,
+    setGameState((prev) => {
+      const merged = deepMergeSave(INITIAL_STATE, prev);
+      return {
+        ...merged,
         name: data.profile.name,
         jobTitle: data.profile.classType,
         maxBudget: data.budget.total,
         currentBudget: data.budget.current,
         lunaCycle: {
-          ...prev.lunaCycle,
+          ...merged.lunaCycle,
           startDate: data.luna.nextPeriodDate || todayStr,
         },
       };
-      return ensureGarden(next);
     });
   };
 
-  // ✅ 실제 적용되는 컨테이너 높이 (iOS 대응)
-  const containerHeight = viewportH ? `${viewportH}px` : '100vh';
+  const handlePullSeed = () => {
+    if ((gameState.seedPackets || 0) <= 0) return;
+    const reward = pullGacha();
+    setGameState((prev) => applyRewardToState(deepMergeSave(INITIAL_STATE, prev), reward));
+    setLastReward(reward);
+  };
 
+  // --- Render ---
   return (
-    <div style={{ ...styles.appContainer, backgroundColor: theme.bg, height: containerHeight }}>
+    <div style={{ ...styles.appContainer, backgroundColor: theme.bg || '#0b1020' }}>
       {/* 🎮 게임 / 📊 요약 토글 */}
       <div style={styles.viewToggle}>
         <button
@@ -239,7 +279,8 @@ const MoneyRoomPage: React.FC = () => {
           onClick={() => setViewMode('GAME')}
           style={{
             ...styles.viewToggleBtn,
-            backgroundColor: viewMode === 'GAME' ? '#0f172a' : 'rgba(15,23,42,0.6)',
+            backgroundColor:
+              viewMode === 'GAME' ? '#0f172a' : 'rgba(15,23,42,0.6)',
           }}
         >
           🎮 게임
@@ -249,120 +290,127 @@ const MoneyRoomPage: React.FC = () => {
           onClick={() => setViewMode('SUMMARY')}
           style={{
             ...styles.viewToggleBtn,
-            backgroundColor: viewMode === 'SUMMARY' ? '#0f172a' : 'rgba(15,23,42,0.6)',
+            backgroundColor:
+              viewMode === 'SUMMARY' ? '#0f172a' : 'rgba(15,23,42,0.6)',
           }}
         >
           📊 요약
         </button>
       </div>
 
-      {/* ✅ 모드 칩: 중앙 정렬 + HUD랑 덜 겹치게 조금 아래 */}
-      {viewMode === 'GAME' && (
-        <div style={styles.modeBar}>
-          <div style={styles.modeBarInner}>
-            <button
-              type="button"
-              onClick={() => setSpendMode('NORMAL')}
-              style={{
-                ...styles.modeChip,
-                ...(spendMode === 'NORMAL' ? styles.modeChipActive : {}),
+      {/* 🌦️ 날씨 뱃지 + 🌱 씨앗 버튼 */}
+      <div style={styles.topRight}>
+        <div style={styles.weatherBadge} title="소비 패턴 날씨">
+          <span style={{ fontSize: 14 }}>{weatherMeta.icon}</span>
+          <span style={{ fontSize: 11, opacity: 0.85 }}>{weatherMeta.label}</span>
+        </div>
+        <button
+          type="button"
+          style={styles.seedBtn}
+          onClick={() => setRewardOpen(true)}
+          title="씨앗 봉투 열기"
+        >
+          🌱 {gameState.seedPackets || 0}
+        </button>
+      </div>
+
+      {/* 메인 컨텐츠 */}
+      {viewMode === 'SUMMARY' ? (
+        <MoneySummaryView
+          user={gameState}
+          onBackToGame={() => setViewMode('GAME')}
+        />
+      ) : (
+        <div style={styles.screenWrap}>
+          {/* ✅ 날씨 오버레이는 ‘마을(정원)’에서만 */}
+          {scene === Scene.VILLAGE && <WeatherOverlay weather={weather} />}
+
+          {/* ✅ 정원 데코 오버레이 (VillageView 수정 없이도 보이게) */}
+          {scene === Scene.VILLAGE && gameState.garden?.decorations?.length > 0 && (
+            <div style={styles.decorLayer}>
+              {gameState.garden.decorations.slice(0, 40).map((d, idx) => (
+                <div
+                  key={`${d.id}-${idx}`}
+                  style={{
+                    position: 'absolute',
+                    left: `${d.x}%`,
+                    top: `${d.y}%`,
+                    transform: 'translate(-50%, -50%)',
+                    fontSize: 22,
+                    opacity: 0.95,
+                    filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.25))',
+                  }}
+                >
+                  {DECOR_EMOJI[d.id] || '✨'}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {isNewUser && <OnboardingModal onComplete={handleOnboarding} />}
+
+          {scene === Scene.VILLAGE && (
+            <VillageView user={gameState} onChangeScene={setScene} onDayEnd={handleDayEnd} />
+          )}
+
+          {scene === Scene.WORLD_MAP && (
+            <WorldMapView
+              onSelectDungeon={(id) => {
+                setActiveDungeon(id);
+                setScene(Scene.BATTLE);
               }}
-            >
-              🍊 지출
-            </button>
-            <button
-              type="button"
-              onClick={() => setSpendMode('REPAY')}
-              style={{
-                ...styles.modeChip,
-                ...(spendMode === 'REPAY' ? styles.modeChipActive : {}),
-              }}
-            >
-              🧾 상환
-            </button>
-            <button
-              type="button"
-              onClick={() => setSpendMode('SAVE')}
-              style={{
-                ...styles.modeChip,
-                ...(spendMode === 'SAVE' ? styles.modeChipActive : {}),
-              }}
-            >
-              💰 저축
-            </button>
-          </div>
+              onBack={() => setScene(Scene.VILLAGE)}
+            />
+          )}
+
+          {scene === Scene.BATTLE && (
+            <BattleView
+              dungeonId={currentMonsterType}
+              playerHp={gameState.currentBudget}
+              maxHp={gameState.maxBudget}
+              onSpend={handleSpend}
+              onGuard={handleGuard}
+              onRun={() => setScene(Scene.WORLD_MAP)}
+            />
+          )}
+
+          {/* 인벤토리 / 정원(자산) / 도감 모달 */}
+          <InventoryModal
+            open={scene === Scene.INVENTORY}
+            onClose={() => setScene(Scene.VILLAGE)}
+            junk={gameState.junk}
+            salt={gameState.salt}
+            materials={gameState.materials}
+            equipment={gameState.inventory.map((i: any) => i.name)}
+            collection={gameState.collection}
+            canPurify={gameState.mp > 0}
+            onPurify={() => {
+              const { newState, message } = applyPurify(gameState);
+              setGameState(deepMergeSave(INITIAL_STATE, newState));
+              alert(message);
+            }}
+            onCraft={() => {
+              const { newState, message } = applyCraftEquipment(gameState);
+              setGameState(deepMergeSave(INITIAL_STATE, newState));
+              alert(message);
+            }}
+          />
+
+          <KingdomModal
+            open={scene === Scene.KINGDOM}
+            onClose={() => setScene(Scene.VILLAGE)}
+            buildings={getAssetBuildingsView(gameState)}
+          />
+
+          <CollectionModal
+            open={scene === Scene.COLLECTION}
+            onClose={() => setScene(Scene.VILLAGE)}
+            collection={gameState.collection}
+          />
         </div>
       )}
 
-      {/* ✅ 중요: 게임 화면이 들어갈 “실제 높이” 영역 */}
-      <div style={styles.sceneArea}>
-        {viewMode === 'SUMMARY' ? (
-          <MoneySummaryView user={gameState} onBackToGame={() => setViewMode('GAME')} />
-        ) : (
-          <>
-            {isNewUser && <OnboardingModal onComplete={handleOnboarding} />}
-
-            {scene === Scene.VILLAGE && (
-              <VillageView user={gameState} onChangeScene={setScene} onDayEnd={handleDayEnd} />
-            )}
-
-            {scene === Scene.WORLD_MAP && (
-              <WorldMapView
-                onSelectDungeon={(id) => {
-                  setActiveDungeon(id);
-                  setScene(Scene.BATTLE);
-                }}
-                onBack={() => setScene(Scene.VILLAGE)}
-              />
-            )}
-
-            {scene === Scene.BATTLE && (
-              <BattleView
-                dungeonId={currentMonsterType}
-                playerHp={gameState.currentBudget}
-                maxHp={gameState.maxBudget}
-                onSpend={handleSpend}
-                onGuard={handleGuard}
-                onRun={() => setScene(Scene.WORLD_MAP)}
-              />
-            )}
-
-            <InventoryModal
-              open={scene === Scene.INVENTORY}
-              onClose={() => setScene(Scene.VILLAGE)}
-              junk={gameState.junk}
-              salt={gameState.salt}
-              materials={gameState.materials}
-              equipment={gameState.inventory.map((i) => i.name)}
-              collection={gameState.collection}
-              canPurify={gameState.mp > 0}
-              onPurify={() => {
-                const { newState, message } = applyPurify(gameState);
-                setGameState(newState);
-                alert(message);
-              }}
-              onCraft={() => {
-                const { newState, message } = applyCraftEquipment(gameState);
-                setGameState(newState);
-                alert(message);
-              }}
-            />
-
-            <KingdomModal
-              open={scene === Scene.KINGDOM}
-              onClose={() => setScene(Scene.VILLAGE)}
-              buildings={getAssetBuildingsView(gameState)}
-            />
-
-            <CollectionModal
-              open={scene === Scene.COLLECTION}
-              onClose={() => setScene(Scene.VILLAGE)}
-              collection={gameState.collection}
-            />
-          </>
-        )}
-      </div>
-
+      {/* 하루 마감 리포트 */}
       <DailyLogModal
         open={showDailyLog}
         onClose={() => setShowDailyLog(false)}
@@ -376,7 +424,16 @@ const MoneyRoomPage: React.FC = () => {
         pending={gameState.pending}
       />
 
-      {/* Reset */}
+      {/* ✅ 씨앗봉투 모달 */}
+      <RewardModal
+        open={rewardOpen}
+        seedPackets={gameState.seedPackets || 0}
+        lastReward={lastReward}
+        onPull={handlePullSeed}
+        onClose={() => setRewardOpen(false)}
+      />
+
+      {/* 디버그 Reset */}
       <div style={styles.debugArea}>
         <button type="button" onClick={handleReset}>
           🔄 Reset
@@ -389,82 +446,75 @@ const MoneyRoomPage: React.FC = () => {
 const styles: Record<string, React.CSSProperties> = {
   appContainer: {
     maxWidth: '420px',
-    width: '100%',
     margin: '0 auto',
-
-    // ✅ 핵심: display:flex + sceneArea flex:1 조합
-    minHeight: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
-
+    minHeight: '100dvh',
     color: '#fff',
     fontFamily: '"NeoDungGeunMo", monospace',
     position: 'relative',
     overflow: 'hidden',
     transition: 'background-color 1s ease',
-    boxSizing: 'border-box',
   },
 
-  sceneArea: {
-    flex: 1,
-    minHeight: 0,
+  // ✅ “부모 높이 확정”을 위한 래퍼
+  screenWrap: {
     position: 'relative',
-    overflow: 'hidden',
+    minHeight: '100dvh',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+
+  decorLayer: {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 6,
+    pointerEvents: 'none',
   },
 
   viewToggle: {
     position: 'absolute',
-    top: 'calc(8px + env(safe-area-inset-top))',
+    top: 8,
     left: 8,
-    zIndex: 80,
+    zIndex: 40,
     display: 'flex',
     gap: 4,
   },
   viewToggleBtn: {
     padding: '4px 8px',
     borderRadius: 999,
-    border: '1px solid rgba(148,163,184,0.35)',
+    border: '1px solid #4b5563',
     fontSize: 11,
     color: '#e5e7eb',
     cursor: 'pointer',
-    backgroundColor: 'rgba(2,6,23,0.75)',
-    backdropFilter: 'blur(6px)',
+    backgroundColor: '#020617',
   },
 
-  modeBar: {
+  topRight: {
     position: 'absolute',
-    top: 'calc(72px + env(safe-area-inset-top))', // HUD랑 덜 겹치게 아래로
-    left: 0,
-    right: 0,
-    zIndex: 75,
-    display: 'flex',
-    justifyContent: 'center',
-    pointerEvents: 'none',
-  },
-  modeBarInner: {
-    pointerEvents: 'auto',
+    top: 8,
+    right: 8,
+    zIndex: 50,
     display: 'flex',
     gap: 6,
-    padding: '4px 6px',
-    borderRadius: 999,
-    background: 'rgba(2,6,23,0.50)',
-    border: '1px solid rgba(148,163,184,0.25)',
-    backdropFilter: 'blur(6px)',
-    maxWidth: 260,
+    alignItems: 'center',
   },
-  modeChip: {
-    border: '1px solid rgba(148,163,184,0.25)',
-    background: 'rgba(15,23,42,0.35)',
-    color: '#e5e7eb',
-    borderRadius: 999,
+  weatherBadge: {
+    display: 'flex',
+    gap: 6,
+    alignItems: 'center',
     padding: '4px 8px',
-    fontSize: 11,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
+    borderRadius: 999,
+    border: '1px solid rgba(255,255,255,0.15)',
+    background: 'rgba(0,0,0,0.35)',
+    backdropFilter: 'blur(6px)',
   },
-  modeChipActive: {
-    background: '#0f172a',
-    border: '1px solid rgba(255,255,255,0.18)',
+  seedBtn: {
+    padding: '6px 10px',
+    borderRadius: 999,
+    border: '1px solid rgba(255,255,255,0.15)',
+    background: 'rgba(0,0,0,0.35)',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: 12,
   },
 
   debugArea: {
@@ -473,7 +523,7 @@ const styles: Record<string, React.CSSProperties> = {
     right: 6,
     opacity: 0.4,
     fontSize: 10,
-    zIndex: 90,
+    zIndex: 60,
   },
 };
 
