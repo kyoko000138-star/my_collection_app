@@ -1,24 +1,21 @@
 // src/money/types.ts
 
 // -------------------------
-// Scene
+// Scene Definition
 // -------------------------
 export enum Scene {
-  VILLAGE = 'VILLAGE',
-  WORLD_MAP = 'WORLD_MAP',
-  BATTLE = 'BATTLE',
-  INVENTORY = 'INVENTORY',
-  KINGDOM = 'KINGDOM',
-  COLLECTION = 'COLLECTION',
-  SUBSCRIPTION = 'SUBSCRIPTION', // [NEW] 구독 관리 화면 추가
-  
-  // 확장(옵션)
-  GARDEN = 'GARDEN',
-  MY_ROOM = 'MY_ROOM',
+  VILLAGE = 'VILLAGE',       // 메인 거점
+  WORLD_MAP = 'WORLD_MAP',   // 던전 선택
+  FIELD = 'FIELD',           // [NEW] 직접 돌아다니는 탐험 맵
+  BATTLE = 'BATTLE',         // 지출 입력 (전투)
+  INVENTORY = 'INVENTORY',   // 가방
+  KINGDOM = 'KINGDOM',       // 자산 정원 (파일명 KingdomModal 유지)
+  COLLECTION = 'COLLECTION', // 도감
+  SUBSCRIPTION = 'SUBSCRIPTION', // 구독 관리
 }
 
 // -------------------------
-// Inventory
+// Inventory & Items
 // -------------------------
 export type ItemType = 'consumable' | 'equipment' | 'material' | 'junk' | 'decor';
 
@@ -32,56 +29,34 @@ export interface Item {
 }
 
 // -------------------------
-// Collection
+// Field Objects (탐험용)
 // -------------------------
-export type CollectionCategory = 'JUNK' | 'BADGE';
-export interface CollectionItem {
+export interface FieldObject {
   id: string;
-  name: string;
-  description: string;
-  obtainedAt: string; // ISO
-  category: CollectionCategory;
-  source?: string;
+  x: number; // 0~100%
+  y: number; // 0~100%
+  type: 'JUNK' | 'HERB' | 'CHEST';
+  isCollected: boolean;
 }
 
 // -------------------------
-// Pending logs
+// Assets (정원 건물)
 // -------------------------
-export interface PendingTransaction {
-  id: string;
-  amount?: number;
-  note: string;
-  createdAt: string; // ISO
-  categoryId?: string;
-  kind?: 'SPEND' | 'SAVING' | 'REPAY' | 'INCOME' | 'ETC';
-}
+// 기존 군사 용어 -> 정원 용어로 변경
+export type AssetBuildingId = 
+  | 'fence'        // 방어 (구 Fortress) -> 울타리
+  | 'greenhouse'   // 무지출 (구 Airfield) -> 온실
+  | 'mansion'      // 고정비 (구 Mansion) -> 저택/오두막
+  | 'fountain'     // 정화 (구 Tower) -> 정화의 분수
+  | 'barn';        // 파밍 (구 Warehouse) -> 헛간
 
-// -------------------------
-// Luna
-// -------------------------
-export interface LunaCycle {
-  startDate: string; // YYYY-MM-DD
-  periodLength: number;
-  cycleLength: number;
-}
-
-// -------------------------
-// Buildings / Assets
-// -------------------------
 export interface AssetBuildingsState {
-  fortress: number;
-  airfield: number;
+  fence: number;
+  greenhouse: number;
   mansion: number;
-  tower: number;
-  warehouse: number;
+  fountain: number;
+  barn: number;
 }
-
-export type AssetBuildingId =
-  | 'fortress'
-  | 'airfield'
-  | 'mansion'
-  | 'tower'
-  | 'warehouse';
 
 export interface AssetBuildingView {
   id: AssetBuildingId;
@@ -92,58 +67,45 @@ export interface AssetBuildingView {
 }
 
 // -------------------------
-// Garden (정원 = 결과 화면)
+// Garden (메인 비주얼)
 // -------------------------
 export type FlowerState = 'blooming' | 'normal' | 'withered';
 export interface GardenState {
-  treeLevel: number; // 꿈의 나무(저축)
-  pondLevel: number; // 비상금 연못(옵션)
+  treeLevel: number;
+  pondLevel: number;
   flowerState: FlowerState;
-  weedCount: number; // 잡초(부채/과소비)
+  weedCount: number;
   decorations?: { id: string; x: number; y: number; obtainedAt: string }[];
 }
 
 // -------------------------
-// 흑화 모드
+// Player Status
 // -------------------------
 export type PlayerMode = 'NORMAL' | 'DARK';
 export interface PlayerStatus {
   mode: PlayerMode;
-  darkLevel: number; // 0~100 (연출/패널티 단계에 사용)
+  darkLevel: number;
 }
 
 // -------------------------
-// 구독(고정비)
+// Subscription
 // -------------------------
 export type BillingCycle = 'MONTHLY' | 'YEARLY';
-
 export interface SubscriptionPlan {
   id: string;
   name: string;
   amount: number;
-  billingDay: number; // 1~28 권장
+  billingDay: number;
   cycle: BillingCycle;
   isActive: boolean;
-
-  startedAt?: string; // YYYY-MM-DD
-  lastChargedDate?: string; // YYYY-MM-DD (중복청구 방지)
+  startedAt?: string;
+  lastChargedDate?: string;
   note?: string;
-
-  categoryId?: string; // 'subscription' 등
+  categoryId?: string;
 }
 
 // -------------------------
-// NPC(확장용)
-// -------------------------
-export type NpcId = 'angel' | 'demon' | 'gardener' | 'curator';
-export interface DialogueLine {
-  speaker: NpcId | 'system';
-  text: string;
-  mood?: 'neutral' | 'warm' | 'worried' | 'stern' | 'playful';
-}
-
-// -------------------------
-// User state
+// User State Root
 // -------------------------
 export interface UserCounters {
   defenseActionsToday: number;
@@ -152,20 +114,42 @@ export interface UserCounters {
   hadSpendingToday: boolean;
   noSpendStreak: number;
   guardPromptShownToday: boolean;
+  lastDailyResetDate?: string;
+  lastDayEndDate?: string;
+}
 
-  lastDailyResetDate?: string; // YYYY-MM-DD
-  lastDayEndDate?: string; // YYYY-MM-DD
+export interface LunaCycle {
+  startDate: string;
+  periodLength: number;
+  cycleLength: number;
+}
+
+export interface PendingTransaction {
+  id: string;
+  amount?: number;
+  note: string;
+  createdAt: string;
+  categoryId?: string;
+  kind?: 'SPEND' | 'SAVING' | 'REPAY' | 'INCOME' | 'ETC';
+}
+
+export interface CollectionItem {
+  id: string;
+  name: string;
+  description: string;
+  obtainedAt: string;
+  category: 'JUNK' | 'BADGE';
+  source?: string;
 }
 
 export interface UserState {
   name: string;
   level: number;
   jobTitle: string;
-  seedPackets?: number; // [NEW] 씨앗 봉투
+  seedPackets?: number;
 
-  currentBudget: number; // HP
+  currentBudget: number;
   maxBudget: number;
-
   mp: number;
   maxMp: number;
 
@@ -174,19 +158,15 @@ export interface UserState {
 
   garden: GardenState;
   status: PlayerStatus;
-
   lunaCycle: LunaCycle;
 
   inventory: Item[];
   collection: CollectionItem[];
   pending: PendingTransaction[];
-
   materials: Record<string, number>;
-  assets: AssetBuildingsState;
-
-  counters: UserCounters;
   
-  // ✅ 고정비/구독
+  assets: AssetBuildingsState; // [Updated]
+  counters: UserCounters;
   subscriptions: SubscriptionPlan[];
 
   lastLoginDate?: string;
