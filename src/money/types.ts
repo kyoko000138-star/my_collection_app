@@ -1,5 +1,31 @@
 // src/money/types.ts
 
+export type PlayerMode = 'NORMAL' | 'DARK';
+status: PlayerStatus;
+
+export interface SubscriptionPlan {
+  id: string;           // uuid or Date.now()
+  name: string;         // 넷플릭스, 유튜브뮤직, 클라우드 등
+  amount: number;       // 결제 금액
+  billingDay: number;   // 매달 결제일 (1~28 권장)
+  cycle: BillingCycle;  // 기본 MONTHLY
+  isActive: boolean;
+
+  // 관리용 메타
+  startedAt?: string;       // YYYY-MM-DD
+  lastChargedDate?: string; // YYYY-MM-DD (이번 달 이미 청구됐는지 체크)
+  note?: string;
+
+  // 월드맵/던전 연결용(선택)
+  categoryId?: string; // 'subscription' 같은 던전 id
+}
+
+export interface PlayerStatus {
+  mode: PlayerMode;
+  // 흑화 정도(선택): 월말에 더 잘 흔들리는 연출/패널티 단계에 사용
+  darkLevel: number; // 0~100
+}
+
 // -------------------------
 // Scene (장면)
 // -------------------------
@@ -146,6 +172,10 @@ export interface UserCounters {
 }
 
 export interface UserState {
+
+  status: PlayerStatus;
+  subscriptions: SubscriptionPlan[];
+  
   // 프로필
   name: string;
   level: number;
