@@ -20,19 +20,20 @@ import {
 import { getKSTDateString, getMoneyWeather, getWeatherMeta } from '../money/moneyWeather';
 import { pullGacha, RewardItem, DECOR_EMOJI } from '../money/rewardData';
 
-// Views (VillageView 삭제됨)
+// Views (리뉴얼된 뷰들)
 import { GardenView } from '../money/components/GardenView'; 
 import { VillageMap } from '../money/components/VillageMap';
 import { LibraryView } from '../money/components/LibraryView';
 import { WorldMapView } from '../money/components/WorldMapView';
 import { BattleView } from '../money/components/BattleView';
 import { FieldView } from '../money/components/FieldView';
+import { MyRoomView } from '../money/components/MyRoomView'; // [NEW]
 
-// Modals
+// Modals & Components
 import { WeatherOverlay } from '../money/components/WeatherOverlay';
 import { RewardModal } from '../money/components/RewardModal';
 import { InventoryModal } from '../money/components/InventoryModal';
-import { KingdomModal } from '../money/components/KingdomModal'; // 이름 유지, 내용은 자산 정원
+import { KingdomModal } from '../money/components/KingdomModal'; // 자산 정원(리뉴얼됨)
 import { CollectionModal } from '../money/components/CollectionModal';
 import { OnboardingModal } from '../money/components/OnboardingModal';
 import DailyLogModal from '../money/components/DailyLogModal';
@@ -100,12 +101,12 @@ const MoneyRoomPage: React.FC = () => {
     }
   });
 
-  // 초기 시작은 무조건 'GARDEN' (홈)
+  // 초기 시작은 무조건 'GARDEN' (내 집)
   const [scene, setScene] = useState<Scene>(Scene.GARDEN);
   const [activeDungeon, setActiveDungeon] = useState<string>('etc');
   const [viewMode, setViewMode] = useState<'GAME' | 'SUMMARY'>('GAME');
   
-  // [NEW] 필드 탐험 관련 상태
+  // 탐험(Field) 관련 상태
   const [playerPos, setPlayerPos] = useState({ x: 50, y: 50 });
   const [fieldObjects, setFieldObjects] = useState<FieldObject[]>([]);
 
@@ -126,8 +127,6 @@ const MoneyRoomPage: React.FC = () => {
       const merged = mergeUserState(INITIAL_STATE, prev);
       const reset = checkDailyReset(merged);
       const sub = applySubscriptionChargesIfDue(reset);
-      // 알림이 너무 자주 뜨면 주석 처리
-      // if (sub.logs.length > 0) alert(sub.logs.join('\n'));
       return sub.newState;
     });
   }, []);
@@ -140,16 +139,21 @@ const MoneyRoomPage: React.FC = () => {
       : 0;
   const isNewUser = gameState.maxBudget === 0;
 
+  const currentMonsterType =
+    scene === Scene.BATTLE
+      ? activeDungeon !== 'etc' ? activeDungeon : getDailyMonster(gameState.pending)
+      : 'etc';
+
   // -------------------------------------------------------
   // 3. Handlers
   // -------------------------------------------------------
   
-  // 던전 입장 (필드 생성)
+  // 던전 입장 -> 필드 생성
   const enterDungeon = (dungeonId: string) => {
     setActiveDungeon(dungeonId);
     
-    // 파밍 아이템 랜덤 생성
-    const newObjects: FieldObject[] = Array.from({ length: 5 }).map((_, i) => ({
+    // 파밍 아이템 랜덤 배치
+    const newObjects: FieldObject[] = Array.from({ length: 6 }).map((_, i) => ({
       id: `obj_${Date.now()}_${i}`,
       x: Math.floor(Math.random() * 80 + 10),
       y: Math.floor(Math.random() * 80 + 10),
@@ -162,7 +166,7 @@ const MoneyRoomPage: React.FC = () => {
     setScene(Scene.FIELD);
   };
 
-  // D-Pad 이동 (필드에서만 작동)
+  // D-Pad 이동 (필드에서만)
   const handleMove = (dx: number, dy: number) => {
     if (scene !== Scene.FIELD) return;
 
@@ -174,8 +178,9 @@ const MoneyRoomPage: React.FC = () => {
       setFieldObjects(objs => objs.map(obj => {
         if (obj.isCollected) return obj;
         const dist = Math.sqrt(Math.pow(obj.x - nextX, 2) + Math.pow(obj.y - nextY, 2));
-        if (dist < 6) { // 근접
-          setGameState(gs => ({ ...gs, junk: gs.junk + 1 })); // 임시: Junk 획득
+        if (dist < 6) { 
+          // 획득 시 보상 (Junk 획득)
+          setGameState(gs => ({ ...gs, junk: gs.junk + 1 })); 
           return { ...obj, isCollected: true };
         }
         return obj;
@@ -187,27 +192,23 @@ const MoneyRoomPage: React.FC = () => {
 
   // A 버튼 (결정/상호작용)
   const handleActionA = () => {
-    if (scene === Scene.GARDEN) {
-      setScene(Scene.VILLAGE_MAP); // 집 밖으로
-    } else if (scene === Scene.FIELD) {
-      setScene(Scene.BATTLE); // 탐험 중 적 조우(지출)
-    } else if (scene === Scene.VILLAGE_MAP) {
-      // 맵에서는 건물 클릭으로 이동하므로 A버튼은 일단 월드맵으로
-      setScene(Scene.WORLD_MAP);
-    }
+    if (scene === Scene.GARDEN) setScene(Scene.VILLAGE_MAP); // 집 밖으로
+    else if (scene === Scene.FIELD) setScene(Scene.BATTLE); // 전투(지출)
+    else if (scene === Scene.VILLAGE_MAP) setScene(Scene.WORLD_MAP); // 기본값 월드맵
   };
 
-  // B 버튼 (취소/뒤로가기)
+  // B 버튼 (뒤로가기)
   const handleActionB = () => {
     if (scene === Scene.BATTLE) setScene(Scene.FIELD);
     else if (scene === Scene.FIELD) setScene(Scene.WORLD_MAP);
     else if (scene === Scene.WORLD_MAP) setScene(Scene.VILLAGE_MAP);
-    else if (scene === Scene.VILLAGE_MAP) setScene(Scene.GARDEN);
     else if (scene === Scene.LIBRARY) setScene(Scene.VILLAGE_MAP);
-    else setViewMode(prev => prev === 'GAME' ? 'SUMMARY' : 'GAME');
+    else if (scene === Scene.VILLAGE_MAP) setScene(Scene.GARDEN);
+    else if (scene === Scene.MY_ROOM) setScene(Scene.GARDEN);
+    else if (scene === Scene.GARDEN) setViewMode(prev => prev === 'GAME' ? 'SUMMARY' : 'GAME');
   };
 
-  // Core Logic Wrappers
+  // Logic Handlers
   const handleSpend = (amt: number) => {
     const { newState, message } = applySpend(gameState, amt, false, activeDungeon);
     setGameState(newState);
@@ -242,8 +243,6 @@ const MoneyRoomPage: React.FC = () => {
   const handlePullSeed = () => {
     if ((gameState.seedPackets || 0) <= 0) return;
     const reward = pullGacha();
-    
-    // 리워드 적용 로직
     const applyRewardToState = (state: UserState, r: RewardItem): UserState => {
       const next = JSON.parse(JSON.stringify(state)) as UserState;
       next.seedPackets = Math.max(0, (next.seedPackets || 0) - 1);
@@ -264,7 +263,6 @@ const MoneyRoomPage: React.FC = () => {
     setLastReward(reward);
   };
 
-  // Subscription Handlers
   const handleAddSub = (p: SubscriptionPlan) => setGameState(prev => ({...prev, subscriptions: [...prev.subscriptions, p]}));
   const handleRemoveSub = (id: string) => setGameState(prev => ({...prev, subscriptions: prev.subscriptions.filter(s => s.id !== id)}));
 
@@ -276,7 +274,7 @@ const MoneyRoomPage: React.FC = () => {
   return (
     <div style={consoleStyles.body}>
       
-      {/* [HUD] 상단 정보 */}
+      {/* [A] 상단 HUD */}
       <div style={consoleStyles.hud}>
         <div style={consoleStyles.hudRow}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -302,39 +300,55 @@ const MoneyRoomPage: React.FC = () => {
         </div>
       </div>
 
-      {/* [SCREEN] 중앙 게임 화면 */}
+      {/* [B] 중앙 스크린 (Viewport) */}
       <div style={consoleStyles.screenBezel}>
         <div style={consoleStyles.screenContent}>
-          {/* 오버레이 효과 */}
+          {/* 공통 효과 */}
           {scene === Scene.GARDEN && <WeatherOverlay weather={weather} />}
           <div style={consoleStyles.crtEffect} />
 
-          {/* Scene Routing */}
+          {/* === SCENE SWITCHER === */}
           {isNewUser && <OnboardingModal onComplete={handleOnboarding} />}
 
+          {/* 1. 메인 홈 (정원) */}
           {scene === Scene.GARDEN && (
             <GardenView user={gameState} onChangeScene={setScene} onDayEnd={handleDayEnd} />
           )}
+          
+          {/* 2. 마을 맵 (이동) */}
           {scene === Scene.VILLAGE_MAP && (
             <VillageMap onChangeScene={setScene} />
           )}
+
+          {/* 3. 도서관 (구독관리) */}
           {scene === Scene.LIBRARY && (
             <LibraryView onOpenSubs={() => setScene(Scene.SUBSCRIPTION)} onBack={() => setScene(Scene.VILLAGE_MAP)} />
           )}
+
+          {/* 4. 마이룸 (상태창) */}
+          {scene === Scene.MY_ROOM && (
+            <MyRoomView user={gameState} onBack={() => setScene(Scene.GARDEN)} />
+          )}
+
+          {/* 5. 월드맵 (던전선택) */}
           {scene === Scene.WORLD_MAP && (
             <WorldMapView onSelectDungeon={enterDungeon} onBack={() => setScene(Scene.VILLAGE_MAP)} />
           )}
+
+          {/* 6. 필드 탐험 */}
           {scene === Scene.FIELD && (
             <FieldView playerPos={playerPos} objects={fieldObjects} dungeonName={activeDungeon} />
           )}
+
+          {/* 7. 전투 (지출) */}
           {scene === Scene.BATTLE && (
             <BattleView 
-              dungeonId={activeDungeon} playerHp={gameState.currentBudget} maxHp={gameState.maxBudget} 
+              dungeonId={currentMonsterType} playerHp={gameState.currentBudget} maxHp={gameState.maxBudget} 
               onSpend={handleSpend} onGuard={handleGuard} onRun={() => setScene(Scene.GARDEN)} 
             />
           )}
 
-          {/* Modals (Overlay) */}
+          {/* === MODALS (Overlay) === */}
           <InventoryModal 
             open={scene === Scene.INVENTORY} onClose={() => setScene(Scene.GARDEN)} 
             junk={gameState.junk} salt={gameState.salt} materials={gameState.materials} equipment={[]} 
@@ -352,8 +366,9 @@ const MoneyRoomPage: React.FC = () => {
         </div>
       </div>
 
-      {/* [CONTROLLER] 하단 조작부 */}
+      {/* [C] 하단 컨트롤러 */}
       <div style={consoleStyles.controlDeck}>
+        
         {/* D-Pad */}
         <div style={consoleStyles.dpadArea}>
           <div style={consoleStyles.dpad}>
@@ -369,19 +384,26 @@ const MoneyRoomPage: React.FC = () => {
         <div style={consoleStyles.actionBtnArea}>
           <div style={consoleStyles.btnGroup}>
             <button style={consoleStyles.actionBtnB} onClick={handleActionB}>B</button>
-            <span style={consoleStyles.btnLabel}>취소/이전</span>
+            <span style={consoleStyles.btnLabel}>취소/뒤로</span>
           </div>
           <div style={consoleStyles.btnGroup}>
             <button style={consoleStyles.actionBtnA} onClick={handleActionA}>A</button>
-            <span style={consoleStyles.btnLabel}>결정/조사</span>
+            <span style={consoleStyles.btnLabel}>{scene === Scene.FIELD ? '조사' : '결정'}</span>
           </div>
         </div>
 
         {/* System Buttons */}
         <div style={consoleStyles.systemBtnArea}>
-           <button style={consoleStyles.systemBtn} onClick={() => setScene(Scene.KINGDOM)}>SELECT</button>
-           <button style={consoleStyles.systemBtn} onClick={() => setScene(Scene.COLLECTION)}>START</button>
+           <div style={consoleStyles.btnGroup}>
+             <button style={consoleStyles.systemBtn} onClick={() => setScene(Scene.KINGDOM)} />
+             <span style={consoleStyles.btnLabelSmall}>SELECT (자산)</span>
+           </div>
+           <div style={consoleStyles.btnGroup}>
+             <button style={consoleStyles.systemBtn} onClick={() => setScene(Scene.MY_ROOM)} />
+             <span style={consoleStyles.btnLabelSmall}>START (마이룸)</span>
+           </div>
         </div>
+
       </div>
 
       {/* Global Modals */}
@@ -391,9 +413,7 @@ const MoneyRoomPage: React.FC = () => {
   );
 };
 
-// ---------------------------------------------------------
-// 🎨 Styles (Console Layout)
-// ---------------------------------------------------------
+// Styles (Console Layout)
 const consoleStyles: Record<string, React.CSSProperties> = {
   body: { width: '100%', maxWidth: '420px', margin: '0 auto', height: '100dvh', backgroundColor: '#202025', display: 'flex', flexDirection: 'column', fontFamily: '"NeoDungGeunMo", monospace', overflow: 'hidden', color: '#fff', position: 'relative' },
   hud: { height: '80px', backgroundColor: '#2d3748', borderBottom: '4px solid #1a202c', padding: '10px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px', zIndex: 10, boxShadow: 'inset 0 -2px 5px rgba(0,0,0,0.3)' },
@@ -420,7 +440,8 @@ const consoleStyles: Record<string, React.CSSProperties> = {
   actionBtnB: { width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#d69e2e', border: 'none', boxShadow: '0 4px 0 #975a16', color: '#fff', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '15px' },
   btnLabel: { fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' },
   systemBtnArea: { gridColumn: 'span 2', display: 'flex', justifyContent: 'center', gap: '24px', marginTop: '-5px' },
-  systemBtn: { width: '50px', height: '12px', background: '#718096', border: 'none', borderRadius: '6px', cursor: 'pointer', transform: 'rotate(-15deg)', boxShadow: '1px 1px 0 #000', color:'#cbd5e1', fontSize:'8px', display:'flex', alignItems:'center', justifyContent:'center' }
+  systemBtn: { width: '50px', height: '12px', background: '#718096', border: 'none', borderRadius: '6px', cursor: 'pointer', transform: 'rotate(-15deg)', boxShadow: '1px 1px 0 #000' },
+  btnLabelSmall: { fontSize: '9px', color: '#64748b', marginTop: '4px', letterSpacing: '1px' },
 };
 
 export default MoneyRoomPage;
