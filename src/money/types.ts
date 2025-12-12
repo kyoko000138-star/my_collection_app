@@ -1,5 +1,24 @@
 // src/money/types.ts
 
+export enum Scene {
+  MY_ROOM = 'MY_ROOM',       // [NEW] 마이룸 (상태창)
+  GARDEN = 'GARDEN',         // [NEW] 자산의 정원 (메인 비주얼)
+  VILLAGE_MAP = 'VILLAGE_MAP', // [NEW] 마을 지도 (건물 선택)
+  LIBRARY = 'LIBRARY',       // [NEW] 도서관 (기록/구독)
+  SHOP = 'SHOP',             // [NEW] 상점
+  FIELD = 'FIELD',           // 탐험
+  BATTLE = 'BATTLE',         // 전투
+  // ... 기존 모달용 Scene은 유지하거나 모달 state로 변경 권장
+}
+
+// 자산(건물) ID 리테마
+export type AssetId = 
+  | 'fence'      // 방어 (구 요새)
+  | 'greenhouse' // 무지출 (구 비행장)
+  | 'library'    // 고정비/지식 (구 저택)
+  | 'fountain'   // 정화 (구 마법탑)
+  | 'barn';      // 파밍 (구 창고)
+
 // src/money/types.ts (수정 부분만)
 
 export interface LunaCycle {
