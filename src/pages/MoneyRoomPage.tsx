@@ -1,5 +1,6 @@
 // src/pages/MoneyRoomPage.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { MoneySummaryView } from '../money/components/MoneySummaryView';
 
 // Data & Logic
@@ -29,37 +30,40 @@ import { CollectionModal } from '../money/components/CollectionModal';
 import { OnboardingModal } from '../money/components/OnboardingModal';
 import DailyLogModal from '../money/components/DailyLogModal';
 
-// ✅ NEW: Weather + Gacha
-import { getKSTDateString, getMoneyWeather, getWeatherMeta } from '../money/moneyWeather';
-import { WeatherOverlay } from '../money/components/WeatherOverlay';
-import { RewardModal } from '../money/components/RewardModal';
-import { DECOR_EMOJI, pullGacha, RewardItem } from '../money/rewardData';
-
 const STORAGE_KEY = 'money-room-save-v5-full';
 
+// ✅ (핵심) garden + counters 날짜 필드까지 포함해서 "완전한 기본 형태"를 보장
 const INITIAL_STATE: UserState = {
   name: 'Player 1',
   level: 1,
   jobTitle: CLASS_TYPES.GUARDIAN,
+
   currentBudget: 0,
   maxBudget: 0,
+
   mp: 30,
   maxMp: 30,
+
   junk: 0,
   salt: 0,
-  seedPackets: 0, // ✅ NEW
+
+  // ✅ 룰북 반영: 정원(결과 시각화)
   garden: {
     treeLevel: 0,
-    weedCount: 0,
+    pondLevel: 0,
     flowerState: 'normal',
-    decorations: [],
-  }, // ✅ NEW
+    weedCount: 0,
+  },
+
   lunaCycle: { startDate: '', periodLength: 5, cycleLength: 28 },
+
   inventory: [],
   collection: [],
   pending: [],
   materials: {},
+
   assets: { fortress: 0, airfield: 0, mansion: 0, tower: 0, warehouse: 0 },
+
   counters: {
     defenseActionsToday: 0,
     junkObtainedToday: 0,
@@ -67,34 +71,41 @@ const INITIAL_STATE: UserState = {
     dailyTotalSpend: 0,
     guardPromptShownToday: false,
     hadSpendingToday: false,
+
+    // ✅ 신규 필드(저장 데이터에 없을 수 있으니 기본값 제공)
     lastDailyResetDate: '',
     lastDayEndDate: '',
   },
 };
 
-const deepMergeSave = (base: UserState, saved: Partial<UserState>): UserState => {
+// ✅ (핵심) localStorage 저장본이 "부분 데이터"여도 크래시 안 나게 딥-머지
+const mergeUserState = (base: UserState, saved: Partial<UserState>): UserState => {
   return {
     ...base,
     ...saved,
+
     lunaCycle: { ...base.lunaCycle, ...(saved.lunaCycle || {}) },
     assets: { ...base.assets, ...(saved.assets || {}) },
     counters: { ...base.counters, ...(saved.counters || {}) },
-    garden: { ...base.garden, ...(saved.garden || {}), decorations: saved.garden?.decorations ?? base.garden.decorations },
+    garden: { ...base.garden, ...(saved.garden || {}) },
+
     inventory: Array.isArray(saved.inventory) ? saved.inventory : base.inventory,
     collection: Array.isArray(saved.collection) ? saved.collection : base.collection,
     pending: Array.isArray(saved.pending) ? saved.pending : base.pending,
-    materials: saved.materials || base.materials,
-    seedPackets: typeof saved.seedPackets === 'number' ? saved.seedPackets : base.seedPackets,
+
+    materials: saved.materials ?? base.materials,
   };
 };
 
 const MoneyRoomPage: React.FC = () => {
+  // --- State ---
   const [gameState, setGameState] = useState<UserState>(() => {
     try {
       const savedRaw = localStorage.getItem(STORAGE_KEY);
       if (!savedRaw) return INITIAL_STATE;
+
       const saved = JSON.parse(savedRaw) as Partial<UserState>;
-      return deepMergeSave(INITIAL_STATE, saved);
+      return mergeUserState(INITIAL_STATE, saved);
     } catch {
       return INITIAL_STATE;
     }
@@ -103,23 +114,17 @@ const MoneyRoomPage: React.FC = () => {
   const [scene, setScene] = useState<Scene>(Scene.VILLAGE);
   const [activeDungeon, setActiveDungeon] = useState<string>('etc');
 
-  // 🔁 게임 / 요약 뷰 전환
   const [viewMode, setViewMode] = useState<'GAME' | 'SUMMARY'>('GAME');
-
-  // 하루 마감 모달
   const [showDailyLog, setShowDailyLog] = useState(false);
-
-  // ✅ 씨앗봉투(가챠) 모달
-  const [rewardOpen, setRewardOpen] = useState(false);
-  const [lastReward, setLastReward] = useState<RewardItem | null>(null);
 
   // --- Effects ---
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
   }, [gameState]);
 
+  // ✅ (핵심) 첫 진입 시에도 혹시 state 형태가 깨져 있으면 merge 후 reset
   useEffect(() => {
-    setGameState((prev) => checkDailyReset(deepMergeSave(INITIAL_STATE, prev)));
+    setGameState((prev) => checkDailyReset(mergeUserState(INITIAL_STATE, prev)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
