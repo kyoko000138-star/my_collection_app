@@ -5,9 +5,9 @@ import { UserState, Scene } from '../types';
 import { calculateLunaPhase } from '../moneyLuna';
 
 // 대화 시스템
-import { DialogueBox } from '../../game/components/DialogueBox';
-import { useDialogue } from '../../game/useDialogue';
-import { FIRST_MEET_ANGEL_NORMAL } from '../../game/dialogueScriptsFirstMeet';
+import { DialogueBox } from '../game/components/DialogueBox';
+import { useDialogue } from '../game/useDialogue';
+import { FIRST_MEET_ANGEL_NORMAL } from '../game/dialogueScriptsFirstMeet';
 
 interface VillageViewProps {
   user: UserState;
