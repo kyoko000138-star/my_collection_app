@@ -1,14 +1,15 @@
 // src/money/moneyHealthyLogic.ts
-
 import { UserState } from './types';
 
-// garden이 없던 구버전 save가 로드되어도 안 터지게 안전보정
 const ensureGarden = (s: UserState) => {
   if (!s.garden) {
-    // @ts-expect-error: 구버전 세이브 대응
-    s.garden = { treeLevel: 1, pondLevel: 1, flowerState: 'normal', weedCount: 0 };
+    (s as any).garden = { treeLevel: 0, weedCount: 0, flowerState: 'normal', decorations: [] };
   }
-  return s;
+  if (!s.garden.decorations) s.garden.decorations = [];
+};
+
+const ensureInventory = (s: UserState) => {
+  if (!s.inventory) (s as any).inventory = [];
 };
 
 // 1) 대출/할부 상환 → 잡초 제거
@@ -16,33 +17,34 @@ export const applyRepayment = (
   state: UserState,
   amount: number,
 ): { newState: UserState; msg: string } => {
-  const nextState = JSON.parse(JSON.stringify(state)) as UserState;
-  ensureGarden(nextState);
+  const next = JSON.parse(JSON.stringify(state)) as UserState;
+  ensureGarden(next);
 
   const weedsRemoved = Math.max(1, Math.floor(amount / 100000));
-  nextState.garden.weedCount = Math.max(0, nextState.garden.weedCount - weedsRemoved);
+  next.garden.weedCount = Math.max(0, next.garden.weedCount - weedsRemoved);
 
   return {
-    newState: nextState,
-    msg: `🧹 대출/할부 상환! 가시덩굴 ${weedsRemoved}개를 걷어냈습니다.`,
+    newState: next,
+    msg: `🧹 상환 기록! 가시덩굴 ${weedsRemoved}개를 걷어냈습니다.`,
   };
 };
 
-// 2) 저축/이체 → 나무 성장 + 황금 비료 지급
+// 2) 저축 → 나무 성장 + 황금 비료(아이템)
 export const applySavings = (
   state: UserState,
   amount: number,
 ): { newState: UserState; msg: string } => {
-  const nextState = JSON.parse(JSON.stringify(state)) as UserState;
-  ensureGarden(nextState);
+  const next = JSON.parse(JSON.stringify(state)) as UserState;
+  ensureGarden(next);
+  ensureInventory(next);
 
-  nextState.garden.treeLevel = Math.min(5, nextState.garden.treeLevel + 1);
-  nextState.garden.flowerState = 'blooming';
+  next.garden.treeLevel = Math.min(5, next.garden.treeLevel + 1);
+  next.garden.flowerState = 'blooming';
 
-  const idx = nextState.inventory.findIndex((i) => i.id === 'gold_fertilizer');
-  if (idx > -1) nextState.inventory[idx].count += 1;
+  const idx = next.inventory.findIndex((i: any) => i.id === 'gold_fertilizer');
+  if (idx > -1) next.inventory[idx].count += 1;
   else
-    nextState.inventory.push({
+    next.inventory.push({
       id: 'gold_fertilizer',
       name: '황금 비료',
       type: 'consumable',
@@ -50,17 +52,15 @@ export const applySavings = (
     });
 
   return {
-    newState: nextState,
+    newState: next,
     msg: '💰 저축 성공! 꿈의 나무가 자랐어요. (황금 비료 +1)',
   };
 };
 
-// 3) 멘탈 케어 이벤트 트리거(옵션)
+// 3) 멘탈 케어 트리거
 export const checkMentalCare = (state: UserState): string | null => {
   const max = state.maxBudget || 0;
-  if (max <= 0) return null;
-
-  const hpPercent = (state.currentBudget / max) * 100;
+  const hpPercent = max > 0 ? (state.currentBudget / max) * 100 : 100;
   if (hpPercent < 10) return 'gardener_tea_time';
   return null;
 };
