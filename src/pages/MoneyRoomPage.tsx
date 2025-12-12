@@ -17,7 +17,11 @@ import {
   getDailyMonster,
 } from '../money/moneyGameLogic';
 import { calculateLunaPhase, getLunaTheme } from '../money/moneyLuna';
-import { applyRepayment, applySavings, checkMentalCare } from '../money/moneyHealthyLogic';
+import {
+  applyRepayment,
+  applySavings,
+  checkMentalCare,
+} from '../money/moneyHealthyLogic';
 
 // Views
 import { VillageView } from '../money/components/VillageView';
@@ -46,6 +50,14 @@ const INITIAL_STATE: UserState = {
   junk: 0,
   salt: 0,
   lunaCycle: { startDate: '', periodLength: 5, cycleLength: 28 },
+
+  // ✅ garden 필드 있는 프로젝트 기준 (없어도 런타임 방어로 as any 처리)
+  garden: {
+    treeLevel: 1,
+    weedCount: 0,
+    flowerState: 'normal',
+  } as any,
+
   inventory: [],
   collection: [],
   pending: [],
@@ -61,30 +73,22 @@ const INITIAL_STATE: UserState = {
     lastDailyResetDate: undefined as any,
     lastDayEndDate: undefined as any,
   },
-  // garden이 types에 확실히 들어가 있지 않더라도 런타임 방어용으로 넣어둠
-  garden: {
-    treeLevel: 1,
-    weedCount: 0,
-    flowerState: 'normal',
-  } as any,
   lastLoginDate: undefined,
 };
 
-// ✅ 로컬 저장된 오래된 데이터가 “중첩 객체를 통째로 덮어써서” 필드 누락으로 터지는 걸 방지
+// ✅ 오래된 localStorage 데이터가 중첩객체를 통째로 덮어써서 필드 누락으로 죽는 것 방지
 const hydrateState = (savedRaw: any): UserState => {
   const base = JSON.parse(JSON.stringify(INITIAL_STATE)) as UserState;
   if (!savedRaw || typeof savedRaw !== 'object') return base;
 
   const merged = { ...base, ...savedRaw } as UserState;
 
-  // 중첩 객체는 깊게 병합
   merged.lunaCycle = { ...base.lunaCycle, ...(savedRaw.lunaCycle || {}) };
   merged.assets = { ...base.assets, ...(savedRaw.assets || {}) };
   merged.counters = { ...base.counters, ...(savedRaw.counters || {}) };
   merged.materials = { ...(base.materials || {}), ...(savedRaw.materials || {}) };
   (merged as any).garden = { ...(base as any).garden, ...(savedRaw.garden || {}) };
 
-  // 배열은 타입 안전하게
   merged.inventory = Array.isArray(savedRaw.inventory) ? savedRaw.inventory : base.inventory;
   merged.collection = Array.isArray(savedRaw.collection) ? savedRaw.collection : base.collection;
   merged.pending = Array.isArray(savedRaw.pending) ? savedRaw.pending : base.pending;
@@ -92,7 +96,6 @@ const hydrateState = (savedRaw: any): UserState => {
   return merged;
 };
 
-// ✅ 하위 컴포넌트 에러 나면 “빈 화면” 대신 에러를 화면에 표시
 class GameErrorBoundary extends React.Component<
   { onReset: () => void; children: React.ReactNode },
   { error: Error | null }
@@ -118,9 +121,6 @@ class GameErrorBoundary extends React.Component<
           <button type="button" onClick={this.props.onReset} style={styles.errorBtn}>
             🔄 데이터 리셋 후 다시 열기
           </button>
-          <div style={styles.errorHint}>
-            (대부분 “저장된 예전 데이터에 필드가 없어서” 생기는 오류예요)
-          </div>
         </div>
       );
     }
@@ -132,8 +132,7 @@ const MoneyRoomPage: React.FC = () => {
   const [gameState, setGameState] = useState<UserState>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) return INITIAL_STATE;
-      return hydrateState(JSON.parse(saved));
+      return saved ? hydrateState(JSON.parse(saved)) : INITIAL_STATE;
     } catch {
       return INITIAL_STATE;
     }
@@ -187,17 +186,16 @@ const MoneyRoomPage: React.FC = () => {
     let next = gameState;
     const msgs: string[] = [];
 
-    // 1) 기본: 예산 감소 + Junk 처리
+    // ✅ 상환/저축은 Junk 드랍 제외되게 isFixedCost=true 처리
     const { newState: spentState, message } = applySpend(
       next,
       amount,
-      spendMode !== 'NORMAL', // 상환/저축은 고정비처럼 처리(=Junk 제외)
+      spendMode !== 'NORMAL',
       activeDungeon,
     );
     next = spentState;
     msgs.push(message);
 
-    // 2) 모드별 보상(정원)
     if (spendMode === 'REPAY') {
       const r = applyRepayment(next, amount);
       next = r.newState;
@@ -253,14 +251,15 @@ const MoneyRoomPage: React.FC = () => {
 
   return (
     <div style={{ ...styles.appContainer, backgroundColor: theme.bg }}>
-      {/* 게임/요약 토글 */}
+      {/* 🎮 게임 / 📊 요약 토글 */}
       <div style={styles.viewToggle}>
         <button
           type="button"
           onClick={() => setViewMode('GAME')}
           style={{
             ...styles.viewToggleBtn,
-            backgroundColor: viewMode === 'GAME' ? '#0f172a' : 'rgba(15,23,42,0.6)',
+            backgroundColor:
+              viewMode === 'GAME' ? '#0f172a' : 'rgba(15,23,42,0.6)',
           }}
         >
           🎮 게임
@@ -270,14 +269,15 @@ const MoneyRoomPage: React.FC = () => {
           onClick={() => setViewMode('SUMMARY')}
           style={{
             ...styles.viewToggleBtn,
-            backgroundColor: viewMode === 'SUMMARY' ? '#0f172a' : 'rgba(15,23,42,0.6)',
+            backgroundColor:
+              viewMode === 'SUMMARY' ? '#0f172a' : 'rgba(15,23,42,0.6)',
           }}
         >
           📊 요약
         </button>
       </div>
 
-      {/* 지출 모드 토글 (GAME일 때만) */}
+      {/* 💳 지출 모드 토글 (GAME일 때만) */}
       {viewMode === 'GAME' && (
         <div style={styles.modeToggle}>
           <button
@@ -285,7 +285,8 @@ const MoneyRoomPage: React.FC = () => {
             onClick={() => setSpendMode('NORMAL')}
             style={{
               ...styles.modeButton,
-              backgroundColor: spendMode === 'NORMAL' ? '#f97316' : 'rgba(15,23,42,0.85)',
+              backgroundColor:
+                spendMode === 'NORMAL' ? '#f97316' : 'rgba(15,23,42,0.85)',
             }}
           >
             🍽 일반 지출
@@ -295,7 +296,8 @@ const MoneyRoomPage: React.FC = () => {
             onClick={() => setSpendMode('REPAY')}
             style={{
               ...styles.modeButton,
-              backgroundColor: spendMode === 'REPAY' ? '#16a34a' : 'rgba(15,23,42,0.85)',
+              backgroundColor:
+                spendMode === 'REPAY' ? '#16a34a' : 'rgba(15,23,42,0.85)',
             }}
           >
             💳 대출/할부 상환
@@ -305,7 +307,8 @@ const MoneyRoomPage: React.FC = () => {
             onClick={() => setSpendMode('SAVE')}
             style={{
               ...styles.modeButton,
-              backgroundColor: spendMode === 'SAVE' ? '#0ea5e9' : 'rgba(15,23,42,0.85)',
+              backgroundColor:
+                spendMode === 'SAVE' ? '#0ea5e9' : 'rgba(15,23,42,0.85)',
             }}
           >
             💰 저축/이체
@@ -313,78 +316,86 @@ const MoneyRoomPage: React.FC = () => {
         </div>
       )}
 
-      {viewMode === 'SUMMARY' ? (
-        <MoneySummaryView user={gameState} onBackToGame={() => setViewMode('GAME')} />
-      ) : (
-        <GameErrorBoundary onReset={handleReset}>
-          <>
-            {isNewUser && <OnboardingModal onComplete={handleOnboarding} />}
+      {/* ✅ 중요: 메인 씬 영역을 flex:1로 잡아서 자식 height:100%가 살아남 */}
+      <div style={styles.sceneArea}>
+        {viewMode === 'SUMMARY' ? (
+          <MoneySummaryView
+            user={gameState}
+            onBackToGame={() => setViewMode('GAME')}
+          />
+        ) : (
+          <GameErrorBoundary onReset={handleReset}>
+            <>
+              {isNewUser && <OnboardingModal onComplete={handleOnboarding} />}
 
-            {scene === Scene.VILLAGE && (
-              <VillageView
-                user={gameState}
-                onChangeScene={setScene}
-                onDayEnd={handleDayEnd}
-              />
-            )}
+              {scene === Scene.VILLAGE && (
+                <VillageView
+                  user={gameState}
+                  onChangeScene={setScene}
+                  onDayEnd={handleDayEnd}
+                />
+              )}
 
-            {scene === Scene.WORLD_MAP && (
-              <WorldMapView
-                onSelectDungeon={(id) => {
-                  setActiveDungeon(id);
-                  setScene(Scene.BATTLE);
+              {scene === Scene.WORLD_MAP && (
+                <WorldMapView
+                  onSelectDungeon={(id) => {
+                    setActiveDungeon(id);
+                    setScene(Scene.BATTLE);
+                  }}
+                  onBack={() => setScene(Scene.VILLAGE)}
+                />
+              )}
+
+              {scene === Scene.BATTLE && (
+                <BattleView
+                  dungeonId={currentMonsterType}
+                  playerHp={gameState.currentBudget}
+                  maxHp={gameState.maxBudget}
+                  onSpend={handleSpend}
+                  onGuard={handleGuard}
+                  onRun={() => setScene(Scene.WORLD_MAP)}
+                />
+              )}
+
+              {/* 모달들 */}
+              <InventoryModal
+                open={scene === Scene.INVENTORY}
+                onClose={() => setScene(Scene.VILLAGE)}
+                junk={gameState.junk}
+                salt={gameState.salt}
+                materials={gameState.materials}
+                equipment={gameState.inventory.map((i) => i.name)}
+                collection={gameState.collection}
+                canPurify={gameState.mp > 0}
+                onPurify={() => {
+                  const { newState, message } = applyPurify(gameState);
+                  setGameState(newState);
+                  alert(message);
                 }}
-                onBack={() => setScene(Scene.VILLAGE)}
+                onCraft={() => {
+                  const { newState, message } = applyCraftEquipment(gameState);
+                  setGameState(newState);
+                  alert(message);
+                }}
               />
-            )}
 
-            {scene === Scene.BATTLE && (
-              <BattleView
-                dungeonId={currentMonsterType}
-                playerHp={gameState.currentBudget}
-                maxHp={gameState.maxBudget}
-                onSpend={handleSpend}
-                onGuard={handleGuard}
-                onRun={() => setScene(Scene.WORLD_MAP)}
+              <KingdomModal
+                open={scene === Scene.KINGDOM}
+                onClose={() => setScene(Scene.VILLAGE)}
+                buildings={getAssetBuildingsView(gameState)}
               />
-            )}
 
-            <InventoryModal
-              open={scene === Scene.INVENTORY}
-              onClose={() => setScene(Scene.VILLAGE)}
-              junk={gameState.junk}
-              salt={gameState.salt}
-              materials={gameState.materials}
-              equipment={gameState.inventory.map((i) => i.name)}
-              collection={gameState.collection}
-              canPurify={gameState.mp > 0}
-              onPurify={() => {
-                const { newState, message } = applyPurify(gameState);
-                setGameState(newState);
-                alert(message);
-              }}
-              onCraft={() => {
-                const { newState, message } = applyCraftEquipment(gameState);
-                setGameState(newState);
-                alert(message);
-              }}
-            />
+              <CollectionModal
+                open={scene === Scene.COLLECTION}
+                onClose={() => setScene(Scene.VILLAGE)}
+                collection={gameState.collection}
+              />
+            </>
+          </GameErrorBoundary>
+        )}
+      </div>
 
-            <KingdomModal
-              open={scene === Scene.KINGDOM}
-              onClose={() => setScene(Scene.VILLAGE)}
-              buildings={getAssetBuildingsView(gameState)}
-            />
-
-            <CollectionModal
-              open={scene === Scene.COLLECTION}
-              onClose={() => setScene(Scene.VILLAGE)}
-              collection={gameState.collection}
-            />
-          </>
-        </GameErrorBoundary>
-      )}
-
+      {/* 하루 마감 리포트 */}
       <DailyLogModal
         open={showDailyLog}
         onClose={() => setShowDailyLog(false)}
@@ -398,7 +409,7 @@ const MoneyRoomPage: React.FC = () => {
         pending={gameState.pending}
       />
 
-      {/* 항상 보이는 리셋 버튼 */}
+      {/* Reset */}
       <div style={styles.debugArea}>
         <button type="button" onClick={handleReset}>
           🔄 Reset
@@ -411,14 +422,33 @@ const MoneyRoomPage: React.FC = () => {
 const styles: Record<string, React.CSSProperties> = {
   appContainer: {
     maxWidth: '420px',
+    width: '100%',
     margin: '0 auto',
-    minHeight: '100vh',
+
+    // ✅ 핵심: height를 확정해서 자식 height:100%가 계산되게 함
+    height: '100dvh',   // iOS Safari 대응
+    minHeight: '100vh', // fallback
+
     color: '#fff',
     fontFamily: '"NeoDungGeunMo", monospace',
     position: 'relative',
     overflow: 'hidden',
     transition: 'background-color 1s ease',
+
+    display: 'flex',
+    flexDirection: 'column',
+    boxSizing: 'border-box',
   },
+
+  // ✅ 중요: 실제 게임/요약이 들어가는 영역
+  sceneArea: {
+    flex: 1,
+    position: 'relative',
+    height: '100%',
+    minHeight: 0, // flex children overflow 이슈 방지
+    overflow: 'hidden',
+  },
+
   viewToggle: {
     position: 'absolute',
     top: 8,
@@ -436,6 +466,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     backgroundColor: '#020617',
   },
+
   modeToggle: {
     position: 'absolute',
     top: 40,
@@ -456,6 +487,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     whiteSpace: 'nowrap',
   },
+
   debugArea: {
     position: 'absolute',
     bottom: 6,
@@ -482,7 +514,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff',
     cursor: 'pointer',
   },
-  errorHint: { marginTop: 8, fontSize: 11, color: '#fca5a5' },
 };
 
 export default MoneyRoomPage;
