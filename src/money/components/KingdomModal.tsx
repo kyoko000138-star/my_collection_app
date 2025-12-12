@@ -7,7 +7,6 @@ interface KingdomModalProps {
   open: boolean;
   onClose: () => void;
   buildings: AssetBuildingView[];
-  // [NEW] 고정비 관리 핸들러
   onManageSubs: () => void;
 }
 
@@ -19,66 +18,54 @@ export const KingdomModal: React.FC<KingdomModalProps> = ({
 }) => {
   if (!open) return null;
 
-  // 건물 ID와 레벨에 따른 아이콘/이모지 매핑
-  const getIcon = (id: string, level: number) => {
-    if (id === 'fortress') return level < 3 ? '⛺' : '🏰';    // 요새
-    if (id === 'airfield') return level < 3 ? '🪁' : '🚀';    // 비행장
-    if (id === 'mansion')  return level < 3 ? '🏠' : '🏯';    // 저택
-    if (id === 'tower')    return level < 3 ? '🔮' : '🌌';    // 마법탑
-    if (id === 'warehouse') return level < 3 ? '📦' : '💎';   // 창고
-    return '🏗️';
+  // 정원 테마 아이콘 매핑
+  const getIcon = (id: string) => {
+    switch (id) {
+      case 'fence': return '🚧';      // 방어 -> 울타리
+      case 'greenhouse': return '🏕️'; // 무지출 -> 온실/텐트
+      case 'mansion': return '🏠';    // 고정비 -> 저택
+      case 'fountain': return '⛲';   // 정화 -> 분수
+      case 'barn': return '🛖';       // 파밍 -> 헛간
+      default: return '🌳';
+    }
   };
 
   return (
-    <div style={styles.modalOverlay}>
-      <div style={styles.modalCardLarge}>
-        <h2 style={styles.modalTitle}>🏰 자산의 왕국</h2>
-        <p style={styles.modalSubtitle}>
-          금액이 아닌 <b>"행동의 횟수"</b>가 이 세계를 구축합니다.
+    <div style={styles.overlay}>
+      <div style={styles.card}>
+        <h2 style={styles.title}>🌷 자산의 정원</h2>
+        <p style={styles.desc}>
+          금액이 아닌 <b>"행동의 횟수"</b>가 정원을 가꿉니다.
         </p>
 
-        <div style={styles.modalScrollArea}>
+        <div style={styles.list}>
           {buildings.length === 0 ? (
-            <div style={styles.emptyBox}>
-              데이터를 불러오는 중입니다...
+            <div style={{textAlign:'center', padding: 20, color:'#9ca3af'}}>
+              데이터 로딩 중...
             </div>
           ) : (
             buildings.map((b) => {
-              // 진행률 계산 (만렙이면 100%)
-              const progressPercent = b.nextTarget 
-                ? Math.min(100, (b.count / b.nextTarget) * 100)
+              // 진행률 계산
+              const progress = b.nextTarget 
+                ? Math.min(100, (b.count / b.nextTarget) * 100) 
                 : 100;
 
               return (
-                <div key={b.id} style={styles.buildingCard}>
-                  {/* 아이콘 영역 */}
-                  <div style={styles.iconArea}>
-                    <span style={{ fontSize: '28px' }}>{getIcon(b.id, b.level)}</span>
-                  </div>
-
-                  {/* 정보 영역 */}
-                  <div style={styles.infoArea}>
-                    <div style={styles.buildingHeader}>
-                      <span style={styles.buildingName}>{b.label}</span>
-                      <span style={styles.levelBadge}>Lv.{b.level}</span>
+                <div key={b.id} style={styles.row}>
+                  <div style={styles.iconBox}>{getIcon(b.id)}</div>
+                  
+                  <div style={{ flex: 1 }}>
+                    <div style={styles.rowHeader}>
+                      <span style={styles.label}>{b.label}</span>
+                      <span style={styles.lvBadge}>Lv.{b.level}</span>
                     </div>
-
-                    <div style={styles.progressRow}>
-                      <span style={styles.progressText}>
-                        {b.nextTarget 
-                          ? `${b.count} / ${b.nextTarget} exp` 
-                          : 'MAX LEVEL'}
-                      </span>
+                    
+                    <div style={styles.barBg}>
+                      <div style={{ ...styles.barFill, width: `${progress}%` }} />
                     </div>
-
-                    <div style={styles.progressBarBg}>
-                      <div
-                        style={{
-                          ...styles.progressBarFill,
-                          width: `${progressPercent}%`,
-                          backgroundColor: b.nextTarget ? '#8b5cf6' : '#fbbf24' // 만렙이면 금색
-                        }}
-                      />
+                    
+                    <div style={styles.countText}>
+                      {b.count} / {b.nextTarget || 'MAX'}
                     </div>
                   </div>
                 </div>
@@ -87,80 +74,62 @@ export const KingdomModal: React.FC<KingdomModalProps> = ({
           )}
         </div>
 
-        {/* [NEW] 고정비 관리 버튼 */}
-        <button 
-          onClick={onManageSubs} 
-          style={{
-            ...styles.btnSecondary, 
-            marginTop: '10px', 
-            backgroundColor: '#4c1d95', 
-            color: '#ddd6fe',
-            border: '1px solid #6d28d9'
-          }}
-        >
+        <button onClick={onManageSubs} style={styles.subBtn}>
           📜 고정비(구독) 계약 관리
         </button>
 
-        <div style={styles.footerNote}>
-          ※ 각 건물은 특정 행동(방어, 무지출, 정화 등)을 할 때마다 성장합니다.
-        </div>
-
-        <div style={styles.modalFooterRow}>
-          <button type="button" onClick={onClose} style={styles.btnSecondary}>
-            닫기
-          </button>
-        </div>
+        <button onClick={onClose} style={styles.closeBtn}>
+          닫기
+        </button>
       </div>
     </div>
   );
 };
 
 const styles: Record<string, React.CSSProperties> = {
-  modalOverlay: {
+  overlay: {
     position: 'fixed', inset: 0,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    display: 'flex', justifyContent: 'center', alignItems: 'center',
+    zIndex: 2000,
   },
-  modalCardLarge: {
-    width: '90%', maxWidth: '380px', maxHeight: '80vh',
-    backgroundColor: '#111827', // Dark Gray
+  card: {
+    width: '90%', maxWidth: '360px', maxHeight: '80vh',
+    backgroundColor: '#1f2937', // Dark Slate
     borderRadius: '16px', padding: '20px',
-    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-    border: '1px solid #374151',
-    color: '#e5e7eb',
+    border: '2px solid #4b5563',
+    color: '#fff',
     display: 'flex', flexDirection: 'column',
   },
-  modalTitle: { fontSize: '20px', margin: '0 0 4px 0', textAlign: 'center', color: '#c084fc' },
-  modalSubtitle: { fontSize: '12px', color: '#9ca3af', textAlign: 'center', marginBottom: '20px' },
-  modalScrollArea: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' },
-  emptyBox: { textAlign: 'center', color: '#6b7280', padding: '20px' },
+  title: { textAlign: 'center', margin: '0 0 4px 0', fontSize: '20px', color: '#fbcfe8' }, // 핑크빛 타이틀
+  desc: { textAlign: 'center', fontSize: '12px', color: '#9ca3af', marginBottom: '20px' },
   
-  buildingCard: {
-    display: 'flex', alignItems: 'center',
-    padding: '12px', borderRadius: '12px',
-    backgroundColor: '#1f2937', border: '1px solid #374151',
+  list: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' },
+  
+  row: {
+    display: 'flex', gap: '12px', alignItems: 'center',
+    backgroundColor: '#111827', padding: '12px', borderRadius: '12px',
+    border: '1px solid #374151'
   },
-  iconArea: {
-    width: '50px', height: '50px',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '10px',
-    marginRight: '15px',
+  iconBox: { fontSize: '24px' },
+  
+  rowHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: '6px' },
+  label: { fontSize: '14px', fontWeight: 'bold' },
+  lvBadge: { fontSize: '11px', color: '#fbbf24', border: '1px solid #78350f', padding: '1px 5px', borderRadius: '4px' },
+  
+  barBg: { width: '100%', height: '6px', backgroundColor: '#374151', borderRadius: '3px' },
+  barFill: { height: '100%', backgroundColor: '#34d399', borderRadius: '3px', transition: 'width 0.3s' },
+  
+  countText: { fontSize: '10px', textAlign: 'right', marginTop: '4px', color: '#9ca3af' },
+  
+  subBtn: {
+    marginTop: '20px', width: '100%', padding: '12px',
+    backgroundColor: '#4f46e5', color: '#fff', border: 'none',
+    borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer'
   },
-  infoArea: { flex: 1 },
-  buildingHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: '6px', alignItems: 'center' },
-  buildingName: { fontSize: '14px', fontWeight: 'bold', color: '#f3f4f6' },
-  levelBadge: { fontSize: '10px', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#374151', border: '1px solid #4b5563', color: '#fbbf24' },
-  
-  progressRow: { display: 'flex', justifyContent: 'flex-end', marginBottom: '4px' },
-  progressText: { fontSize: '11px', color: '#9ca3af' },
-  
-  progressBarBg: { width: '100%', height: '6px', borderRadius: '3px', backgroundColor: '#374151', overflow: 'hidden' },
-  progressBarFill: { height: '100%', borderRadius: '3px', transition: 'width 0.3s ease' },
-  
-  footerNote: { fontSize: '11px', color: '#6b7280', marginTop: '15px', textAlign: 'center' },
-  modalFooterRow: { marginTop: '15px', display: 'flex', justifyContent: 'center' },
-  btnSecondary: {
-    width: '100%', padding: '12px', borderRadius: '10px', border: 'none',
-    backgroundColor: '#374151', color: '#e5e7eb', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' 
-  },
+  closeBtn: {
+    marginTop: '10px', width: '100%', padding: '10px',
+    backgroundColor: 'transparent', color: '#9ca3af', border: '1px solid #4b5563',
+    borderRadius: '10px', cursor: 'pointer'
+  }
 };
