@@ -1,8 +1,9 @@
+// src/pages/MoneyRoomPage.tsx
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { MoneySummaryView } from '../money/components/MoneySummaryView';
 
-// ✅ [Fix 1] 경로 수정 (../types -> ../money/types)
-import { UserState, Scene } from '../money/types';
+import { UserState, Scene, SubscriptionPlan } from '../money/types';
 import { CLASS_TYPES } from '../money/constants';
 import {
   checkDailyReset,
@@ -15,7 +16,7 @@ import {
   getDailyMonster,
   applySubscriptionChargesIfDue,
 } from '../money/moneyGameLogic';
-import { calculateLunaPhase, getLunaTheme } from '../money/moneyLuna';
+import { calculateLunaPhase } from '../money/moneyLuna';
 import { getKSTDateString, getMoneyWeather, getWeatherMeta } from '../money/moneyWeather';
 import { pullGacha, RewardItem, DECOR_EMOJI } from '../money/rewardData';
 
@@ -33,27 +34,10 @@ import { CollectionModal } from '../money/components/CollectionModal';
 import { OnboardingModal } from '../money/components/OnboardingModal';
 import DailyLogModal from '../money/components/DailyLogModal';
 
-const STORAGE_KEY = 'money-room-save-v5-full';
+// [NEW] 구독 모달
+import { SubscriptionModal } from '../money/components/SubscriptionModal';
 
-// ---------------------------------------------------------
-// 🎨 스타일 정의 (JRPG 테마)
-// ---------------------------------------------------------
-const pixelTheme = {
-  font: '"NeoDungGeunMo", monospace',
-  colors: {
-    bg: '#20202d',
-    hud: '#2d3748',
-    command: '#1a202c',
-    text: '#ffffff',
-    accent: '#fbbf24',
-  },
-  borders: {
-    basic: '4px solid #ffffff',
-  },
-  shadows: {
-    box: 'inset 4px 4px 0px rgba(255,255,255,0.1), 4px 4px 0px rgba(0,0,0,0.5)',
-  },
-};
+const STORAGE_KEY = 'money-room-save-v5-full';
 
 // ---------------------------------------------------------
 // 💾 데이터 초기화
@@ -119,7 +103,7 @@ const MoneyRoomPage: React.FC = () => {
   const [scene, setScene] = useState<Scene>(Scene.VILLAGE);
   const [activeDungeon, setActiveDungeon] = useState<string>('etc');
   const [viewMode, setViewMode] = useState<'GAME' | 'SUMMARY'>('GAME');
-  
+
   // Modals
   const [showDailyLog, setShowDailyLog] = useState(false);
   const [rewardOpen, setRewardOpen] = useState(false);
@@ -136,6 +120,10 @@ const MoneyRoomPage: React.FC = () => {
       const merged = mergeUserState(INITIAL_STATE, prev);
       const reset = checkDailyReset(merged);
       const sub = applySubscriptionChargesIfDue(reset);
+      // 구독 청구 로그가 있다면 알림
+      if (sub.logs.length > 0) {
+        alert(sub.logs.join('\n'));
+      }
       return sub.newState;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -143,7 +131,6 @@ const MoneyRoomPage: React.FC = () => {
 
   // --- Helpers ---
   const todayStr = useMemo(() => getKSTDateString(), []);
-  const lunaPhase = calculateLunaPhase(gameState.lunaCycle);
   const weather = getMoneyWeather(gameState);
   const weatherMeta = getWeatherMeta(weather);
   const isNewUser = gameState.maxBudget === 0;
@@ -159,8 +146,6 @@ const MoneyRoomPage: React.FC = () => {
       ? Math.round((gameState.currentBudget / gameState.maxBudget) * 100)
       : 0;
   
-  const mpPercent = (gameState.mp / gameState.maxMp) * 100;
-
   // --- Handlers ---
   const handleSpend = (amount: number) => {
     const { newState, message } = applySpend(gameState, amount, false, activeDungeon);
@@ -236,11 +221,37 @@ const MoneyRoomPage: React.FC = () => {
     }));
   };
 
+  // [NEW] 구독 추가 핸들러
+  const handleAddSubscription = (plan: SubscriptionPlan) => {
+    setGameState(prev => ({
+      ...prev,
+      subscriptions: [...(prev.subscriptions || []), plan],
+      assets: { ...prev.assets, mansion: (prev.assets.mansion || 0) + 1 }
+    }));
+  };
+
+  // [NEW] 구독 삭제 핸들러
+  const handleRemoveSubscription = (id: string) => {
+    setGameState(prev => ({
+      ...prev,
+      subscriptions: prev.subscriptions.filter(s => s.id !== id)
+    }));
+  };
+
   // ---------------------------------------------------------
   // 🖥️ 렌더링
   // ---------------------------------------------------------
   return (
-    <div style={styles.appContainer}>
+    <div 
+      style={{
+        ...styles.appContainer,
+        // [NEW] 흑화 모드 필터: 예산이 0 이하일 때 잿빛 + 붉은 톤으로 변경
+        filter: gameState.status.mode === 'DARK' 
+          ? 'grayscale(90%) contrast(120%) sepia(20%) hue-rotate(-20deg)' 
+          : 'none',
+        transition: 'filter 2s ease', 
+      }}
+    >
       
       {/* 1. 상단 UI (토글 & 날씨/씨앗) */}
       <div style={styles.viewToggle}>
@@ -282,7 +293,6 @@ const MoneyRoomPage: React.FC = () => {
       {viewMode === 'SUMMARY' ? (
         <MoneySummaryView user={gameState} onBackToGame={() => setViewMode('GAME')} />
       ) : (
-        // ✅ [Fix 2] flex: 1 래퍼로 감싸서 높이 문제 해결
         <div style={styles.screenWrap}>
           
           {/* 오버레이: 날씨 & 정원 데코 (마을에서만 표시) */}
@@ -323,7 +333,7 @@ const MoneyRoomPage: React.FC = () => {
           {scene === Scene.WORLD_MAP && (
             <WorldMapView 
               onSelectDungeon={(id) => { 
-                setActiveDungeon(id); 
+                setActiveDungeon(id);
                 setScene(Scene.BATTLE); 
               }} 
               onBack={() => setScene(Scene.VILLAGE)} 
@@ -350,8 +360,23 @@ const MoneyRoomPage: React.FC = () => {
             onPurify={() => { const res = applyPurify(gameState); setGameState(res.newState); alert(res.message); }}
             onCraft={() => { const res = applyCraftEquipment(gameState); setGameState(res.newState); alert(res.message); }}
           />
-          <KingdomModal open={scene === Scene.KINGDOM} onClose={() => setScene(Scene.VILLAGE)} buildings={getAssetBuildingsView(gameState)} />
+          <KingdomModal 
+            open={scene === Scene.KINGDOM} 
+            onClose={() => setScene(Scene.VILLAGE)} 
+            buildings={getAssetBuildingsView(gameState)} 
+            onManageSubs={() => setScene(Scene.SUBSCRIPTION)} // [NEW] 연결
+          />
           <CollectionModal open={scene === Scene.COLLECTION} onClose={() => setScene(Scene.VILLAGE)} collection={gameState.collection} />
+          
+          {/* [NEW] 구독 관리 모달 */}
+          <SubscriptionModal 
+            open={scene === Scene.SUBSCRIPTION}
+            onClose={() => setScene(Scene.VILLAGE)}
+            plans={gameState.subscriptions || []}
+            onAdd={handleAddSubscription}
+            onRemove={handleRemoveSubscription}
+          />
+
         </div>
       )}
 
@@ -377,7 +402,6 @@ const MoneyRoomPage: React.FC = () => {
 // 💄 Styles
 // ---------------------------------------------------------
 const styles: Record<string, React.CSSProperties> = {
-  // ✅ 1. 전체 컨테이너: 높이 확정 (minHeight -> height: 100dvh)
   appContainer: {
     maxWidth: '420px',
     margin: '0 auto',
@@ -391,7 +415,6 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'background-color 1s ease',
   },
 
-  // ✅ 2. 내부 화면 래퍼: 남은 공간 꽉 채우기
   screenWrap: {
     flex: 1, 
     position: 'relative',
