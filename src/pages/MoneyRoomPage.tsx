@@ -1,515 +1,288 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { MoneySummaryView } from '../money/components/MoneySummaryView';
+// src/money/components/VillageView.tsx
 
-// Data & Logic
-import { UserState, Scene } from '../money/types';
-import { CLASS_TYPES } from '../money/constants';
-import {
-  checkDailyReset,
-  applySpend,
-  applyDefense,
-  applyDayEnd,
-  applyPurify,
-  applyCraftEquipment,
-  getAssetBuildingsView,
-  getDailyMonster,
-  applySubscriptionChargesIfDue,
-} from '../money/moneyGameLogic';
-import { calculateLunaPhase, getLunaTheme } from '../money/moneyLuna';
-import { getKSTDateString, getMoneyWeather, getWeatherMeta } from '../money/moneyWeather';
-import { pullGacha, RewardItem, DECOR_EMOJI } from '../money/rewardData';
+import React from 'react';
+import { UserState, Scene } from '../types';
+import { calculateLunaPhase } from '../moneyLuna';
 
-// Views
-import { VillageView } from '../money/components/VillageView';
-import { WorldMapView } from '../money/components/WorldMapView';
-import { BattleView } from '../money/components/BattleView';
+// 대화 시스템
+import { DialogueBox } from '../../game/components/DialogueBox';
+import { useDialogue } from '../../game/useDialogue';
+import { FIRST_MEET_ANGEL_NORMAL } from '../../game/dialogueScriptsFirstMeet';
 
-// Components & Modals
-import { WeatherOverlay } from '../money/components/WeatherOverlay';
-import { RewardModal } from '../money/components/RewardModal';
-import { InventoryModal } from '../money/components/InventoryModal';
-import { KingdomModal } from '../money/components/KingdomModal';
-import { CollectionModal } from '../money/components/CollectionModal';
-import { OnboardingModal } from '../money/components/OnboardingModal';
-import DailyLogModal from '../money/components/DailyLogModal';
+interface VillageViewProps {
+  user: UserState;
+  onChangeScene: (scene: Scene) => void;
+  onDayEnd: () => void; // 🛏 여관에서 쉬기 (하루 마감)
+}
 
-const STORAGE_KEY = 'money-room-save-v5-full';
+export const VillageView: React.FC<VillageViewProps> = ({
+  user,
+  onChangeScene,
+  onDayEnd,
+}) => {
 
-// ✅ 완전한 기본 형태 보장 (필드 누락 방지)
-const INITIAL_STATE: UserState = {
-  name: 'Player 1',
-  level: 1,
-  jobTitle: CLASS_TYPES.GUARDIAN,
 
-  currentBudget: 0,
-  maxBudget: 0,
 
-  mp: 30,
-  maxMp: 30,
+  // VillageView.tsx 스타일 부분 수정 제안
 
-  junk: 0,
-  salt: 0,
-  seedPackets: 0,
-
-  garden: {
-    treeLevel: 0,
-    pondLevel: 0,
-    flowerState: 'normal',
-    weedCount: 0,
-    decorations: [],
+const styles = {
+  // 전체 배경: 어두운 던전 느낌 or 잔디 느낌
+  container: {
+    width: '100%', height: '100%',
+    backgroundColor: '#2d3748', // 어두운 남색
+    // 도트 패턴 (CSS로 구현)
+    backgroundImage: 'radial-gradient(#4a5568 15%, transparent 16%)',
+    backgroundSize: '16px 16px', 
+    position: 'relative',
+    color: '#fff',
+    fontFamily: '"NeoDungGeunMo", monospace', // 폰트 필수
   },
 
-  status: { mode: 'NORMAL', darkLevel: 0 },
-
-  lunaCycle: { startDate: '', periodLength: 5, cycleLength: 28 },
-
-  inventory: [],
-  collection: [],
-  pending: [],
-  materials: {},
-
-  assets: { fortress: 0, airfield: 0, mansion: 0, tower: 0, warehouse: 0 },
-
-  counters: {
-    defenseActionsToday: 0,
-    junkObtainedToday: 0,
-    noSpendStreak: 0,
-    dailyTotalSpend: 0,
-    guardPromptShownToday: false,
-    hadSpendingToday: false,
-    lastDailyResetDate: '',
-    lastDayEndDate: '',
+  // 캐릭터 (이모지 대신 픽셀 느낌 확대)
+  characterSprite: {
+    fontSize: '80px',
+    filter: 'drop-shadow(4px 4px 0px rgba(0,0,0,0.5))', // 그림자도 딱딱하게
+    animation: 'bounce 2s infinite', // 둥실둥실
   },
 
-  subscriptions: [],
-};
+  // 대화창 (RPG 스타일)
+  dialogBox: {
+    position: 'absolute', bottom: '120px', left: '10px', right: '10px',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)', // 반투명 검정
+    border: '4px solid #fff', // 흰색 굵은 테두리
+    borderRadius: '8px',
+    padding: '16px',
+    color: '#fff',
+    fontSize: '16px',
+    lineHeight: '1.6',
+    boxShadow: '0 8px 0 rgba(0,0,0,0.3)',
+  },
 
-// ✅ 딥-머지 유틸리티: 저장본이 부분 데이터여도 안전하게 병합
-const mergeUserState = (base: UserState, saved: Partial<UserState>): UserState => {
-  return {
-    ...base,
-    ...saved,
-
-    lunaCycle: { ...base.lunaCycle, ...(saved.lunaCycle || {}) },
-    assets: { ...base.assets, ...(saved.assets || {}) },
-    counters: { ...base.counters, ...(saved.counters || {}) },
-    garden: { 
-      ...base.garden, 
-      ...(saved.garden || {}),
-      decorations: saved.garden?.decorations ?? base.garden.decorations 
-    },
-    status: { ...base.status, ...(saved.status || {}) },
-
-    inventory: Array.isArray(saved.inventory) ? saved.inventory : base.inventory,
-    collection: Array.isArray(saved.collection) ? saved.collection : base.collection,
-    pending: Array.isArray(saved.pending) ? saved.pending : base.pending,
-    subscriptions: Array.isArray(saved.subscriptions) ? saved.subscriptions : base.subscriptions,
-
-    materials: saved.materials ?? base.materials,
-    seedPackets: typeof saved.seedPackets === 'number' ? saved.seedPackets : base.seedPackets,
-  };
-};
-
-const MoneyRoomPage: React.FC = () => {
-  // --- State Initialization ---
-  const [gameState, setGameState] = useState<UserState>(() => {
-    try {
-      const savedRaw = localStorage.getItem(STORAGE_KEY);
-      if (!savedRaw) return INITIAL_STATE;
-      const saved = JSON.parse(savedRaw) as Partial<UserState>;
-      return mergeUserState(INITIAL_STATE, saved);
-    } catch {
-      return INITIAL_STATE;
-    }
-  });
-
-  const [scene, setScene] = useState<Scene>(Scene.VILLAGE);
-  const [activeDungeon, setActiveDungeon] = useState<string>('etc');
-  const [viewMode, setViewMode] = useState<'GAME' | 'SUMMARY'>('GAME');
+  // 하단 메뉴 (2x2 그리드)
+  controllerArea: {
+    position: 'absolute', bottom: '10px', left: '10px', right: '10px',
+    display: 'grid', 
+    gridTemplateColumns: '1fr 1fr', 
+    gap: '8px',
+    padding: '8px',
+    backgroundColor: '#4a5568',
+    border: '4px solid #cbd5e0',
+    borderRadius: '4px'
+  },
   
-  // Modals State
-  const [showDailyLog, setShowDailyLog] = useState(false);
-  const [rewardOpen, setRewardOpen] = useState(false);
-  const [lastReward, setLastReward] = useState<RewardItem | null>(null);
+  // 버튼 스타일
+  rpgButton: {
+    backgroundColor: '#3182ce', // 파판 파란색
+    color: 'white',
+    border: '2px solid #bee3f8', // 밝은 테두리
+    boxShadow: 'inset -3px -3px 0 rgba(0,0,0,0.4)', // 입체감
+    padding: '12px',
+    fontFamily: 'inherit',
+    fontSize: '14px',
+    cursor: 'pointer',
+    textAlign: 'left' as 'left', // 텍스트 왼쪽 정렬 (고전 느낌)
+  }
+};
+  // --- 대화 훅 세팅 ---
+  const { currentLine, visible, startScript, next } = useDialogue();
 
-  // --- Effects ---
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
-  }, [gameState]);
-
-  // ✅ 최초 진입 로직: 머지 -> 리셋 -> 구독 청구
-  useEffect(() => {
-    setGameState((prev) => {
-      const merged = mergeUserState(INITIAL_STATE, prev);
-      const reset = checkDailyReset(merged);
-      const sub = applySubscriptionChargesIfDue(reset);
-      return sub.newState;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // --- Helpers & Memo ---
-  const todayStr = useMemo(() => getKSTDateString(), []);
-  const lunaPhase = calculateLunaPhase(gameState.lunaCycle);
-  const theme = getLunaTheme(lunaPhase);
-  const weather = getMoneyWeather(gameState);
-  const weatherMeta = getWeatherMeta(weather);
-  const isNewUser = gameState.maxBudget === 0;
-
-  const currentMonsterType =
-    scene === Scene.BATTLE
-      ? activeDungeon !== 'etc'
-        ? activeDungeon
-        : getDailyMonster(gameState.pending)
-      : 'etc';
-
-  const hpPercent =
-    gameState.maxBudget > 0
-      ? Math.round((gameState.currentBudget / gameState.maxBudget) * 100)
-      : 0;
-
-  // --- Reward Logic (Gacha) ---
-  const applyRewardToState = (state: UserState, reward: RewardItem): UserState => {
-    const next = JSON.parse(JSON.stringify(state)) as UserState;
-    next.seedPackets = Math.max(0, (next.seedPackets || 0) - 1);
-
-    if (reward.type === 'DECOR') {
-      if (!next.garden.decorations) next.garden.decorations = [];
-      next.garden.decorations.push({
-        id: reward.id,
-        // 화면 중앙 영역에 랜덤 배치
-        x: Math.floor(15 + Math.random() * 70),
-        y: Math.floor(35 + Math.random() * 40),
-        obtainedAt: new Date().toISOString(),
-      });
-    } else if (reward.type === 'ITEM') {
-      const idx = next.inventory.findIndex((i) => i.id === reward.id);
-      if (idx >= 0) next.inventory[idx].count++;
-      else next.inventory.push({ id: reward.id, name: reward.name, type: 'consumable', count: 1 });
-    } else if (reward.type === 'BADGE') {
-        // (생략 가능, 배지 로직 있으면 추가)
-    }
-    return next;
+  const handleClickAngel = () => {
+    // TODO: 나중에 컨디션에 따라 BAD / NORMAL 분기 가능
+    startScript(FIRST_MEET_ANGEL_NORMAL);
   };
 
-  const handlePullSeed = () => {
-    if ((gameState.seedPackets || 0) <= 0) return;
-    const reward = pullGacha();
-    setGameState((prev) => applyRewardToState(prev, reward));
-    setLastReward(reward);
-  };
+  if (!user) {
+    return (
+      <div className="text-white text-center mt-20">L O A D I N G . . .</div>
+    );
+  }
 
-  // --- Game Action Handlers ---
-  const handleSpend = (amount: number) => {
-    const { newState, message } = applySpend(gameState, amount, false, activeDungeon);
-    setGameState(newState);
-    setTimeout(() => {
-      alert(message);
-      setScene(Scene.VILLAGE);
-    }, 100);
-  };
+  const currentHpPercent = Math.max(
+    0,
+    Math.min(100, (user.currentBudget / user.maxBudget) * 100),
+  );
 
-  const handleGuard = () => {
-    const next = applyDefense(gameState);
-    setGameState(next);
-    setTimeout(() => {
-      alert('🛡️ 방어 성공! 의지력(MP)을 회복했습니다.');
-      setScene(Scene.VILLAGE);
-    }, 100);
-  };
+  const today = new Date();
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const daysLeft = lastDay.getDate() - today.getDate();
+  const dailySurvivalBudget =
+    daysLeft > 0 ? Math.floor(user.currentBudget / daysLeft) : 0;
 
-  const handleDayEnd = () => {
-    const { newState, message } = applyDayEnd(gameState);
-    let next = newState;
-    
-    // 무지출 보상: 씨앗 패킷 추가
-    if (!gameState.counters.hadSpendingToday) {
-        next.seedPackets = (next.seedPackets || 0) + 1;
-    }
-    
-    setGameState(next);
-    setShowDailyLog(true);
-    // alert(message); // 로그 모달이 뜨므로 alert는 선택사항
-  };
+  const luna = calculateLunaPhase(user.lunaCycle);
 
-  const handleReset = () => {
-    if (confirm('머니룸 데이터를 초기화할까요?\n(예산/자산/기록 모두 삭제)')) {
-      localStorage.removeItem(STORAGE_KEY);
-      window.location.reload();
-    }
-  };
-
-  const handleOnboarding = (data: any) => {
-    setGameState((prev) => ({
-      ...prev,
-      name: data.profile.name,
-      jobTitle: data.profile.classType,
-      maxBudget: data.budget.total,
-      currentBudget: data.budget.current,
-      lunaCycle: {
-        ...prev.lunaCycle,
-        startDate: data.luna.nextPeriodDate || todayStr,
-      },
-    }));
-  };
-
-  // --- Render ---
   return (
-    <div style={{ ...styles.appContainer, backgroundColor: theme.bg }}>
-      
-      {/* 1. 상단 UI (토글 & 날씨/씨앗) */}
-      <div style={styles.viewToggle}>
-        <button
-          onClick={() => setViewMode('GAME')}
-          style={{
-            ...styles.viewToggleBtn,
-            backgroundColor: viewMode === 'GAME' ? '#0f172a' : 'rgba(15,23,42,0.6)',
-          }}
-        >
-          🎮 게임
-        </button>
-        <button
-          onClick={() => setViewMode('SUMMARY')}
-          style={{
-            ...styles.viewToggleBtn,
-            backgroundColor: viewMode === 'SUMMARY' ? '#0f172a' : 'rgba(15,23,42,0.6)',
-          }}
-        >
-          📊 요약
-        </button>
-      </div>
-
-      <div style={styles.topRight}>
-        <div style={styles.weatherBadge} title="소비 날씨">
-          <span>{weatherMeta.icon}</span>
-          <span style={{ fontSize: 11, opacity: 0.85 }}>{weatherMeta.label}</span>
+    <div className="relative w-full h-full overflow-hidden select-none bg-black">
+      {/* 1. 배경 */}
+      <div
+        className="absolute inset-0 z-0"
+        style={{
+          backgroundColor: '#3b3247',
+          backgroundImage: `
+            linear-gradient(rgba(0,0,0,0.3) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,0,0,0.3) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(0,0,0,0.8), transparent 40%)
+          `,
+          backgroundSize: '20px 20px, 20px 20px, 100% 100%',
+        }}
+      >
+        {/* 창문 + 달 상태 */}
+        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-32 h-32 bg-blue-900 border-4 border-amber-900 opacity-80 shadow-inner">
+          <div className="w-full h-1/2 border-b-4 border-amber-900" />
+          <div className="absolute top-0 left-1/2 h-full w-1 bg-amber-900 -translate-x-1/2" />
+          <div className="absolute top-4 right-4 text-2xl drop-shadow-[0_0_5px_rgba(255,255,100,0.8)]">
+            {luna.isPeriod ? '🔴' : '🌙'}
+          </div>
         </div>
-        <button
-          style={styles.seedBtn}
-          onClick={() => setRewardOpen(true)}
-          title="씨앗 봉투 열기"
-        >
-          🌱 {gameState.seedPackets || 0}
-        </button>
       </div>
 
-      {/* 2. 메인 컨텐츠 영역 */}
-      {viewMode === 'SUMMARY' ? (
-        <MoneySummaryView user={gameState} onBackToGame={() => setViewMode('GAME')} />
-      ) : (
-        // ✅ [중요] Flex: 1 래퍼로 감싸서 높이 문제 해결
-        <div style={styles.screenWrap}>
-          
-          {/* 오버레이: 날씨 & 정원 데코 (마을에서만 표시) */}
-          {scene === Scene.VILLAGE && <WeatherOverlay weather={weather} />}
-          
-          {scene === Scene.VILLAGE && gameState.garden?.decorations?.length > 0 && (
-            <div style={styles.decorLayer}>
-              {gameState.garden.decorations.map((d, idx) => (
-                <div
-                  key={`${d.id}-${idx}`}
-                  style={{
-                    position: 'absolute',
-                    left: `${d.x}%`,
-                    top: `${d.y}%`,
-                    transform: 'translate(-50%, -50%)',
-                    fontSize: 24,
-                    filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))',
-                    zIndex: 2, // 배경보다 위, UI보다 아래
-                  }}
-                >
-                  {DECOR_EMOJI[d.id] || '✨'}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {isNewUser && <OnboardingModal onComplete={handleOnboarding} />}
-
-          {/* Scene Switcher */}
-          {scene === Scene.VILLAGE && (
-            <VillageView
-              user={gameState}
-              onChangeScene={setScene}
-              onDayEnd={handleDayEnd}
-            />
-          )}
-
-          {scene === Scene.WORLD_MAP && (
-            <WorldMapView
-              onSelectDungeon={(id) => {
-                setActiveDungeon(id);
-                setScene(Scene.BATTLE);
-              }}
-              onBack={() => setScene(Scene.VILLAGE)}
-            />
-          )}
-
-          {scene === Scene.BATTLE && (
-            <BattleView
-              dungeonId={currentMonsterType}
-              playerHp={gameState.currentBudget}
-              maxHp={gameState.maxBudget}
-              onSpend={handleSpend}
-              onGuard={handleGuard}
-              onRun={() => setScene(Scene.WORLD_MAP)}
-            />
-          )}
-
-          {/* Common Modals (Inventory, Kingdom, Collection) */}
-          <InventoryModal
-            open={scene === Scene.INVENTORY}
-            onClose={() => setScene(Scene.VILLAGE)}
-            junk={gameState.junk}
-            salt={gameState.salt}
-            materials={gameState.materials}
-            equipment={gameState.inventory.map((i) => i.name)}
-            collection={gameState.collection}
-            canPurify={gameState.mp > 0}
-            onPurify={() => {
-              const { newState, message } = applyPurify(gameState);
-              setGameState(newState);
-              alert(message);
-            }}
-            onCraft={() => {
-              const { newState, message } = applyCraftEquipment(gameState);
-              setGameState(newState);
-              alert(message);
-            }}
-          />
-
-          <KingdomModal
-            open={scene === Scene.KINGDOM}
-            onClose={() => setScene(Scene.VILLAGE)}
-            buildings={getAssetBuildingsView(gameState)}
-          />
-
-          <CollectionModal
-            open={scene === Scene.COLLECTION}
-            onClose={() => setScene(Scene.VILLAGE)}
-            collection={gameState.collection}
-          />
+      {/* 2. 캐릭터 + 내적독백 */}
+      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pt-20 pointer-events-none">
+        <div className="relative animate-bounce-slow">
+          <div className="text-[100px] filter drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)]">
+            🧙‍♀️
+          </div>
+          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-20 h-4 bg-black opacity-40 rounded-[50%] blur-sm" />
         </div>
-      )}
 
-      {/* 3. Global Modals (Daily Log, Gacha, Debug) */}
-      <DailyLogModal
-        open={showDailyLog}
-        onClose={() => setShowDailyLog(false)}
-        today={todayStr}
-        hp={hpPercent}
-        mp={gameState.mp}
-        def={gameState.counters.defenseActionsToday}
-        junkToday={gameState.counters.junkObtainedToday}
-        defenseActionsToday={gameState.counters.defenseActionsToday}
-        noSpendStreak={gameState.counters.noSpendStreak}
-        pending={gameState.pending}
-      />
-
-      <RewardModal
-        open={rewardOpen}
-        seedPackets={gameState.seedPackets || 0}
-        lastReward={lastReward}
-        onPull={handlePullSeed}
-        onClose={() => setRewardOpen(false)}
-      />
-
-      <div style={styles.debugArea}>
-        <button type="button" onClick={handleReset}>
-          🔄 Reset
-        </button>
+        <div className="mt-4 bg-[#fff1cc] text-[#422006] px-4 py-2 rounded-lg border-2 border-[#422006] relative shadow-lg max-w-[80%] text-center">
+          <p className="text-sm font-bold leading-tight">
+            "
+            {luna.isPeriod
+              ? '오늘은 몸이 무거워...'
+              : '이번 달도 무사히 넘겨야 해.'}
+            "
+          </p>
+          <div className="text-[10px] text-[#854d0e] mt-1 font-bold">
+            (생존 {daysLeft}일 남음)
+          </div>
+          <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-[#fff1cc] border-t-2 border-l-2 border-[#422006] rotate-45" />
+        </div>
       </div>
+
+      {/* 👼 천사 테스트 버튼 */}
+      <button
+        type="button"
+        onClick={handleClickAngel}
+        className="absolute top-24 right-4 z-20 bg-[#f9e7c8] border border-[#8b5a2b] rounded px-2 py-1 text-[10px] shadow-md hover:bg-[#ffe7b9]"
+      >
+        👼 천사에게 말 걸기
+      </button>
+
+      {/* 🛏 여관에서 쉬기 = 하루 마감 */}
+      <button
+        type="button"
+        onClick={onDayEnd}
+        className="absolute bottom-24 left-4 z-20 bg-[#facc15] border border-[#854d0e] rounded px-3 py-1 text-[10px] shadow-md hover:bg-[#fcd34d]"
+      >
+        🛏 여관에서 쉬기
+      </button>
+
+      {/* 3. 좌측 상단 상태창 */}
+      <div className="absolute top-2 left-2 z-20 w-[160px]">
+        <div className="bg-[#eec39a] border-[3px] border-[#8b5a2b] rounded p-2 shadow-[2px_2px_0_#000] relative">
+          <div className="absolute top-1 left-1 w-1 h-1 bg-[#5d4037]" />
+          <div className="absolute top-1 right-1 w-1 h-1 bg-[#5d4037]" />
+          <div className="absolute bottom-1 left-1 w-1 h-1 bg-[#5d4037]" />
+          <div className="absolute bottom-1 right-1 w-1 h-1 bg-[#5d4037]" />
+
+          <div className="flex justify-between items-end mb-1 border-b border-[#c19a6b] pb-1">
+            <span className="text-xs font-bold text-[#5d4037]">
+              {user.name}
+            </span>
+            <span className="text-[10px] text-[#8b5a2b]">
+              Lv.{user.level}
+            </span>
+          </div>
+
+          {/* HP 바 = 예산 퍼센트 */}
+          <div className="relative w-full h-4 bg-[#3e2723] border border-[#5d4037] rounded-sm mb-1">
+            <div
+              className="h-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-300"
+              style={{ width: `${currentHpPercent}%` }}
+            />
+            <span className="absolute inset-0 text-[9px] text-white flex items-center justify-center drop-shadow-md">
+              HP {Math.floor(currentHpPercent)}%
+            </span>
+          </div>
+
+          <div className="text-right">
+            <p className="text-[9px] text-[#5d4037]">남은 예산</p>
+            <p className="text-sm font-bold text-[#8b5a2b] drop-shadow-sm">
+              {user.currentBudget.toLocaleString()} G
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 우측 상단: Today Limit (생존 예산) */}
+      <div className="absolute top-2 right-2 z-20">
+        <div className="bg-[#3b82f6] border-[3px] border-[#1e3a8a] text-white px-3 py-1 rounded-full shadow-[2px_2px_0_#000] flex flex-col items-center">
+          <span className="text-[10px] text-blue-100">Today Limit</span>
+          <span className="text-sm font-bold text-yellow-300 drop-shadow-md">
+            {dailySurvivalBudget.toLocaleString()}
+          </span>
+        </div>
+      </div>
+
+      {/* 하단 컨트롤러 (전투 / 가방 / 자산 / 도감) */}
+      <div className="absolute bottom-0 left-0 right-0 z-30 p-2 bg-gradient-to-t from-black via-black to-transparent">
+        <div className="bg-[#fff1cc] border-[4px] border-[#6b4c35] rounded-lg p-1 shadow-[0_0_10px_rgba(0,0,0,0.8)] flex gap-1 h-[80px]">
+          <button
+            type="button"
+            onClick={() => onChangeScene(Scene.WORLD_MAP)}
+            className="flex-1 bg-[#ef4444] border-b-4 border-r-4 border-[#991b1b] active:border-0 active:translate-y-1 rounded hover:bg-red-400 transition-colors flex flex-col items-center justify-center group"
+          >
+            <span className="text-xl group-hover:-translate-y-1 transition-transform">
+              ⚔️
+            </span>
+            <span className="text-[10px] font-bold text-white shadow-black drop-shadow-md">
+              지출
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onChangeScene(Scene.INVENTORY)}
+            className="flex-1 bg-[#3b82f6] border-b-4 border-r-4 border-[#1e40af] active:border-0 active:translate-y-1 rounded hover:bg-blue-400 transition-colors flex flex-col items-center justify-center group"
+          >
+            <span className="text-xl group-hover:-translate-y-1 transition-transform">
+              🎒
+            </span>
+            <span className="text-[10px] font-bold text-white shadow-black drop-shadow-md">
+              가방
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onChangeScene(Scene.KINGDOM)}
+            className="flex-1 bg-[#10b981] border-b-4 border-r-4 border-[#047857] active:border-0 active:translate-y-1 rounded hover:bg-green-400 transition-colors flex flex-col items-center justify-center group"
+          >
+            <span className="text-xl group-hover:-translate-y-1 transition-transform">
+              🏰
+            </span>
+            <span className="text-[10px] font-bold text-white shadow-black drop-shadow-md">
+              자산
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onChangeScene(Scene.COLLECTION)}
+            className="flex-1 bg-[#f59e0b] border-b-4 border-r-4 border-[#b45309] active:border-0 active:translate-y-1 rounded hover:bg-yellow-400 transition-colors flex flex-col items-center justify-center group"
+          >
+            <span className="text-xl group-hover:-translate-y-1 transition-transform">
+              📖
+            </span>
+            <span className="text-[10px] font-bold text-white shadow-black drop-shadow-md">
+              도감
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* 공용 대화창 */}
+      <DialogueBox line={currentLine} visible={visible} onNext={next} />
     </div>
   );
 };
-
-const styles: Record<string, React.CSSProperties> = {
-  // ✅ 1. 전체 컨테이너: 높이 확정 (minHeight -> height: 100dvh)
-  appContainer: {
-    maxWidth: '420px',
-    margin: '0 auto',
-    height: '100dvh', // 모바일 주소창 대응
-    display: 'flex',
-    flexDirection: 'column',
-    color: '#fff',
-    fontFamily: '"NeoDungGeunMo", monospace',
-    position: 'relative',
-    overflow: 'hidden',
-    transition: 'background-color 1s ease',
-  },
-
-  // ✅ 2. 내부 화면 래퍼: 남은 공간 꽉 채우기
-  screenWrap: {
-    flex: 1, 
-    position: 'relative',
-    display: 'flex',
-    flexDirection: 'column',
-    overflow: 'hidden',
-  },
-
-  // 데코 레이어 (클릭 통과)
-  decorLayer: {
-    position: 'absolute',
-    inset: 0,
-    zIndex: 6,
-    pointerEvents: 'none',
-  },
-
-  viewToggle: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    zIndex: 40,
-    display: 'flex',
-    gap: 4,
-  },
-  viewToggleBtn: {
-    padding: '4px 8px',
-    borderRadius: 999,
-    border: '1px solid #4b5563',
-    fontSize: 11,
-    color: '#e5e7eb',
-    cursor: 'pointer',
-    backgroundColor: '#020617',
-  },
-
-  topRight: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    zIndex: 50,
-    display: 'flex',
-    gap: 6,
-    alignItems: 'center',
-  },
-  weatherBadge: {
-    display: 'flex',
-    gap: 6,
-    alignItems: 'center',
-    padding: '4px 8px',
-    borderRadius: 999,
-    border: '1px solid rgba(255,255,255,0.15)',
-    background: 'rgba(0,0,0,0.35)',
-    backdropFilter: 'blur(6px)',
-  },
-  seedBtn: {
-    padding: '6px 10px',
-    borderRadius: 999,
-    border: '1px solid rgba(255,255,255,0.15)',
-    background: 'rgba(0,0,0,0.35)',
-    color: '#fff',
-    cursor: 'pointer',
-    fontSize: 12,
-  },
-
-  debugArea: {
-    position: 'absolute',
-    bottom: 6,
-    right: 6,
-    opacity: 0.4,
-    fontSize: 10,
-    zIndex: 60,
-  },
-};
-
-export default MoneyRoomPage;
