@@ -1,97 +1,79 @@
 // src/money/components/FieldView.tsx
 
 import React from 'react';
-import { FieldObject } from '../types';
+import { FieldObject, ShadowMonster } from '../types';
 
 interface FieldViewProps {
-  playerPos: { x: number; y: number }; // 0~100 %
+  playerPos: { x: number; y: number };
   objects: FieldObject[];
+  shadows: ShadowMonster[]; // [NEW] 그림자 몬스터
   dungeonName: string;
 }
 
-export const FieldView: React.FC<FieldViewProps> = ({ playerPos, objects, dungeonName }) => {
+export const FieldView: React.FC<FieldViewProps> = ({ playerPos, objects, shadows, dungeonName }) => {
+  // 그림자가 많을수록 화면이 어두워짐 (최대 70%)
+  const darknessLevel = Math.min(shadows.length * 0.15, 0.7);
+
   return (
     <div style={styles.container}>
-      {/* 1. 배경 (타일 패턴) */}
+      {/* 배경 패턴 */}
       <div style={styles.bgPattern} />
       
-      {/* 2. 상단 지역 표시 */}
+      {/* 어둠 오버레이 (공포 분위기) */}
+      <div style={{...styles.darknessOverlay, opacity: darknessLevel}} />
+
+      {/* 헤더 */}
       <div style={styles.header}>
-        🚩 {dungeonName} (탐험 중...)
+        🚩 {dungeonName} (그림자: {shadows.length})
       </div>
 
-      {/* 3. 오브젝트 렌더링 */}
+      {/* 파밍 아이템 */}
       {objects.map(obj => !obj.isCollected && (
-        <div 
-          key={obj.id} 
-          style={{
-            ...styles.object,
-            left: `${obj.x}%`, 
-            top: `${obj.y}%`
-          }}
-        >
-          {/* 아이템 타입별 이모지 */}
-          {obj.type === 'JUNK' ? '📄' : obj.type === 'HERB' ? '🌿' : '💎'}
+        <div key={obj.id} style={{...styles.object, left: `${obj.x}%`, top: `${obj.y}%`}}>
+          {obj.type === 'JUNK' ? '✨' : '🌿'}
         </div>
       ))}
 
-      {/* 4. 플레이어 캐릭터 */}
-      <div 
-        style={{
-          ...styles.player,
-          left: `${playerPos.x}%`, 
-          top: `${playerPos.y}%`
-        }}
-      >
+      {/* [NEW] 그림자 몬스터 (지출 스택) */}
+      {shadows.map(shadow => (
+        <div key={shadow.id} style={{...styles.shadowMonster, left: `${shadow.x}%`, top: `${shadow.y}%`}}>
+          <div className="animate-pulse">👻</div>
+          <div style={styles.shadowLabel}>₩{shadow.amount.toLocaleString()}</div>
+        </div>
+      ))}
+
+      {/* 플레이어 */}
+      <div style={{...styles.player, left: `${playerPos.x}%`, top: `${playerPos.y}%`}}>
         <div style={styles.playerSprite}>🧙‍♂️</div>
         <div style={styles.shadow} />
       </div>
 
-      {/* 5. 안내 문구 */}
+      {/* 가이드 */}
       <div style={styles.guide}>
-        <span style={{backgroundColor:'rgba(0,0,0,0.6)', padding:'2px 6px', borderRadius:4}}>
-          방향키로 이동 / A버튼 조사
-        </span>
+        {shadows.length > 0 
+          ? "⚠️ 으스스한 기운이 느껴집니다..." 
+          : "방향키로 이동하며 아이템을 찾으세요."}
       </div>
     </div>
   );
 };
 
 const styles: Record<string, React.CSSProperties> = {
-  container: {
-    width: '100%', height: '100%', position: 'relative', overflow: 'hidden',
-    backgroundColor: '#353b48', // 땅 색상
-  },
-  bgPattern: {
-    position: 'absolute', inset: 0, opacity: 0.2,
-    backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)',
-    backgroundSize: '20px 20px'
-  },
-  header: {
-    position: 'absolute', top: 10, left: 10,
-    backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff',
-    padding: '4px 8px', borderRadius: 6, fontSize: '12px', zIndex: 10,
-    border: '1px solid rgba(255,255,255,0.2)'
-  },
-  object: {
-    position: 'absolute', fontSize: '24px',
-    transform: 'translate(-50%, -50%)',
-    animation: 'float 2s infinite ease-in-out',
-    zIndex: 5
-  },
-  player: {
-    position: 'absolute', zIndex: 20,
-    transform: 'translate(-50%, -80%)', // 발 위치 기준 보정
-    transition: 'all 0.15s linear', // 부드러운 이동
-    display: 'flex', flexDirection: 'column', alignItems: 'center'
-  },
+  container: { width: '100%', height: '100%', position: 'relative', overflow: 'hidden', backgroundColor: '#353b48' },
+  bgPattern: { position: 'absolute', inset: 0, opacity: 0.2, backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '20px 20px' },
+  
+  darknessOverlay: { position: 'absolute', inset: 0, backgroundColor: '#000', pointerEvents: 'none', zIndex: 15, transition: 'opacity 0.5s' },
+
+  header: { position: 'absolute', top: 10, left: 10, backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', padding: '4px 8px', borderRadius: 6, fontSize: '12px', zIndex: 20 },
+  
+  object: { position: 'absolute', fontSize: '20px', transform: 'translate(-50%, -50%)', animation: 'float 2s infinite ease-in-out', zIndex: 5 },
+  
+  shadowMonster: { position: 'absolute', fontSize: '28px', transform: 'translate(-50%, -50%)', zIndex: 10, filter: 'grayscale(100%) brightness(0.5) drop-shadow(0 0 5px #ef4444)' },
+  shadowLabel: { position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', fontSize: '9px', color: '#fca5a5', textShadow: '1px 1px 0 #000', whiteSpace: 'nowrap' },
+
+  player: { position: 'absolute', zIndex: 20, transform: 'translate(-50%, -80%)', transition: 'all 0.15s linear', display: 'flex', flexDirection: 'column', alignItems: 'center' },
   playerSprite: { fontSize: '40px', filter: 'drop-shadow(0 4px 2px rgba(0,0,0,0.4))' },
-  shadow: {
-    width: '24px', height: '8px', backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: '50%', marginTop: '-6px'
-  },
-  guide: {
-    position: 'absolute', bottom: 10, width: '100%', textAlign: 'center',
-    fontSize: '10px', color: '#e2e8f0'
-  }
+  shadow: { width: '24px', height: '8px', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: '50%', marginTop: '-6px' },
+  
+  guide: { position: 'absolute', bottom: 10, width: '100%', textAlign: 'center', fontSize: '10px', color: '#e2e8f0', zIndex: 20, textShadow: '1px 1px 0 #000' }
 };
