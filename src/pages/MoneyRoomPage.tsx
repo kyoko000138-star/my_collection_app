@@ -48,6 +48,9 @@ const INITIAL_STATE: UserState = {
   junk: 0,
   salt: 0,
 
+  status: { mode: 'NORMAL', darkLevel: 0 },
+  subscriptions: [],
+
   // ✅ 룰북 반영: 정원(결과 시각화)
   garden: {
     treeLevel: 0,
@@ -95,6 +98,8 @@ const mergeUserState = (base: UserState, saved: Partial<UserState>): UserState =
     pending: Array.isArray(saved.pending) ? saved.pending : base.pending,
 
     materials: saved.materials ?? base.materials,
+    subscriptions: Array.isArray(saved.subscriptions) ? saved.subscriptions : base.subscriptions,
+    status: { ...base.status, ...(saved.status || {}) },
   };
 };
 
