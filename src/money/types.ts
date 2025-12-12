@@ -1,5 +1,19 @@
 // src/money/types.ts
 
+// src/money/types.ts (수정 부분만)
+
+export interface LunaCycle {
+  startDate: string;      // 가장 최근 시작일 (기준점)
+  periodLength: number;   // 지속 기간 (보통 5~7일)
+  cycleLength: number;    // 현재 설정된 주기 (예: 28일)
+  
+  // [NEW] 최근 3~6개월 시작일 기록 (YYYY-MM-DD 문자열 배열)
+  history: string[]; 
+  
+  // [NEW] 예측된 다음 시작일 (자동 계산됨)
+  nextPredictedDate?: string;
+}
+
 // -------------------------
 // Scene Definition
 // -------------------------
