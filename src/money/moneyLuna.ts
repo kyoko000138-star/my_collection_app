@@ -24,11 +24,11 @@ export const calculateLunaPhase = (cycle: LunaCycle): LunaPhaseResult => {
   
   // 날짜 차이 계산 (밀리초 -> 일)
   const diffTime = Math.abs(today.getTime() - start.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   
   // 현재 주기 내의 일차 (1일 ~ 28일)
   const dayInCycle = (diffDays % cycle.cycleLength) + 1;
-
+  
   let phaseName = "";
   let isPeriod = false;
   let intensity = 0;
@@ -67,7 +67,7 @@ export const calculateLunaPhase = (cycle: LunaCycle): LunaPhaseResult => {
 // 2. 별칭 Export (다른 파일 호환성용)
 export const getLunaMode = calculateLunaPhase;
 
-// 3. [추가됨] 테마 색상 및 메시지 반환 함수
+// 3. 테마 색상 및 메시지 반환 함수
 // MoneyRoomPage에서 배경색 등을 결정할 때 사용합니다.
 export const getLunaTheme = (phase: LunaPhaseResult) => {
   if (phase.isPeriod) {
@@ -99,3 +99,4 @@ export const getLunaTheme = (phase: LunaPhaseResult) => {
     message: '🌱 바이오 리듬 안정: 계획 실행 최적기' 
   };
 };
+[cite_start]``` [cite: 433, 434, 435, 436, 437, 438, 439, 440, 441, 442, 443, 444, 445, 446, 447, 448, 449, 450, 451, 452, 453]
