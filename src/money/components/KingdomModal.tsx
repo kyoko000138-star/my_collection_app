@@ -1,32 +1,26 @@
 // src/money/components/KingdomModal.tsx
 
 import React from 'react';
-
-// moneyGameLogic.ts의 getAssetBuildingsView가 반환하는 구조와 일치시킵니다.
-export interface AssetBuildingView {
-  id: string;
-  label: string;       // 예: '요새 (방어)'
-  count: number;       // 현재 누적치
-  level: number;       // 현재 레벨 (1~4)
-  nextTarget: number | null; // 다음 레벨업 목표 (null이면 만렙)
-}
+import { AssetBuildingView } from '../types';
 
 interface KingdomModalProps {
   open: boolean;
   onClose: () => void;
   buildings: AssetBuildingView[];
+  // [NEW] 고정비 관리 핸들러
+  onManageSubs: () => void;
 }
 
 export const KingdomModal: React.FC<KingdomModalProps> = ({
   open,
   onClose,
   buildings,
+  onManageSubs,
 }) => {
   if (!open) return null;
 
   // 건물 ID와 레벨에 따른 아이콘/이모지 매핑
   const getIcon = (id: string, level: number) => {
-    // 레벨이 오를수록 멋진 아이콘으로 진화
     if (id === 'fortress') return level < 3 ? '⛺' : '🏰';    // 요새
     if (id === 'airfield') return level < 3 ? '🪁' : '🚀';    // 비행장
     if (id === 'mansion')  return level < 3 ? '🏠' : '🏯';    // 저택
@@ -93,6 +87,20 @@ export const KingdomModal: React.FC<KingdomModalProps> = ({
           )}
         </div>
 
+        {/* [NEW] 고정비 관리 버튼 */}
+        <button 
+          onClick={onManageSubs} 
+          style={{
+            ...styles.btnSecondary, 
+            marginTop: '10px', 
+            backgroundColor: '#4c1d95', 
+            color: '#ddd6fe',
+            border: '1px solid #6d28d9'
+          }}
+        >
+          📜 고정비(구독) 계약 관리
+        </button>
+
         <div style={styles.footerNote}>
           ※ 각 건물은 특정 행동(방어, 무지출, 정화 등)을 할 때마다 성장합니다.
         </div>
@@ -156,5 +164,3 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: '#374151', color: '#e5e7eb', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' 
   },
 };
-
-export default KingdomModal;
