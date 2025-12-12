@@ -5,11 +5,12 @@
 // -------------------------
 export enum Scene {
   GARDEN = 'GARDEN',           // [Main] 자산의 정원 (홈 화면)
+  MY_ROOM = 'MY_ROOM',         // [Menu] 마이룸 (상태창)
   VILLAGE_MAP = 'VILLAGE_MAP', // [Hub] 마을 지도 (이동 거점)
   LIBRARY = 'LIBRARY',         // [Feature] 도서관 (구독/기록)
   WORLD_MAP = 'WORLD_MAP',     // [Adventure] 던전 선택
   FIELD = 'FIELD',             // [Adventure] 실시간 탐험
-  BATTLE = 'BATTLE',           // [Action] 지출 입력
+  BATTLE = 'BATTLE',           // [Action] 지출 입력 (전투)
   INVENTORY = 'INVENTORY',     // [Menu] 가방
   KINGDOM = 'KINGDOM',         // [Menu] 자산 현황 (파일명 유지)
   COLLECTION = 'COLLECTION',   // [Menu] 도감
@@ -20,11 +21,11 @@ export enum Scene {
 // Assets (정원 테마로 리뉴얼)
 // -------------------------
 export type AssetBuildingId = 
-  | 'fence'        // 방어 (구 요새)
-  | 'greenhouse'   // 무지출 (구 비행장)
-  | 'mansion'      // 고정비 (구 저택)
-  | 'fountain'     // 정화 (구 마법탑)
-  | 'barn';        // 파밍 (구 창고)
+  | 'fence'        // 방어 (구 요새) -> 울타리
+  | 'greenhouse'   // 무지출 (구 비행장) -> 온실
+  | 'mansion'      // 고정비 (구 저택) -> 저택
+  | 'fountain'     // 정화 (구 마법탑) -> 정화의 분수
+  | 'barn';        // 파밍 (구 창고) -> 헛간
 
 export interface AssetBuildingsState {
   fence: number;
@@ -68,7 +69,7 @@ export interface Item {
 }
 
 // -------------------------
-// Garden (비주얼)
+// Garden (비주얼 상태)
 // -------------------------
 export type FlowerState = 'blooming' | 'normal' | 'withered';
 export interface GardenState {
