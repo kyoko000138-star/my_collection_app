@@ -211,3 +211,66 @@ export interface UserState {
   // [NEW] 해금된 지역 목록
   unlockedLocations: LocationId[];
 }
+
+
+// ==========================================
+// [NEW] v4 재무 카테고리 시스템 (Financial Types)
+// ==========================================
+
+// 1. 대분류 (Transaction Type)
+export type TxType = 'EXPENSE' | 'INCOME' | 'TRANSFER'; // 지출, 수입, 이체(저축/투자)
+
+// 2. 상세 카테고리 (Category ID)
+export type CategoryId = 
+  // [고정비] Fixed
+  | 'fixed.housing' | 'fixed.utilities' | 'fixed.telecom' | 'fixed.insurance' 
+  | 'fixed.subscription' | 'fixed.fees'
+  // [생활/식비] Food & Life
+  | 'food.groceries' | 'food.out' | 'food.cafe_snack' | 'life.supplies'
+  // [이동] Move
+  | 'move.transport' | 'move.travel'
+  // [건강] Health
+  | 'health.medical' | 'health.meds' | 'health.fitness'
+  // [즐거움/성장] Fun & Self
+  | 'social.gift' | 'social.meetup' | 'fun.hobby' | 'self.dev' | 'big.oneoff'
+  | 'life.pet' | 'life.family'
+  // [저축/투자/부채] Save & Invest (정원 연동!)
+  | 'save.emergency' | 'save.buffer' | 'save.goal' | 'save.deposit' 
+  | 'save.debt' // 👈 부채 상환 (가시덩굴 제거)
+  | 'invest.isa' | 'invest.pension' | 'invest.brokerage' | 'invest.cash_equiv';
+
+// 3. 태그 시스템 (Tags)
+export type IntentTag = 
+  // 지출 의도
+  | 'necessary' | 'planned' | 'self_care' | 'reward' | 'small_joy' 
+  | 'impulse' | 'convenience' | 'efficiency' | 'social_duty' | 'unavoidable' | 'explore'
+  // 저축 의도 (목적)
+  | 'goal_emergency' | 'goal_debt' | 'goal_trip' | 'goal_big' | 'goal_house' | 'goal_retirement' | 'goal_growth';
+
+export type SituationTag = 
+  | 'workday' | 'weekend' | 'commute' | 'late_night' 
+  | 'month_end' | 'payday' | 'stress' | 'tired' | 'sick' 
+  | 'pms' | 'period' | 'social' | 'traveling'
+  | 'windfall' | 'market_drop'; // 저축 상황
+
+export type AttributeTag = 
+  | 'online' | 'offline' | 'delivery' | 'import' | 'secondhand'
+  | 'limited' | 'preorder' | 'bundle' | 'split_pay' | 'points'
+  | 'fan_goods' | 'fan_ticket' | 'fan_trip'
+  | 'auto' | 'dca' | 'lump_sum'; // 투자 방식
+
+// 4. 거래 내역 구조체 (Transaction)
+export interface Transaction {
+  id: string;
+  type: TxType;           // 대분류
+  amount: number;
+  category: CategoryId;   // 상세 카테고리
+  
+  // 태그 (v4)
+  intent?: IntentTag;     // 의도 (1개 권장)
+  situations?: SituationTag[]; // 상황 (복수 가능)
+  attributes?: AttributeTag[]; // 속성 (복수 가능)
+  
+  note?: string;          // 메모
+  createdAt: string;      // 날짜
+}
