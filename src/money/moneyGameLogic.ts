@@ -471,3 +471,40 @@ export const applyEquipItem = (state: UserState, itemId: string): { newState: Us
   newState.stats = calculateStats(newState);
   return { newState, success: true, message: `[장착] ${item.name}` };
 };
+
+// [NEW] 12. 상점 아이템 구매
+export const applyBuyItem = (
+  state: UserState,
+  itemId: string
+): { newState: UserState; success: boolean; message: string } => {
+  const item = ITEM_DB[itemId];
+  if (!item || !item.price) {
+    return { newState: state, success: false, message: "판매하지 않는 아이템입니다." };
+  }
+
+  const newState = JSON.parse(JSON.stringify(state)) as UserState;
+
+  // 가격 확인
+  if (newState.salt < item.price) {
+    return { newState: state, success: false, message: "Salt(소금)가 부족합니다." };
+  }
+
+  // 구매 처리
+  newState.salt -= item.price;
+  
+  // 인벤토리 추가 (내부 헬퍼 대신 로직 직접 구현)
+  if (!newState.inventory) newState.inventory = [];
+  const invIndex = newState.inventory.findIndex(i => i.id === itemId);
+  if (invIndex > -1) {
+    newState.inventory[invIndex].count += 1;
+  } else {
+    newState.inventory.push({
+      id: itemId,
+      name: item.name,
+      type: item.type as any,
+      count: 1
+    });
+  }
+
+  return { newState, success: true, message: `${item.name} 구매 완료!` };
+};
