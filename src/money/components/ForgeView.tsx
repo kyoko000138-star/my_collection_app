@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { UserState } from '../types';
-import { applyPurifyJunk, applyCraftEquipment, RECIPES } from '../money/moneyGameLogic';
+// [수정된 경로 반영] ForgeView는 components 폴더에 있으므로 '../moneyGameLogic'으로 수정
+import { applyPurifyJunk, applyCraftEquipment, RECIPES } from '../moneyGameLogic'; 
 
 interface Props {
   user: UserState;
@@ -27,6 +28,7 @@ export const ForgeView: React.FC<Props> = ({ user, onUpdateUser, onBack }) => {
 
   // --- 장비 제작 핸들러 ---
   const handleCraft = (recipeId: keyof typeof RECIPES) => {
+    // RECIPES는 moneyGameLogic.ts에서 정의되어야 합니다.
     const result = applyCraftEquipment(user, recipeId);
     setMessage(result.message);
     if (result.success) {
@@ -70,7 +72,8 @@ export const ForgeView: React.FC<Props> = ({ user, onUpdateUser, onBack }) => {
         {/* --- 제작 탭 --- */}
         {tab === 'CRAFT' && (
           <div style={styles.craftList}>
-            {/* 예시: 순환의 지팡이 (W26) */}
+            {/* 예시: 순환의 지팡이 (RECIPES.CIRCULATION_WAND) */}
+            {/* 실제 레시피는 moneyGameLogic.ts에서 RECIPES를 순회하여 표시해야 함 */}
             <div style={styles.recipeItem}>
               <div style={styles.recipeHeader}>
                 <span> 순환의 지팡이 </span>
@@ -78,11 +81,11 @@ export const ForgeView: React.FC<Props> = ({ user, onUpdateUser, onBack }) => {
               </div>
               <p style={styles.recipeDesc}>Junk 정화 시 MP 소량 회복 효과 부여.</p>
               <p style={styles.recipeCost}>
-                필요: Essence x4, Salt x5
-                {/* Herb 재료 표시 */}
+                필요: Essence x4, Salt x5, 시간의 톱니바퀴 x1
               </p>
               <button 
                 onClick={() => handleCraft('CIRCULATION_WAND' as keyof typeof RECIPES)} 
+                // 임시 체크 로직 (실제 재료 체크는 moneyGameLogic에서)
                 style={currentEssence >= 4 ? styles.btnCraft : styles.btnDisabled}
               >
                 제작
