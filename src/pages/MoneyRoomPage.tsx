@@ -9,6 +9,20 @@ import {
 import { CLASS_TYPES } from '../money/constants';
 import { WORLD_LOCATIONS } from '../money/gameData';
 
+// MoneyRoomPage.tsx 상단
+import { StampRallyModal } from '../money/components/StampRallyModal';
+
+// 상태 추가
+const [showStamp, setShowStamp] = useState(false);
+
+// 렌더링 (MyRoomView나 GardenView 위에 모달 배치)
+<StampRallyModal 
+  open={showStamp} 
+  onClose={() => setShowStamp(false)} 
+  stamps={gameState.counters.noSpendStamps} 
+/>
+
+
 // Logic
 import {
   checkDailyReset,
