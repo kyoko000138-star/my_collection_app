@@ -1,28 +1,26 @@
 // src/pages/MoneyRoomPage.tsx
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { MoneySummaryView } from '../money/components/MoneySummaryView';
 
-// Types & Logic
+// Types
 import { 
   UserState, Scene, SubscriptionPlan, FieldObject, 
   AssetBuildingsState, ShadowMonster, MonsterStat 
 } from '../money/types';
 import { CLASS_TYPES } from '../money/constants';
 
-// Game Logic
+// Logic
 import {
   checkDailyReset,
   applySpend,
-  applyDefense,
   applyDayEnd,
   applySubscriptionChargesIfDue,
   getAssetBuildingsView,
-  getDailyMonster,
-  applyUseGardenItem // [NEW] Import 필수!
+  applyUseGardenItem,
+  applyEquipItem
 } from '../money/moneyGameLogic';
 import { getKSTDateString, getMoneyWeather, getWeatherMeta } from '../money/moneyWeather';
-import { pullGacha, RewardItem, DECOR_EMOJI } from '../money/rewardData';
+import { RewardItem } from '../money/rewardData';
 
 // Views
 import { GardenView } from '../money/components/GardenView'; 
@@ -46,7 +44,7 @@ import { OnboardingModal } from '../money/components/OnboardingModal';
 import DailyLogModal from '../money/components/DailyLogModal';
 import { SubscriptionModal } from '../money/components/SubscriptionModal';
 
-const STORAGE_KEY = 'money-room-save-v5-full';
+const STORAGE_KEY = 'money-room-save-v6-full';
 
 const INITIAL_ASSETS: AssetBuildingsState = {
   fence: 0, greenhouse: 0, mansion: 0, fountain: 0, barn: 0
@@ -70,6 +68,7 @@ const INITIAL_STATE: UserState = {
   collection: [],
   pending: [],
   materials: {}, 
+  equipped: { weapon: null, armor: null, accessory: null },
   assets: INITIAL_ASSETS,
   counters: {
     defenseActionsToday: 0, junkObtainedToday: 0, noSpendStreak: 0, dailyTotalSpend: 0,
@@ -93,6 +92,7 @@ const mergeUserState = (base: UserState, saved: Partial<UserState>): UserState =
     subscriptions: Array.isArray(saved.subscriptions) ? saved.subscriptions : base.subscriptions,
     unresolvedShadows: Array.isArray(saved.unresolvedShadows) ? saved.unresolvedShadows : base.unresolvedShadows,
     materials: { ...base.materials, ...(saved.materials || {}) },
+    equipped: { ...base.equipped, ...(saved.equipped || {}) },
     npcAffection: { ...base.npcAffection, ...(saved.npcAffection || {}) }
   };
 };
@@ -163,20 +163,15 @@ const MoneyRoomPage: React.FC = () => {
 
   const handleMove = (dx: number, dy: number) => {
     if (scene !== Scene.FIELD) return;
-
     setPlayerPos(prev => {
       let nextX = prev.x + dx;
       let nextY = prev.y + dy;
-      
       let mapChanged = false;
       if (nextX < 0) { nextX = 95; mapChanged = true; }
       if (nextX > 100) { nextX = 5; mapChanged = true; }
       if (nextY < 0) { nextY = 95; mapChanged = true; }
       if (nextY > 100) { nextY = 5; mapChanged = true; }
-
-      if (mapChanged) {
-        regenerateFieldItems();
-      }
+      if (mapChanged) regenerateFieldItems();
 
       const hitShadow = gameState.unresolvedShadows?.find(s => {
         const dist = Math.sqrt(Math.pow(s.x - nextX, 2) + Math.pow(s.y - nextY, 2));
@@ -184,7 +179,7 @@ const MoneyRoomPage: React.FC = () => {
       });
 
       if (hitShadow) {
-        alert("👻 그림자가 실체화되어 덤벼듭니다! (지출 기록 확인)");
+        alert("👻 그림자가 실체화되어 덤벼듭니다!");
         setActiveDungeon(hitShadow.category);
         setTargetShadowId(hitShadow.id); 
         setScene(Scene.BATTLE);
@@ -206,7 +201,6 @@ const MoneyRoomPage: React.FC = () => {
         }
         return obj;
       }));
-
       return { x: nextX, y: nextY };
     });
   };
@@ -218,7 +212,6 @@ const MoneyRoomPage: React.FC = () => {
     else if (type === 'SPEND' && description.includes('식비')) dungeonType = 'food';
 
     const { newState } = applySpend(gameState, amount, false, dungeonType);
-    
     const newShadow: ShadowMonster = {
       id: `shadow_${Date.now()}`,
       amount: amount,
@@ -227,12 +220,10 @@ const MoneyRoomPage: React.FC = () => {
       x: Math.floor(Math.random() * 80 + 10),
       y: Math.floor(Math.random() * 80 + 10),
     };
-
     setGameState({
       ...newState,
       unresolvedShadows: [...(newState.unresolvedShadows || []), newShadow]
     });
-    
     setScene(Scene.LIBRARY);
   };
 
@@ -262,12 +253,20 @@ const MoneyRoomPage: React.FC = () => {
     setGameState(newState);
   };
 
-  // [NEW] Garden Item Handler
   const handleUseGardenItem = (itemId: string) => {
     const result = applyUseGardenItem(gameState, itemId);
     if (result.success) {
       setGameState(result.newState);
       alert(`✨ ${result.message}`);
+    } else {
+      alert(`🚫 ${result.message}`);
+    }
+  };
+
+  const handleEquipItem = (itemId: string) => {
+    const result = applyEquipItem(gameState, itemId);
+    if (result.success) {
+      setGameState(result.newState);
     } else {
       alert(`🚫 ${result.message}`);
     }
@@ -296,7 +295,6 @@ const MoneyRoomPage: React.FC = () => {
     if (shadowCount > 0) {
       if (!confirm(`🌑 그림자가 ${shadowCount}마리 남아있습니다.\n청산하지 않고 주무시겠습니까?`)) return;
     }
-
     const { newState } = applyDayEnd(gameState);
     let next = newState;
     if (!gameState.counters.hadSpendingToday) next.seedPackets = (next.seedPackets || 0) + 1;
@@ -312,10 +310,11 @@ const MoneyRoomPage: React.FC = () => {
       maxBudget: data.budget.total,
       currentBudget: data.budget.current,
       lunaCycle: { ...prev.lunaCycle, startDate: data.luna.nextPeriodDate || todayStr },
-      materials: {}, // 온보딩 시에도 초기화 보장
+      materials: {}, 
+      equipped: { weapon: null, armor: null, accessory: null },
     }));
   };
-  const handlePullSeed = () => { /* 가챠 로직 */ };
+  const handlePullSeed = () => { };
   const handleAddSub = (p: SubscriptionPlan) => setGameState(prev => ({...prev, subscriptions: [...prev.subscriptions, p]}));
   const handleRemoveSub = (id: string) => setGameState(prev => ({...prev, subscriptions: prev.subscriptions.filter(s => s.id !== id)}));
 
@@ -325,8 +324,6 @@ const MoneyRoomPage: React.FC = () => {
 
   return (
     <div style={consoleStyles.body}>
-      
-      {/* [HUD] 상단 정보 */}
       <div style={consoleStyles.hud}>
         <div style={consoleStyles.hudRow}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -352,7 +349,6 @@ const MoneyRoomPage: React.FC = () => {
         </div>
       </div>
 
-      {/* [SCREEN] 중앙 화면 */}
       <div style={consoleStyles.screenBezel}>
         <div style={consoleStyles.screenContent}>
           {scene === Scene.GARDEN && <WeatherOverlay weather={weather} />}
@@ -360,17 +356,15 @@ const MoneyRoomPage: React.FC = () => {
 
           {isNewUser && <OnboardingModal onComplete={handleOnboarding} />}
 
-          {/* Views Switching */}
           {scene === Scene.GARDEN && (
             <GardenView 
               user={gameState} 
               onChangeScene={setScene} 
               onDayEnd={handleDayEnd}
-              onUseItem={handleUseGardenItem} // [NEW] Pass Handler
+              onUseItem={handleUseGardenItem}
             />
           )}
           
-          {/* MyRoom with Stats */}
           {scene === Scene.MY_ROOM && (
             <MyRoomView 
               user={gameState} 
@@ -389,7 +383,6 @@ const MoneyRoomPage: React.FC = () => {
              />
           )}
           
-          {/* 건물 내부 */}
           {scene === Scene.LIBRARY && (
             <LibraryView 
               onRecordSpend={handleRecordSpend} 
@@ -408,7 +401,6 @@ const MoneyRoomPage: React.FC = () => {
             <ShopView salt={gameState.salt} onBack={() => setScene(Scene.VILLAGE_MAP)} />
           )}
 
-          {/* 탐험 & 전투 */}
           {scene === Scene.WORLD_MAP && <WorldMapView onSelectDungeon={enterDungeon} onBack={() => setScene(Scene.VILLAGE_MAP)} />}
           {scene === Scene.FIELD && (
             <FieldView 
@@ -427,8 +419,14 @@ const MoneyRoomPage: React.FC = () => {
             />
           )}
 
-          {/* Menus & Modals */}
-          {scene === Scene.INVENTORY && <InventoryView user={gameState} onBack={() => setScene(Scene.MY_ROOM)} />}
+          {scene === Scene.INVENTORY && (
+            <InventoryView 
+              user={gameState} 
+              onBack={() => setScene(Scene.MY_ROOM)} 
+              onUseItem={handleUseGardenItem} 
+              onEquipItem={handleEquipItem}
+            />
+          )}
           {scene === Scene.SETTINGS && <SettingsView user={gameState} onSave={(u) => setGameState(p=>({...p, ...u}))} onBack={() => setScene(Scene.MY_ROOM)} />}
           
           <KingdomModal open={scene === Scene.KINGDOM} onClose={() => setScene(Scene.GARDEN)} buildings={getAssetBuildingsView(gameState)} onManageSubs={() => {}} />
@@ -437,7 +435,6 @@ const MoneyRoomPage: React.FC = () => {
         </div>
       </div>
 
-      {/* [CONTROLLER] 하단 조작부 */}
       <div style={consoleStyles.controlDeck}>
         <div style={consoleStyles.dpadArea}>
           <div style={consoleStyles.dpad}>
