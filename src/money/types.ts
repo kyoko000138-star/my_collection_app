@@ -1,7 +1,8 @@
 // src/money/types.ts
 
-// src/money/types.ts
-
+// -------------------------
+// Scene & Enums
+// -------------------------
 export enum Scene {
   GARDEN = 'GARDEN',
   MY_ROOM = 'MY_ROOM',
@@ -14,52 +15,73 @@ export enum Scene {
   KINGDOM = 'KINGDOM',
   COLLECTION = 'COLLECTION',
   SUBSCRIPTION = 'SUBSCRIPTION',
-  FORGE = 'FORGE', // [NEW] 대장간
-  SHOP = 'SHOP',   // [NEW] 잡화점
+  FORGE = 'FORGE',
+  SHOP = 'SHOP',
   SETTINGS = 'SETTINGS'
 }
 
+export type ItemEffectType = 
+  | 'MP_RESTORE'      // MP 회복
+  | 'MP_COST_DOWN'    // MP 소모 감소
+  | 'SALT_BOOST'      // Salt 획득량 증가
+  | 'JUNK_CLEAN'      // Junk 정화/제거
+  | 'GROWTH_BOOST'    // 정원 성장 속도 증가
+  | 'NPC_LOVE'        // NPC 호감도 상승
+  | 'NONE';
+
 // -------------------------
-// Scene Definition
+// Items & Recipes
 // -------------------------
-export enum Scene {
-  GARDEN = 'GARDEN',
-  MY_ROOM = 'MY_ROOM',
-  VILLAGE_MAP = 'VILLAGE_MAP',
-  LIBRARY = 'LIBRARY',
-  WORLD_MAP = 'WORLD_MAP',
-  FIELD = 'FIELD',
-  BATTLE = 'BATTLE',
-  INVENTORY = 'INVENTORY',
-  KINGDOM = 'KINGDOM',
-  COLLECTION = 'COLLECTION',
-  SUBSCRIPTION = 'SUBSCRIPTION'
+export interface ItemData {
+  id: string;
+  name: string;
+  type: 'consumable' | 'equipment' | 'material' | 'junk' | 'decor';
+  desc: string;
+  effectType?: ItemEffectType;
+  effectValue?: number; 
+  price?: number;
+  equipSlot?: 'weapon' | 'armor' | 'accessory'; 
+}
+
+export interface CraftRecipe {
+  id: string;
+  name: string;
+  resultItemId: string;
+  resultCount: number;
+  junkCost: number;
+  saltCost: number;
+  mpCost: number;
+  essenceCost: number;
+  materials?: Record<string, number>; 
+  category: 'BASIC' | 'EQUIPMENT' | 'CONSUMABLE' | 'DECOR';
+}
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  type: 'consumable' | 'equipment' | 'material' | 'junk';
+  count: number;
 }
 
 // -------------------------
-// Assets
+// State Interfaces
 // -------------------------
-export type AssetBuildingId = 'fence' | 'greenhouse' | 'mansion' | 'fountain' | 'barn';
-
 export interface AssetBuildingsState {
-  fence: number;
-  greenhouse: number;
-  mansion: number;
-  fountain: number;
-  barn: number;
+  fence: number;      // 방어 (구 Fortress)
+  greenhouse: number; // 무지출 (구 Airfield)
+  mansion: number;    // 고정비
+  fountain: number;   // 정화 (구 Tower)
+  barn: number;       // 파밍 (구 Warehouse)
 }
 
 export interface AssetBuildingView {
-  id: AssetBuildingId;
+  id: string;
   label: string;
   level: number;
   nextTarget: number | null;
   count: number;
 }
 
-// -------------------------
-// Field & Shadows (NEW)
-// -------------------------
 export interface FieldObject {
   id: string;
   x: number;
@@ -70,92 +92,49 @@ export interface FieldObject {
 
 export interface ShadowMonster {
   id: string;
-  amount: number;      // 지출 금액
-  category: string;    // 카테고리
+  amount: number;
+  category: string;
   createdAt: string;
-  x: number;           // 필드 좌표 X
-  y: number;           // 필드 좌표 Y
+  x: number;
+  y: number;
 }
 
-// -------------------------
-// Inventory
-// -------------------------
-export type ItemType = 'consumable' | 'equipment' | 'material' | 'junk' | 'decor';
-
-export interface Item {
-  id: string;
+export interface MonsterStat {
   name: string;
-  type: ItemType;
-  count: number;
-  rarity?: 'COMMON' | 'RARE' | 'EPIC';
-  desc?: string;
+  hp: number;
+  maxHp: number;
+  attack: number;
+  sprite: string;
+  rewardJunk: number;
 }
 
-// -------------------------
-// Garden
-// -------------------------
-export type FlowerState = 'blooming' | 'normal' | 'withered';
 export interface GardenState {
   treeLevel: number;
   pondLevel: number;
-  flowerState: FlowerState;
+  flowerState: 'blooming' | 'normal' | 'withered';
   weedCount: number;
-  decorations?: { id: string; x: number; y: number; obtainedAt: string }[];
+  decorations: string[];
 }
 
-// -------------------------
-// Player Status
-// -------------------------
-export type PlayerMode = 'NORMAL' | 'DARK';
 export interface PlayerStatus {
-  mode: PlayerMode;
+  mode: 'NORMAL' | 'DARK';
   darkLevel: number;
 }
 
-// -------------------------
-// Subscription
-// -------------------------
-export type BillingCycle = 'MONTHLY' | 'YEARLY';
 export interface SubscriptionPlan {
   id: string;
   name: string;
   amount: number;
   billingDay: number;
-  cycle: BillingCycle;
   isActive: boolean;
-  startedAt?: string;
   lastChargedDate?: string;
-  note?: string;
-  categoryId?: string;
-}
-
-// -------------------------
-// User State Root
-// -------------------------
-export interface UserCounters {
-  defenseActionsToday: number;
-  junkObtainedToday: number;
-  dailyTotalSpend: number;
-  hadSpendingToday: boolean;
-  noSpendStreak: number;
-  guardPromptShownToday: boolean;
-  lastDailyResetDate?: string;
-  lastDayEndDate?: string;
-}
-
-export interface LunaCycle {
-  startDate: string;
-  periodLength: number;
-  cycleLength: number;
 }
 
 export interface PendingTransaction {
   id: string;
-  amount?: number;
+  amount: number;
   note: string;
   createdAt: string;
-  categoryId?: string;
-  kind?: 'SPEND' | 'SAVING' | 'REPAY' | 'INCOME' | 'ETC';
 }
 
 export interface CollectionItem {
@@ -164,77 +143,70 @@ export interface CollectionItem {
   description: string;
   obtainedAt: string;
   category: 'JUNK' | 'BADGE';
-  source?: string;
 }
 
+export interface NpcAffection {
+  gardener: number;
+  angel: number;
+  demon: number;
+  curator: number;
+}
+
+// -------------------------
+// Root User State
+// -------------------------
 export interface UserState {
   name: string;
   level: number;
   jobTitle: string;
-  seedPackets?: number;
-
   currentBudget: number;
   maxBudget: number;
   mp: number;
   maxMp: number;
-
   junk: number;
   salt: number;
+  seedPackets: number;
 
   garden: GardenState;
   status: PlayerStatus;
-  lunaCycle: LunaCycle;
+  lunaCycle: {
+    startDate: string;
+    periodLength: number;
+    cycleLength: number;
+  };
 
-  inventory: Item[];
+  inventory: InventoryItem[];
   collection: CollectionItem[];
   pending: PendingTransaction[];
+  
+  // [중요] 재료와 장비 상태
   materials: Record<string, number>;
-  
+  equipped: {
+    weapon: string | null;
+    armor: string | null;
+    accessory: string | null;
+  };
+
   assets: AssetBuildingsState;
-  counters: UserCounters;
+  
+  counters: {
+    defenseActionsToday: number;
+    junkObtainedToday: number;
+    dailyTotalSpend: number;
+    hadSpendingToday: boolean;
+    noSpendStreak: number;
+    guardPromptShownToday: boolean;
+    lastDailyResetDate: string;
+    lastDayEndDate: string;
+    cumulativeDefense: number;
+    noSpendStamps: Record<string, boolean>;
+  };
+
   subscriptions: SubscriptionPlan[];
-  
-  // [NEW] 해결되지 않은 그림자들
   unresolvedShadows: ShadowMonster[];
-
-  lastLoginDate?: string;
-}
-// [NEW] 아이템 효과 타입 정의
-export type ItemEffectType = 
-  | 'MP_RESTORE'      // MP 회복
-  | 'MP_COST_DOWN'    // MP 소모 감소
-  | 'SALT_BOOST'      // Salt 획득량 증가
-  | 'JUNK_CLEAN'      // Junk 정화/제거
-  | 'GROWTH_BOOST'    // 정원 성장 속도 증가
-  | 'NPC_LOVE'        // NPC 호감도 상승
-  | 'NONE';
-
-// [NEW] 확장된 아이템 인터페이스
-export interface ItemData {
-  id: string;
-  name: string;
-  type: 'consumable' | 'equipment' | 'material' | 'junk' | 'decor';
-  desc: string;
-  effectType?: ItemEffectType;
-  effectValue?: number; // 예: 10 (10% 증가 or 10 회복)
-  price?: number;       // 상점 판매가 (Salt)
-}
-
-// [NEW] 제작 레시피 인터페이스
-export interface CraftRecipe {
-  id: string;
-  name: string;         // 표시 이름
-  resultItemId: string; // 결과 아이템 ID
-  resultCount: number;
-  
-  // 비용
-  junkCost: number;
-  saltCost: number;
-  mpCost: number;
-  essenceCost: number;  // PURE_ESSENCE 소모량
-  
-  // 추가 재료 (선택)
-  materials?: Record<string, number>; 
-  
-  category: 'BASIC' | 'EQUIPMENT' | 'CONSUMABLE' | 'DECOR';
+  npcAffection: NpcAffection;
+  stats: {
+    attack: number;
+    defense: number;
+  };
 }
