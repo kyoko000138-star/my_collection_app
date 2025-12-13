@@ -335,6 +335,37 @@ const MoneyRoomPage: React.FC = () => {
     : { name: '잡동사니 몬스터', hp: 30, maxHp: 30, attack: 5, sprite: '📦', rewardJunk: 2 };
 
 
+
+  // [NEW] 정원 아이템 사용 핸들러 (뷰에서 호출할 함수)
+const handleUseGardenItem = (itemId: string) => {
+  // moneyGameLogic의 함수 호출
+  const { applyUseGardenItem } = require('../money/moneyGameLogic'); // 또는 import 상단에 추가
+  const result = applyUseGardenItem(gameState, itemId);
+  
+  if (result.success) {
+    setGameState(result.newState);
+    alert(result.message); // 또는 토스트 메시지
+  } else {
+    alert(result.message);
+  }
+};
+
+// ...
+
+// 렌더링 부분
+{scene === Scene.GARDEN && (
+  <GardenView 
+    user={gameState} 
+    onChangeScene={setScene} 
+    onDayEnd={handleDayEnd}
+    onUseItem={handleUseGardenItem} // [추가 필요] GardenView Props에 이 함수를 추가해야 함
+  />
+)}
+
+
+
+  
+
   // -------------------------------------------------------
   // 5. Rendering
   // -------------------------------------------------------
