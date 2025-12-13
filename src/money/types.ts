@@ -20,6 +20,9 @@ export enum Scene {
   SETTINGS = 'SETTINGS'
 }
 
+// [NEW] 월드 로케이션 ID
+export type LocationId = 'VILLAGE_BASE' | 'CITY_CAPITAL' | 'FOREST_OUTLAW';
+
 export type ItemEffectType = 
   | 'MP_RESTORE'      // MP 회복
   | 'MP_COST_DOWN'    // MP 소모 감소
@@ -67,11 +70,11 @@ export interface InventoryItem {
 // State Interfaces
 // -------------------------
 export interface AssetBuildingsState {
-  fence: number;      // 방어 (구 Fortress)
-  greenhouse: number; // 무지출 (구 Airfield)
+  fence: number;      // 방어
+  greenhouse: number; // 무지출
   mansion: number;    // 고정비
-  fountain: number;   // 정화 (구 Tower)
-  barn: number;       // 파밍 (구 Warehouse)
+  fountain: number;   // 정화
+  barn: number;       // 파밍
 }
 
 export interface AssetBuildingView {
@@ -179,7 +182,6 @@ export interface UserState {
   collection: CollectionItem[];
   pending: PendingTransaction[];
   
-  // [중요] 재료와 장비 상태
   materials: Record<string, number>;
   equipped: {
     weapon: string | null;
@@ -209,13 +211,8 @@ export interface UserState {
     attack: number;
     defense: number;
   };
-}
 
-// [NEW] 월드 로케이션 ID
-export type LocationId = 'VILLAGE_BASE' | 'CITY_CAPITAL' | 'FOREST_OUTLAW';
-
-export interface UserState {
-  // ... 기존 필드 유지
-  
   // [NEW] 현재 위치 (마을)
   currentLocation: LocationId;
+} 
+// 👆 이 닫는 중괄호가 없어서 에러가 났던 것입니다!
