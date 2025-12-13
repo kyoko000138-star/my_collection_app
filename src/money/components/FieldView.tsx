@@ -6,35 +6,55 @@ import { FieldObject, ShadowMonster } from '../types';
 interface FieldViewProps {
   playerPos: { x: number; y: number };
   objects: FieldObject[];
-  shadows: ShadowMonster[]; // [NEW] 그림자 몬스터
+  shadows: ShadowMonster[];
   dungeonName: string;
 }
 
 export const FieldView: React.FC<FieldViewProps> = ({ playerPos, objects, shadows, dungeonName }) => {
-  // 그림자가 많을수록 화면이 어두워짐 (최대 70%)
   const darknessLevel = Math.min(shadows.length * 0.15, 0.7);
 
   return (
     <div style={styles.container}>
-      {/* 배경 패턴 */}
       <div style={styles.bgPattern} />
-      
-      {/* 어둠 오버레이 (공포 분위기) */}
       <div style={{...styles.darknessOverlay, opacity: darknessLevel}} />
 
-      {/* 헤더 */}
       <div style={styles.header}>
         🚩 {dungeonName} (그림자: {shadows.length})
       </div>
 
-      {/* 파밍 아이템 */}
-      {objects.map(obj => !obj.isCollected && (
-        <div key={obj.id} style={{...styles.object, left: `${obj.x}%`, top: `${obj.y}%`}}>
-          {obj.type === 'JUNK' ? '✨' : '🌿'}
-        </div>
-      ))}
+      {/* 파밍 아이템 렌더링 */}
+      {objects.map(obj => {
+        if (obj.isCollected) return null;
 
-      {/* [NEW] 그림자 몬스터 (지출 스택) */}
+        // [수정] 타입별 아이콘 분기 처리 (이정표 추가!)
+        let icon = '💎';
+        let anim = 'float 2s infinite ease-in-out';
+
+        if (obj.type === 'HERB') {
+           icon = '🌿';
+        } else if (obj.type === 'JUNK') {
+           icon = '✨';
+        } else if (obj.type === 'SIGNPOST') { // [NEW] 이정표 처리
+           icon = '🪧';
+           anim = 'bounce 1s infinite'; // 눈에 띄게 통통 튀게 함
+        }
+
+        return (
+          <div 
+            key={obj.id} 
+            style={{
+              ...styles.object, 
+              left: `${obj.x}%`, 
+              top: `${obj.y}%`,
+              animation: anim
+            }}
+          >
+            {icon}
+          </div>
+        );
+      })}
+
+      {/* 그림자 몬스터 */}
       {shadows.map(shadow => (
         <div key={shadow.id} style={{...styles.shadowMonster, left: `${shadow.x}%`, top: `${shadow.y}%`}}>
           <div className="animate-pulse">👻</div>
@@ -48,12 +68,17 @@ export const FieldView: React.FC<FieldViewProps> = ({ playerPos, objects, shadow
         <div style={styles.shadow} />
       </div>
 
-      {/* 가이드 */}
       <div style={styles.guide}>
         {shadows.length > 0 
           ? "⚠️ 으스스한 기운이 느껴집니다..." 
           : "방향키로 이동하며 아이템을 찾으세요."}
       </div>
+
+      {/* 애니메이션 키프레임 주입 */}
+      <style>{`
+        @keyframes float { 0%, 100% { transform: translate(-50%, -50%); } 50% { transform: translate(-50%, -60%); } }
+        @keyframes bounce { 0%, 100% { transform: translate(-50%, -50%); } 50% { transform: translate(-50%, -70%); } }
+      `}</style>
     </div>
   );
 };
@@ -61,12 +86,12 @@ export const FieldView: React.FC<FieldViewProps> = ({ playerPos, objects, shadow
 const styles: Record<string, React.CSSProperties> = {
   container: { width: '100%', height: '100%', position: 'relative', overflow: 'hidden', backgroundColor: '#353b48' },
   bgPattern: { position: 'absolute', inset: 0, opacity: 0.2, backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '20px 20px' },
-  
   darknessOverlay: { position: 'absolute', inset: 0, backgroundColor: '#000', pointerEvents: 'none', zIndex: 15, transition: 'opacity 0.5s' },
 
   header: { position: 'absolute', top: 10, left: 10, backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', padding: '4px 8px', borderRadius: 6, fontSize: '12px', zIndex: 20 },
   
-  object: { position: 'absolute', fontSize: '20px', transform: 'translate(-50%, -50%)', animation: 'float 2s infinite ease-in-out', zIndex: 5 },
+  // object 스타일에서 애니메이션은 인라인으로 처리함
+  object: { position: 'absolute', fontSize: '24px', transform: 'translate(-50%, -50%)', zIndex: 5 },
   
   shadowMonster: { position: 'absolute', fontSize: '28px', transform: 'translate(-50%, -50%)', zIndex: 10, filter: 'grayscale(100%) brightness(0.5) drop-shadow(0 0 5px #ef4444)' },
   shadowLabel: { position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', fontSize: '9px', color: '#fca5a5', textShadow: '1px 1px 0 #000', whiteSpace: 'nowrap' },
