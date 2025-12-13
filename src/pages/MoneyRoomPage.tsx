@@ -17,7 +17,8 @@ import {
   applySubscriptionChargesIfDue,
   getAssetBuildingsView,
   applyUseGardenItem,
-  applyEquipItem
+  applyEquipItem,
+  applyBuyItem // [NEW] 상점 구매 로직 import
 } from '../money/moneyGameLogic';
 import { getKSTDateString, getMoneyWeather, getWeatherMeta } from '../money/moneyWeather';
 import { RewardItem } from '../money/rewardData';
@@ -253,6 +254,8 @@ const MoneyRoomPage: React.FC = () => {
     setGameState(newState);
   };
 
+  // --- Handlers ---
+
   const handleUseGardenItem = (itemId: string) => {
     const result = applyUseGardenItem(gameState, itemId);
     if (result.success) {
@@ -267,6 +270,17 @@ const MoneyRoomPage: React.FC = () => {
     const result = applyEquipItem(gameState, itemId);
     if (result.success) {
       setGameState(result.newState);
+    } else {
+      alert(`🚫 ${result.message}`);
+    }
+  };
+
+  // [NEW] 상점 구매 핸들러
+  const handleBuyItem = (itemId: string) => {
+    const result = applyBuyItem(gameState, itemId);
+    if (result.success) {
+      setGameState(result.newState);
+      alert(`🛒 ${result.message}`);
     } else {
       alert(`🚫 ${result.message}`);
     }
@@ -398,7 +412,11 @@ const MoneyRoomPage: React.FC = () => {
             />
           )}
           {scene === Scene.SHOP && (
-            <ShopView salt={gameState.salt} onBack={() => setScene(Scene.VILLAGE_MAP)} />
+            <ShopView 
+              salt={gameState.salt} 
+              onBuyItem={handleBuyItem} 
+              onBack={() => setScene(Scene.VILLAGE_MAP)} 
+            />
           )}
 
           {scene === Scene.WORLD_MAP && <WorldMapView onSelectDungeon={enterDungeon} onBack={() => setScene(Scene.VILLAGE_MAP)} />}
@@ -409,10 +427,12 @@ const MoneyRoomPage: React.FC = () => {
               dungeonName={activeDungeon} 
             />
           )}
+          
           {scene === Scene.BATTLE && (
             <BattleView 
               monster={battleMonster}
               playerMp={gameState.mp}
+              playerStats={gameState.stats} // [NEW] 스탯 전달
               onWin={handleBattleWin}
               onRun={handleBattleRun}
               onConsumeMp={handleConsumeMp}
