@@ -10,6 +10,100 @@ import {
 } from './moneyClassLogic'; 
 import { calculateLunaPhase } from './moneyLuna';
 
+import { UserState, Transaction, CategoryId, TxType } from './types';
+// ... 기존 imports
+
+// [NEW] v4 트랜잭션 처리 (핵심 로직)
+export const applyTransaction = (
+  state: UserState,
+  txData: Omit<Transaction, 'id' | 'createdAt'>
+): { newState: UserState; message: string } => {
+  const newState = JSON.parse(JSON.stringify(state)) as UserState;
+  
+  // 1. 트랜잭션 객체 생성
+  const newTx: Transaction = {
+    ...txData,
+    id: `tx_${Date.now()}`,
+    createdAt: new Date().toISOString() // KST 변환은 View나 Helper에서 처리 권장
+  };
+
+  // 2. 리스트에 추가
+  newState.pending = [newTx, ...newState.pending].slice(0, 100);
+
+  let message = "";
+
+  // 3. 타입별 로직 분기
+  if (txData.category.startsWith('save.') || txData.category.startsWith('invest.')) {
+    // ==========================================
+    // 🌱 저축/투자: 정원 영양분 공급
+    // ==========================================
+    
+    // 안전 장치
+    if (!newState.gardenNutrients) {
+      newState.gardenNutrients = { savedAmount: 0, debtRepaid: 0 };
+    }
+
+    // 1) 예산 차감 (저축도 내 수중에선 빠져나가는 돈이므로)
+    newState.currentBudget -= txData.amount;
+    newState.gardenNutrients.savedAmount += txData.amount;
+
+    // 2) 정원 효과: 나무 성장
+    // 금액에 따라 성장 포인트가 다름 (단순화된 로직)
+    const growthPower = Math.ceil(txData.amount / 10000); // 1만원당 1포인트
+    newState.garden.treeLevel += growthPower;
+    
+    message = `🌱 미래를 위한 씨앗을 심었습니다! (나무 성장 +${growthPower})`;
+
+    // 3) 특수 효과: 부채 상환 (Debt)
+    if (txData.category === 'save.debt') {
+      newState.gardenNutrients.debtRepaid += txData.amount;
+      // 잡초 대량 제거 (빚을 갚으면 마음의 짐이 사라짐)
+      const removedWeeds = Math.min(newState.garden.weedCount, 5);
+      newState.garden.weedCount -= removedWeeds;
+      message = `🔗 족쇄를 끊어냈습니다! 정원의 잡초가 ${removedWeeds}개 사라집니다.`;
+    }
+
+  } else {
+    // ==========================================
+    // ⚔️ 지출: 그림자 소환 (기존 applySpend 대체/확장)
+    // ==========================================
+    
+    newState.currentBudget -= txData.amount;
+    newState.counters.dailyTotalSpend += txData.amount;
+    newState.counters.hadSpendingToday = true;
+    newState.counters.noSpendStreak = 0; // 지출 발생 시 스트릭 초기화
+
+    // 1) 몬스터(그림자) 생성
+    // Intent(의도)가 'impulse'(충동)이거나 'stress' 상황이면 더 강력한 몬스터 등장 가능
+    const isBadIntent = txData.intent === 'impulse' || txData.intent === 'unavoidable';
+    
+    // 그림자 데이터 생성
+    newState.unresolvedShadows.push({
+      id: `shadow_${Date.now()}`,
+      amount: txData.amount,
+      category: txData.category,
+      createdAt: new Date().toISOString(),
+      x: Math.floor(Math.random() * 80 + 10),
+      y: Math.floor(Math.random() * 80 + 10),
+    });
+
+    message = `👻 지출의 그림자가 기록되었습니다. (HP -${txData.amount.toLocaleString()})`;
+    
+    if (isBadIntent) {
+      message += "\n⚠️ 부정적인 기운이 느껴집니다...";
+    }
+  }
+
+  // 4. 공통: 예산 초과(흑화) 체크
+  if (newState.currentBudget < 0 && newState.garden.flowerState !== 'withered') {
+    newState.garden.flowerState = 'withered';
+    message += "\n🥀 예산이 바닥나 꽃이 시들었습니다.";
+  }
+
+  return { newState, message };
+};
+
+
 // --- Helpers ---
 const getTodayString = () => {
   const now = new Date();
