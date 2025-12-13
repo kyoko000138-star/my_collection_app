@@ -9,6 +9,101 @@ import {
 } from './moneyClassLogic';
 import { calculateLunaPhase } from './moneyLuna';
 
+
+// [NEW] 레시피 데이터 (임시 - types/constants로 분리 예정)
+const RECIPES = {
+    PURE_ESSENCE_BASIC: {
+        id: 'PURE_ESSENCE',
+        junkCost: 10,
+        saltCost: 5,
+        mpCost: 3, // 제작/정화 시 MP 소모
+        resultItem: 'PURE_ESSENCE',
+        resultCount: 1,
+    },
+    CIRCULATION_WAND: { // R17: 순환의 지팡이 (무기)
+        id: 'CIRCULATION_WAND',
+        junkCost: 0, // PURE_ESSENCE로 제작하므로 Junk는 0
+        saltCost: 5,
+        mpCost: 5,
+        essenceCost: 4, // PURE_ESSENCE 소모
+        resultItem: '순환의 지팡이',
+        resultCount: 1,
+        materials: { '시간의 톱니바퀴': 1 }, // Herb/Drop 재료
+    }
+    // ... 다른 레시피 추가 예정
+};
+
+
+// [NEW] Junk 정화 -> PURE_ESSENCE 생성
+export const applyPurifyJunk = (state: UserState): { newState: UserState, success: boolean, message: string } => {
+    const recipe = RECIPES.PURE_ESSENCE_BASIC;
+    const nextState = JSON.parse(JSON.stringify(state)) as UserState;
+
+    if (nextState.junk < recipe.junkCost || nextState.salt < recipe.saltCost) {
+        return { newState: state, success: false, message: "재료(Junk/Salt)가 부족합니다." };
+    }
+    if (nextState.mp < recipe.mpCost) {
+        return { newState: state, success: false, message: `의지력(MP)이 ${recipe.mpCost} 부족합니다.` };
+    }
+
+    // 자원 소모
+    nextState.junk -= recipe.junkCost;
+    nextState.salt -= recipe.saltCost;
+    nextState.mp -= recipe.mpCost;
+    
+    // PURE_ESSENCE 획득 (재료에 추가)
+    nextState.materials['PURE_ESSENCE'] = (nextState.materials['PURE_ESSENCE'] || 0) + recipe.resultCount;
+
+    return { newState: nextState, success: true, message: `Junk ${recipe.junkCost}를 정화하여 PURE_ESSENCE 1개를 획득했습니다!` };
+};
+
+
+// [NEW] 장비 제작
+export const applyCraftEquipment = (state: UserState, recipeId: keyof typeof RECIPES): { newState: UserState, success: boolean, message: string } => {
+    const recipe = RECIPES[recipeId];
+    const nextState = JSON.parse(JSON.stringify(state)) as UserState;
+
+    if (!recipe.essenceCost) {
+        return { newState: state, success: false, message: "이 레시피는 Essence가 필요하지 않습니다." };
+    }
+
+    const currentEssence = nextState.materials['PURE_ESSENCE'] || 0;
+    
+    if (currentEssence < recipe.essenceCost || nextState.mp < recipe.mpCost) {
+        return { newState: state, success: false, message: "재료 또는 MP가 부족합니다." };
+    }
+    
+    // 추가 재료 체크 (Herb/Drop Items)
+    if (recipe.materials) {
+        for (const [materialId, requiredCount] of Object.entries(recipe.materials)) {
+            if ((nextState.materials[materialId] || 0) < requiredCount) {
+                return { newState: state, success: false, message: `${materialId} 재료가 부족합니다.` };
+            }
+        }
+    }
+
+    // 자원 소모 및 제작
+    nextState.materials['PURE_ESSENCE'] -= recipe.essenceCost;
+    nextState.mp -= recipe.mpCost;
+
+    // 장비 인벤토리에 추가 (Item 타입에 맞게 처리 필요)
+    // 임시: Inventory에 추가 (item.name = resultItem)
+    const existingItemIndex = nextState.inventory.findIndex(item => item.name === recipe.resultItem);
+    if (existingItemIndex !== -1) {
+        nextState.inventory[existingItemIndex].count += recipe.resultCount;
+    } else {
+        nextState.inventory.push({
+            id: recipe.resultItem.replace(/\s/g, '_'),
+            name: recipe.resultItem,
+            type: 'equipment', // 장비 타입으로 가정
+            count: recipe.resultCount,
+        });
+    }
+
+    return { newState: nextState, success: true, message: `${recipe.resultItem} 제작 성공! MP ${recipe.mpCost} 소모.` };
+};
+
+export { RECIPES }; // 레시피 목록 외부 노출
 // --- Helpers ---
 
 // 한국 시간(KST) 기준 날짜 문자열 (YYYY-MM-DD)
