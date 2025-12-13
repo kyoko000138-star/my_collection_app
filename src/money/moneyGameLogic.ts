@@ -91,7 +91,6 @@ export const calculateStats = (state: UserState) => {
 
 // --- Core Logic ---
 
-// 1. 일일 리셋
 export const checkDailyReset = (state: UserState): { newState: UserState, resetOccurred: boolean } => {
   const today = getTodayString();
   if (state.counters.lastDailyResetDate === today) return { newState: state, resetOccurred: false };
@@ -225,7 +224,6 @@ export const applySpend = (
   return applyRecordSpend(state, amount, categoryId, isFixedCost ? '고정비' : '지출');
 };
 
-// 3. 방어
 export const applyDefense = (state: UserState): UserState => {
   if (state.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) return state;
 
@@ -238,6 +236,7 @@ export const applyDefense = (state: UserState): UserState => {
       cumulativeDefense: (state.counters.cumulativeDefense || 0) + 1, 
     },
   };
+  
   newState.assets.fence += 1;
 
   if (newState.garden && Math.random() < 0.3) {
@@ -247,7 +246,6 @@ export const applyDefense = (state: UserState): UserState => {
   return newState;
 };
 
-// 4. 하루 마감
 export const applyDayEnd = (state: UserState): { newState: UserState; message: string } => {
   const today = getTodayString();
   const newState = JSON.parse(JSON.stringify(state)) as UserState;
@@ -285,7 +283,7 @@ export const applyDayEnd = (state: UserState): { newState: UserState; message: s
   return { newState, message: logs.join('\n') };
 };
 
-// [FIX] 5. 정화 (Junk -> Essence) - 이름 복원: applyPurifyJunk
+// [FIXED] 정화 로직 (Junk -> Essence)
 export const applyPurifyJunk = (state: UserState): { newState: UserState; success: boolean; message: string } => {
     if (state.junk < 5 || state.salt < 1 || state.mp < 3) {
         return { newState: state, success: false, message: "재료(Junk 5, Salt 1) 또는 MP(3)가 부족합니다." };
@@ -307,7 +305,6 @@ export const applyPurifyJunk = (state: UserState): { newState: UserState; succes
     return { newState: nextState, success: true, message: `Junk를 정화하여 정수를 얻었습니다.` };
 };
 
-// 6. 제작
 export const applyCraftEquipment = (state: UserState, recipeId?: string): { newState: UserState; success: boolean; message: string } => {
     const recipe = RECIPE_DB[recipeId || 'CRAFT_WATER_CAN']; 
     if (!recipe) return { newState: state, success: false, message: "레시피 오류" };
@@ -334,7 +331,6 @@ export const applyCraftEquipment = (state: UserState, recipeId?: string): { newS
     return { newState: nextState, success: true, message: `⚒️ ${itemName} 제작 완료!` };
 };
 
-// 7. 자산 뷰
 export const getAssetBuildingsView = (state: UserState): AssetBuildingView[] => {
   const calc = (cnt: number) => {
     if (cnt >= 100) return { level: 4, nextTarget: null };
@@ -351,7 +347,6 @@ export const getAssetBuildingsView = (state: UserState): AssetBuildingView[] => 
   ];
 };
 
-// 8. 몬스터 생성 (Legacy support)
 export const getDailyMonster = (pending: any[]) => {
   let monsterType = 'etc';
   if (pending && pending.length > 0) {
@@ -363,7 +358,6 @@ export const getDailyMonster = (pending: any[]) => {
   return monsterType;
 };
 
-// 9. 구독료
 export const applySubscriptionChargesIfDue = (
   input: { newState: UserState; resetOccurred: boolean }
 ): { newState: UserState, logs: string[] } => {
@@ -390,7 +384,6 @@ export const applySubscriptionChargesIfDue = (
     return { newState: state, logs };
 };
 
-// 10. 아이템 사용
 export const applyUseGardenItem = (state: UserState, itemId: string): { newState: UserState; success: boolean; message: string } => {
   const newState = JSON.parse(JSON.stringify(state)) as UserState;
   const invIndex = newState.inventory.findIndex(i => i.id === itemId);
@@ -447,7 +440,6 @@ export const applyUseGardenItem = (state: UserState, itemId: string): { newState
   return { newState, success: true, message: effectMsg };
 };
 
-// 11. 아이템 착용
 export const applyEquipItem = (state: UserState, itemId: string): { newState: UserState; success: boolean; message: string } => {
   const item = ITEM_DB[itemId];
   if (!item || item.type !== 'equipment' || !item.equipSlot) {
@@ -474,7 +466,6 @@ export const applyEquipItem = (state: UserState, itemId: string): { newState: Us
   return { newState, success: true, message: `[장착] ${item.name}` };
 };
 
-// 12. 상점 구매
 export const applyBuyItem = (
   state: UserState,
   itemId: string
