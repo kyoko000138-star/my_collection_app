@@ -117,18 +117,20 @@ export const ForgeView: React.FC<Props> = ({ user, onUpdateUser, onBack }) => {
 };
 
 const styles: Record<string, React.CSSProperties> = {
-  // 전체 컨테이너: 화면 꽉 채움, 스크롤 없음 (내부에서 처리)
+  // [핵심 변경] 부모 영역(ScreenContent)에 절대적으로 꽉 차게 고정
+  // 이렇게 해야 부모 크기를 넘어서지 않고 내부 스크롤이 생깁니다.
   container: { 
-    width: '100%', 
-    height: '100%', 
+    position: 'absolute', 
+    top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: '#451a03', 
     display: 'flex', 
     flexDirection: 'column', 
     color: '#fff', 
-    overflow: 'hidden' 
+    overflow: 'hidden', // 컨테이너 자체는 스크롤 금지
+    zIndex: 10
   },
   
-  // 고정 헤더: 줄어들지 않음 (flexShrink: 0)
+  // 고정 헤더: 줄어들지 않음
   fixedHeader: {
     padding: '20px 20px 0 20px',
     flexShrink: 0, 
@@ -140,10 +142,9 @@ const styles: Record<string, React.CSSProperties> = {
   scrollContent: {
     flex: 1,
     overflowY: 'auto',
-    minHeight: 0, // Flexbox 스크롤 버그 방지 필수 속성
+    minHeight: 0, 
     padding: '10px 20px',
-    // 모바일 터치 스크롤 부드럽게
-    WebkitOverflowScrolling: 'touch', 
+    WebkitOverflowScrolling: 'touch', // 모바일 부드러운 스크롤
   },
 
   // 고정 푸터: 줄어들지 않음
