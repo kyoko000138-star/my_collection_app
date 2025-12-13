@@ -405,3 +405,67 @@ export const applySubscriptionChargesIfDue = (
 
     return { newState, logs };
 };
+
+// [NEW] 10. 정원 아이템 사용
+export const applyUseGardenItem = (
+  state: UserState,
+  itemId: string
+): { newState: UserState; success: boolean; message: string } => {
+  const newState = JSON.parse(JSON.stringify(state)) as UserState;
+  
+  // 인벤토리 확인
+  const invIndex = newState.inventory.findIndex(i => i.id === itemId);
+  if (invIndex === -1 || newState.inventory[invIndex].count <= 0) {
+    return { newState: state, success: false, message: "아이템이 없습니다." };
+  }
+
+  let effectMsg = "";
+  let isUsed = false;
+
+  // 아이템별 효과 분기
+  switch (itemId) {
+    case 'water_can': // 물뿌리개
+      if (newState.garden.flowerState === 'withered') {
+        newState.garden.flowerState = 'normal';
+        effectMsg = "시든 꽃이 다시 고개를 들었습니다.";
+        isUsed = true;
+      } else if (newState.garden.flowerState === 'normal') {
+        newState.garden.flowerState = 'blooming';
+        effectMsg = "꽃이 활짝 피어났습니다! (만개)";
+        isUsed = true;
+      } else {
+        return { newState: state, success: false, message: "이미 꽃이 활짝 피어있습니다." };
+      }
+      break;
+
+    case 'hoe': // 호미
+      if (newState.garden.weedCount > 0) {
+        newState.garden.weedCount -= 1;
+        effectMsg = "잡초를 하나 뽑았습니다. 개운하네요!";
+        isUsed = true;
+      } else {
+        return { newState: state, success: false, message: "뽑을 잡초가 없습니다." };
+      }
+      break;
+
+    case 'nutrient': // 영양제 (순환 비료)
+      // 나무 경험치/레벨 로직 (단순화: 즉시 레벨업 or 게이지 상승)
+      newState.garden.treeLevel += 1;
+      effectMsg = "꿈의 나무가 무럭무럭 자랐습니다!";
+      isUsed = true;
+      break;
+
+    default:
+      return { newState: state, success: false, message: "정원에서 사용할 수 없는 아이템입니다." };
+  }
+
+  if (isUsed) {
+    // 아이템 소모
+    newState.inventory[invIndex].count -= 1;
+    if (newState.inventory[invIndex].count === 0) {
+      newState.inventory.splice(invIndex, 1);
+    }
+  }
+
+  return { newState, success: true, message: effectMsg };
+};
