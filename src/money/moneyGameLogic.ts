@@ -169,7 +169,7 @@ export const applyRecordSpend = (
   newState.unresolvedShadows.push(newShadow);
 
   // 3. 거래 내역 생성
-  const newTx: Transaction = {
+  const newTx: PendingTransaction = {
     id: `tx_${Date.now()}`,
     amount,
     note: desc,
@@ -305,9 +305,10 @@ export const applyDayEnd = (state: UserState): { newState: UserState; message: s
   return { newState, message: logs.join('\n') };
 };
 
-// 5. 정화 (Junk -> Essence) (기존 유지)
-export const applyPurify = (state: UserState): { newState: UserState; success: boolean; message: string } => {
-    // 레시피 기반이 아니라 단순 정화라면
+// [FIX] 5. 정화 (Junk -> Essence) - ForgeView에서 호출하는 함수 이름 수정
+// 기존: applyPurify -> 수정: applyPurifyJunk
+export const applyPurifyJunk = (state: UserState): { newState: UserState; success: boolean; message: string } => {
+    // 레시피 기반이 아니라 단순 정화라면 (ForgeView에서 호출됨)
     if (state.junk < 5 || state.salt < 1 || state.mp < 3) {
         return { newState: state, success: false, message: "재료(Junk 5, Salt 1) 또는 MP(3)가 부족합니다." };
     }
