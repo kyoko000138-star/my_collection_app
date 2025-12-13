@@ -8,7 +8,8 @@ import {
   getDruidRecoveryBonus,
   checkAlchemistBonus,
 } from './moneyClassLogic'; 
-import { calculateLunaPhase } from './moneyLuna';
+// [수정] 구버전 calculateLunaPhase 대신 updateLunaCycle 사용
+import { updateLunaCycle, getLunaBuffInfo } from './moneyLuna';
 
 // --- Helpers ---
 const getTodayString = () => {
@@ -102,20 +103,31 @@ export const checkDailyReset = (state: UserState): UserState => {
   const today = getTodayString();
   if (state.counters.lastDailyResetDate === today) return state;
 
-  const luna = calculateLunaPhase(state.lunaCycle);
+  // [수정] Luna System v2 적용
+  // 기존 calculateLunaPhase 대신 updateLunaCycle 사용
+  const updatedLuna = updateLunaCycle(state.lunaCycle);
+  const phase = updatedLuna.currentPhase;
+
+  // 페이즈별 MP 회복량 보정
+  let recovery = GAME_CONSTANTS.MP_RECOVERY_ACCESS; // 기본 10
+  
   const druidBonus = getDruidRecoveryBonus(
     state,
-    luna.phaseName.includes('Rest') || luna.isPeriod,
+    phase === 'MENSTRUAL' // 생리 기간이면 드루이드 보너스 체크
   );
+
+  if (phase === 'MENSTRUAL') recovery -= 5; // 생리 중엔 회복 감소
+  if (phase === 'FOLLICULAR') recovery += 5; // 황금기엔 회복 증가
 
   const newMp = Math.min(
     state.maxMp,
-    state.mp + GAME_CONSTANTS.MP_RECOVERY_ACCESS + druidBonus,
+    state.mp + recovery + druidBonus,
   );
 
   return {
     ...state,
     mp: newMp,
+    lunaCycle: updatedLuna, // 갱신된 사이클 정보 저장
     counters: {
       ...state.counters,
       defenseActionsToday: 0,
@@ -149,8 +161,9 @@ export const applyTransaction = (
 
   // 3. 타입별 로직 분기 (문자열 체크)
   const catStr = txData.category as string;
+  const isSave = catStr.startsWith('save.') || catStr.startsWith('invest.');
 
-  if (catStr.startsWith('save.') || catStr.startsWith('invest.')) {
+  if (isSave) {
     // ==========================================
     // 🌱 저축/투자: 정원 영양분 공급
     // ==========================================
@@ -163,10 +176,17 @@ export const applyTransaction = (
     newState.gardenNutrients.savedAmount += txData.amount;
 
     // 나무 성장 (1만원당 1포인트)
-    const growthPower = Math.ceil(txData.amount / 10000); 
+    // [루나 보너스] 황금기(여포기)에는 성장 효율 1.5배
+    let growthMultiplier = 1;
+    if (newState.lunaCycle.currentPhase === 'FOLLICULAR') {
+       growthMultiplier = 1.5;
+    }
+
+    const growthPower = Math.ceil((txData.amount / 10000) * growthMultiplier); 
     newState.garden.treeLevel += growthPower;
     
     message = `🌱 미래를 위한 씨앗을 심었습니다! (나무 성장 +${growthPower})`;
+    if (growthMultiplier > 1) message += " (✨황금기 보너스!)";
 
     // 부채 상환 특수 효과
     if (txData.category === 'save.debt') {
@@ -187,7 +207,9 @@ export const applyTransaction = (
     newState.counters.noSpendStreak = 0; 
 
     // 몬스터(그림자) 생성
-    const isBadIntent = txData.intent === 'impulse' || txData.intent === 'unavoidable';
+    // [루나 패널티] PMS 기간에 충동지출 시 페널티
+    const isPMS = newState.lunaCycle.currentPhase === 'PMS';
+    const isImpulse = txData.intent === 'impulse';
     
     newState.unresolvedShadows.push({
       id: `shadow_${Date.now()}`,
@@ -200,8 +222,14 @@ export const applyTransaction = (
 
     message = `👻 지출의 그림자가 기록되었습니다. (HP -${txData.amount.toLocaleString()})`;
     
-    if (isBadIntent) {
+    if (isImpulse || txData.intent === 'unavoidable') {
       message += "\n⚠️ 부정적인 기운이 느껴집니다...";
+    }
+
+    if (isPMS && isImpulse) {
+       message += "\n🔥 PMS 기간의 충동지출! 몬스터가 더 흉폭해 보입니다.";
+       // 패널티: 정원에 잡초 생성
+       newState.garden.weedCount += 1; 
     }
   }
 
@@ -222,7 +250,6 @@ export const applySpend = (
   categoryId: string = 'etc',
 ): { newState: UserState; message: string } => {
   // 내부적으로 applyTransaction을 호출하거나 비슷하게 처리
-  // 여기서는 기존 로직 유지하되 타입 변환
   const newState = JSON.parse(JSON.stringify(state)) as UserState;
   let message = '';
 
@@ -235,7 +262,7 @@ export const applySpend = (
     id: Date.now().toString(),
     type: 'EXPENSE',
     amount,
-    category: 'etc', // 기본값
+    category: 'etc', 
     note: categoryId,
     createdAt: getNowISOString(),
   };
