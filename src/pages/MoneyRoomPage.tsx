@@ -53,9 +53,11 @@ import DailyLogModal from '../money/components/DailyLogModal';
 import { SubscriptionModal } from '../money/components/SubscriptionModal';
 import { StampRallyModal } from '../money/components/StampRallyModal';
 
-const STORAGE_KEY = 'money-room-save-v14-full';
+const STORAGE_KEY = 'money-room-save-v15-full';
 
 const INITIAL_ASSETS: AssetBuildingsState = { fence: 0, greenhouse: 0, mansion: 0, fountain: 0, barn: 0 };
+
+// [복원] 기존 데이터 필드 모두 포함
 const INITIAL_STATE: UserState = {
   name: 'Player 1',
   level: 1,
@@ -69,13 +71,30 @@ const INITIAL_STATE: UserState = {
   seedPackets: 0,
   garden: { treeLevel: 0, pondLevel: 0, flowerState: 'normal', weedCount: 0, decorations: [] },
   status: { mode: 'NORMAL', darkLevel: 0 },
-  lunaCycle: { history: [], startDate: '', periodLength: 5, cycleLength: 28, avgCycleLength: 28, avgPeriodLength: 5, currentPhase: 'FOLLICULAR', nextPeriodDate: '', dDay: 0 },
-  inventory: [], collection: [], pending: [], materials: {}, 
+  lunaCycle: { 
+    history: [], 
+    startDate: '', 
+    periodLength: 5, 
+    cycleLength: 28, 
+    avgCycleLength: 28, 
+    avgPeriodLength: 5, 
+    currentPhase: 'FOLLICULAR', 
+    nextPeriodDate: '', 
+    dDay: 0 
+  },
+  inventory: [],
+  collection: [],
+  pending: [], 
+  materials: {}, 
   equipped: { weapon: null, armor: null, accessory: null },
   assets: INITIAL_ASSETS,
-  counters: { defenseActionsToday: 0, junkObtainedToday: 0, noSpendStreak: 0, dailyTotalSpend: 0, guardPromptShownToday: false, hadSpendingToday: false, lastDailyResetDate: '', lastDayEndDate: '', cumulativeDefense: 0, noSpendStamps: {} },
+  counters: {
+    defenseActionsToday: 0, junkObtainedToday: 0, noSpendStreak: 0, dailyTotalSpend: 0,
+    guardPromptShownToday: false, hadSpendingToday: false, lastDailyResetDate: '', lastDayEndDate: '',
+    cumulativeDefense: 0, noSpendStamps: {} 
+  },
   subscriptions: [],
-  unresolvedShadows: [], 
+  unresolvedShadows: [], // [NEW]
   npcAffection: { gardener: 0, angel: 0, demon: 0, curator: 0 },
   stats: { attack: 1, defense: 10 },
   currentLocation: 'VILLAGE_BASE',
@@ -119,7 +138,7 @@ const MoneyRoomPage: React.FC = () => {
 
   const [scene, setScene] = useState<Scene>(Scene.GARDEN);
   const [activeDungeon, setActiveDungeon] = useState<string>('etc');
-  const [viewMode, setViewMode] = useState<'GAME' | 'SUMMARY'>('GAME');
+  const [viewMode, setViewMode] = useState<'GAME' | 'SUMMARY'>('GAME'); // 원본엔 없었으나 편의상 추가 (제거 가능)
   
   const [playerPos, setPlayerPos] = useState({ x: 50, y: 50 });
   const [fieldObjects, setFieldObjects] = useState<FieldObject[]>([]);
@@ -130,6 +149,7 @@ const MoneyRoomPage: React.FC = () => {
   const [lastReward, setLastReward] = useState<RewardItem | null>(null);
   const [showStamp, setShowStamp] = useState(false);
 
+  // Effects
   useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState)); }, [gameState]);
   useEffect(() => {
     setGameState(prev => {
@@ -146,6 +166,7 @@ const MoneyRoomPage: React.FC = () => {
   const hpPercent = gameState.maxBudget > 0 ? Math.round((gameState.currentBudget / gameState.maxBudget) * 100) : 0;
   const isNewUser = gameState.maxBudget === 0;
 
+  // --- Field Logic ---
   const regenerateFieldItems = () => {
     const newObjects: FieldObject[] = Array.from({ length: 5 }).map((_, i) => ({
       id: `obj_${Date.now()}_${i}`,
@@ -182,6 +203,7 @@ const MoneyRoomPage: React.FC = () => {
       if (nextY > 100) { nextY = 5; mapChanged = true; }
       if (mapChanged) regenerateFieldItems();
 
+      // [NEW] 그림자 충돌 -> 전투
       const hitShadow = gameState.unresolvedShadows?.find(s => {
         const dist = Math.sqrt(Math.pow(s.x - nextX, 2) + Math.pow(s.y - nextY, 2));
         return dist < 8; 
@@ -194,6 +216,7 @@ const MoneyRoomPage: React.FC = () => {
         return prev; 
       }
 
+      // 아이템 습득
       setFieldObjects(objs => objs.map(obj => {
         if (obj.isCollected) return obj;
         const dist = Math.sqrt(Math.pow(obj.x - nextX, 2) + Math.pow(obj.y - nextY, 2));
@@ -216,6 +239,8 @@ const MoneyRoomPage: React.FC = () => {
       return { x: nextX, y: nextY };
     });
   };
+
+  // --- Handlers ---
 
   const handleRecordTransaction = (txData: any) => { 
     let dungeonType = 'etc';
@@ -298,6 +323,7 @@ const MoneyRoomPage: React.FC = () => {
   const handleAddSub = (p: SubscriptionPlan) => setGameState(prev => ({...prev, subscriptions: [...prev.subscriptions, p]}));
   const handleRemoveSub = (id: string) => setGameState(prev => ({...prev, subscriptions: prev.subscriptions.filter(s => s.id !== id)}));
 
+  // --- Buttons & Navigation ---
   const handleActionA = () => {
     if (scene === Scene.GARDEN) setScene(Scene.VILLAGE_MAP);
     else if (scene === Scene.VILLAGE_MAP) setScene(Scene.WORLD_MAP);
@@ -321,8 +347,6 @@ const MoneyRoomPage: React.FC = () => {
   const battleMonster: MonsterStat = targetShadowId
     ? { name: '지출의 그림자', hp: 50, maxHp: 50, attack: 10, sprite: '👻', rewardJunk: 5 }
     : { name: '잡동사니 몬스터', hp: 30, maxHp: 30, attack: 5, sprite: '📦', rewardJunk: 2 };
-
-  if (viewMode === 'SUMMARY') return <MoneySummaryView user={gameState} onBackToGame={() => setViewMode('GAME')} />;
 
   return (
     <div style={consoleStyles.body}>
@@ -394,6 +418,7 @@ const MoneyRoomPage: React.FC = () => {
 
           {scene === Scene.INVENTORY && <InventoryView user={gameState} onBack={() => setScene(Scene.MY_ROOM)} onUseItem={handleUseGardenItem} onEquipItem={handleEquipItem} />}
           {scene === Scene.SETTINGS && <SettingsView user={gameState} onSave={(u) => setGameState(p=>({...p, ...u}))} onBack={() => setScene(Scene.MY_ROOM)} />}
+          
           {scene === Scene.COLLECTION && <CollectionView user={gameState} onBack={() => setScene(Scene.GARDEN)} />}
           {scene === Scene.MONTHLY_REPORT && <MonthlyReportView user={gameState} onBack={() => setScene(Scene.LIBRARY)} />}
           
