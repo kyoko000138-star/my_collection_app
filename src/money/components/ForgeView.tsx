@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { UserState } from '../types';
-// [수정된 경로 반영] ForgeView는 components 폴더에 있으므로 '../moneyGameLogic'으로 수정
+// [경로 수정 완료] components 폴더에서 상위 폴더로 이동하여 moneyGameLogic import
 import { applyPurifyJunk, applyCraftEquipment, RECIPES } from '../moneyGameLogic'; 
 
 interface Props {
@@ -15,11 +15,17 @@ export const ForgeView: React.FC<Props> = ({ user, onUpdateUser, onBack }) => {
   const [tab, setTab] = useState<'PURIFY' | 'CRAFT'>('PURIFY');
   const [message, setMessage] = useState('');
   
-  const currentEssence = user.materials['PURE_ESSENCE'] || 0;
+  // [핵심 수정] user.materials가 undefined일 경우 빈 객체({})를 사용하여 에러 방지
+  const safeMaterials = user.materials || {};
+  const currentEssence = safeMaterials['PURE_ESSENCE'] || 0;
 
   // --- Junk 정화 핸들러 ---
   const handlePurify = () => {
-    const result = applyPurifyJunk(user);
+    // applyPurifyJunk 함수 내부에서도 materials 참조가 안전해야 함
+    // user 객체를 복사하여 materials가 없는 경우 빈 객체 할당 후 전달
+    const safeUser = { ...user, materials: user.materials || {} };
+    
+    const result = applyPurifyJunk(safeUser);
     setMessage(result.message);
     if (result.success) {
       onUpdateUser(result.newState);
@@ -28,8 +34,9 @@ export const ForgeView: React.FC<Props> = ({ user, onUpdateUser, onBack }) => {
 
   // --- 장비 제작 핸들러 ---
   const handleCraft = (recipeId: keyof typeof RECIPES) => {
-    // RECIPES는 moneyGameLogic.ts에서 정의되어야 합니다.
-    const result = applyCraftEquipment(user, recipeId);
+    const safeUser = { ...user, materials: user.materials || {} };
+    
+    const result = applyCraftEquipment(safeUser, recipeId);
     setMessage(result.message);
     if (result.success) {
       onUpdateUser(result.newState);
@@ -72,8 +79,7 @@ export const ForgeView: React.FC<Props> = ({ user, onUpdateUser, onBack }) => {
         {/* --- 제작 탭 --- */}
         {tab === 'CRAFT' && (
           <div style={styles.craftList}>
-            {/* 예시: 순환의 지팡이 (RECIPES.CIRCULATION_WAND) */}
-            {/* 실제 레시피는 moneyGameLogic.ts에서 RECIPES를 순회하여 표시해야 함 */}
+            {/* 1. 순환의 지팡이 */}
             <div style={styles.recipeItem}>
               <div style={styles.recipeHeader}>
                 <span> 순환의 지팡이 </span>
@@ -85,8 +91,25 @@ export const ForgeView: React.FC<Props> = ({ user, onUpdateUser, onBack }) => {
               </p>
               <button 
                 onClick={() => handleCraft('CIRCULATION_WAND' as keyof typeof RECIPES)} 
-                // 임시 체크 로직 (실제 재료 체크는 moneyGameLogic에서)
                 style={currentEssence >= 4 ? styles.btnCraft : styles.btnDisabled}
+              >
+                제작
+              </button>
+            </div>
+
+            {/* 2. 장부 검 (예시 추가) */}
+            <div style={styles.recipeItem}>
+              <div style={styles.recipeHeader}>
+                <span> 장부 검 </span>
+                <span style={styles.mpCost}>MP 7</span>
+              </div>
+              <p style={styles.recipeDesc}>가계부 기록의 힘이 깃든 검.</p>
+              <p style={styles.recipeCost}>
+                필요: Essence x3, Salt x10
+              </p>
+              <button 
+                onClick={() => handleCraft('SWORD_OF_LEDGER' as keyof typeof RECIPES)} 
+                style={currentEssence >= 3 ? styles.btnCraft : styles.btnDisabled}
               >
                 제작
               </button>
