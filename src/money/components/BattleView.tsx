@@ -1,5 +1,3 @@
-// src/money/components/BattleView.tsx
-
 import React, { useState, useEffect } from 'react';
 import { MonsterStat } from '../types';
 
@@ -24,7 +22,7 @@ export const BattleView: React.FC<BattleViewProps> = ({
   useEffect(() => {
     if (!isPlayerTurn && enemyHp > 0) {
       setTimeout(() => {
-        setLog(`${monster.name}의 저항! (정신력 소모 없음)`);
+        setLog(`${monster.name}의 저항!`);
         setAnim('shake');
         setTimeout(() => {
           setAnim('');
@@ -43,7 +41,7 @@ export const BattleView: React.FC<BattleViewProps> = ({
     
     onConsumeMp(1); // MP 1 소모
     const baseDmg = playerStats?.attack || 10;
-    const dmg = Math.floor(Math.random() * 5) + baseDmg; // 데미지 난수
+    const dmg = Math.floor(Math.random() * 5) + baseDmg; 
     const nextHp = Math.max(0, enemyHp - dmg);
     
     setEnemyHp(nextHp);
@@ -59,9 +57,7 @@ export const BattleView: React.FC<BattleViewProps> = ({
 
   return (
     <div style={styles.container}>
-      {/* 전투 씬 */}
       <div style={{...styles.scene, animation: anim === 'shake' ? 'shake 0.5s' : ''}}>
-        {/* 적 (상단) */}
         <div style={styles.enemyArea}>
           <div style={{...styles.enemySprite, animation: anim === 'attack' ? 'flash 0.2s' : 'float 3s infinite'}}>
             {monster.sprite}
@@ -72,37 +68,26 @@ export const BattleView: React.FC<BattleViewProps> = ({
           <div style={styles.nameTag}>{monster.name} (HP {enemyHp})</div>
         </div>
 
-        {/* 플레이어 (하단) */}
         <div style={styles.playerArea}>
           <div style={{fontSize:'60px'}}>🧙‍♀️</div>
           <div style={styles.mpTag}>MP {playerMp}</div>
         </div>
       </div>
 
-      {/* 로그 & 커맨드 */}
       <div style={styles.console}>
         <div style={styles.logBox}>{log}</div>
         
         {isPlayerTurn ? (
           <div style={styles.cmdGrid}>
-            <button onClick={handleAttack} style={styles.btnAttack}>
-              ⚔️ 정화 (MP 1)
-            </button>
-            <button style={styles.btnDefend} onClick={() => setLog("방어 태세를 취했습니다.")}>
-              🛡️ 방어
-            </button>
-            <button style={styles.btnItem} onClick={() => setLog("아직 사용할 아이템이 없습니다.")}>
-              🎒 도구
-            </button>
-            <button onClick={onRun} style={styles.btnRun}>
-              🏃 도망
-            </button>
+            <button onClick={handleAttack} style={styles.btnAttack}>⚔️ 정화 (MP 1)</button>
+            <button style={styles.btnDefend} onClick={() => setLog("방어 태세를 취했습니다.")}>🛡️ 방어</button>
+            <button style={styles.btnItem} onClick={() => setLog("아직 사용할 아이템이 없습니다.")}>🎒 도구</button>
+            <button onClick={onRun} style={styles.btnRun}>🏃 도망</button>
           </div>
         ) : (
           <div style={styles.waitMsg}>적의 턴...</div>
         )}
       </div>
-      
       <style>{`
         @keyframes shake { 0% { transform: translate(0,0); } 25% { transform: translate(5px,0); } 75% { transform: translate(-5px,0); } 100% { transform: translate(0,0); } }
         @keyframes flash { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
@@ -120,15 +105,12 @@ const styles: Record<string, React.CSSProperties> = {
   hpBarBg: { width: '100px', height: '8px', backgroundColor: '#555', margin: '5px auto', borderRadius: 4 },
   hpBarFill: { height: '100%', backgroundColor: '#ef4444', borderRadius: 4, transition: 'width 0.3s' },
   nameTag: { backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '12px', padding: '2px 6px', borderRadius: 4 },
-  
   playerArea: { position: 'absolute', bottom: '5%', left: '20%', textAlign: 'center' },
   mpTag: { color: '#60a5fa', fontWeight: 'bold', fontSize: '14px', textShadow: '1px 1px 0 #000', backgroundColor:'rgba(0,0,0,0.6)', padding:'2px 8px', borderRadius:4 },
-
   console: { height: '150px', backgroundColor: '#000', borderTop: '4px solid #fff', padding: '10px' },
   logBox: { color: '#fbbf24', fontSize: '14px', marginBottom: '10px', minHeight: '20px' },
   cmdGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' },
   waitMsg: { color: '#a0aec0', textAlign: 'center', marginTop: '20px' },
-
   btnAttack: { backgroundColor: '#ef4444', color: '#fff', border: '2px solid #fff', borderRadius: 8, padding: '10px', cursor: 'pointer', fontWeight: 'bold' },
   btnDefend: { backgroundColor: '#3b82f6', color: '#fff', border: '2px solid #fff', borderRadius: 8, padding: '10px', cursor: 'pointer' },
   btnItem: { backgroundColor: '#f59e0b', color: '#fff', border: '2px solid #fff', borderRadius: 8, padding: '10px', cursor: 'pointer' },
