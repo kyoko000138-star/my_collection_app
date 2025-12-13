@@ -1,32 +1,33 @@
 // src/money/types.ts
 
-// -------------------------
-// 1. Scene Definition (확장)
-// -------------------------
+// ------------------------------------------------------------------
+// 1. Scene Definition
+// ------------------------------------------------------------------
 export enum Scene {
-  GARDEN = 'GARDEN',
-  MY_ROOM = 'MY_ROOM',         // [NEW]
-  VILLAGE_MAP = 'VILLAGE_MAP', // [NEW]
-  LIBRARY = 'LIBRARY',
-  WORLD_MAP = 'WORLD_MAP',
-  FIELD = 'FIELD',
-  BATTLE = 'BATTLE',
-  INVENTORY = 'INVENTORY',     // [NEW]
-  KINGDOM = 'KINGDOM',
-  COLLECTION = 'COLLECTION',
-  SUBSCRIPTION = 'SUBSCRIPTION',
-  FORGE = 'FORGE',
-  SHOP = 'SHOP',
-  SETTINGS = 'SETTINGS',       // [NEW]
-  MONTHLY_REPORT = 'MONTHLY_REPORT'
+  GARDEN = 'GARDEN',           // 메인 (정원)
+  MY_ROOM = 'MY_ROOM',         // [NEW] 마이룸
+  VILLAGE_MAP = 'VILLAGE_MAP', // [NEW] 마을 지도
+  LIBRARY = 'LIBRARY',         // 도서관
+  WORLD_MAP = 'WORLD_MAP',     // 월드맵
+  FIELD = 'FIELD',             // 필드 (탐험)
+  BATTLE = 'BATTLE',           // 전투
+  INVENTORY = 'INVENTORY',     // [NEW] 인벤토리
+  SETTINGS = 'SETTINGS',       // [NEW] 설정
+  KINGDOM = 'KINGDOM',         // 자산 현황
+  COLLECTION = 'COLLECTION',   // 도감
+  SUBSCRIPTION = 'SUBSCRIPTION', // 구독 관리
+  FORGE = 'FORGE',             // 대장간
+  SHOP = 'SHOP',               // 상점
+  MONTHLY_REPORT = 'MONTHLY_REPORT' // 월간 리포트
 }
 
-// -------------------------
-// 2. Existing Data Types (원본 100% 유지)
-// -------------------------
+// ------------------------------------------------------------------
+// 2. Existing Data Types (1213_코드.txt 원본 유지)
+// ------------------------------------------------------------------
 export type ClassType = 'GUARDIAN' | 'SAGE' | 'ALCHEMIST' | 'DRUID';
 export type LocationId = 'VILLAGE_BASE' | 'CITY_CAPITAL' | 'FOREST_OUTLAW';
 
+// 아이템 & 인벤토리
 export type ItemEffectType = 'MP_RESTORE' | 'MP_COST_DOWN' | 'SALT_BOOST' | 'JUNK_CLEAN' | 'GROWTH_BOOST' | 'NPC_LOVE' | 'NONE';
 
 export interface ItemData {
@@ -47,9 +48,9 @@ export interface InventoryItem {
   count: number;
 }
 
-// v4 금융 시스템 (삭제 금지)
+// 금융 시스템 (v4)
 export type TxType = 'EXPENSE' | 'INCOME' | 'TRANSFER';
-export type CategoryId = string; // (너무 길어서 string으로 퉁치지 않고 원본 유지하신다면 그대로 두셔도 됩니다)
+export type CategoryId = string; 
 export type IntentTag = 'necessary' | 'planned' | 'impulse' | 'social_duty' | 'explore' | string;
 
 export interface Transaction {
@@ -63,13 +64,13 @@ export interface Transaction {
 }
 export type PendingTransaction = Transaction;
 
-// 자산 (기존)
+// 자산 (정원 테마로 매핑)
 export interface AssetBuildingsState {
-  fence: number;
-  greenhouse: number;
-  mansion: number;
-  fountain: number;
-  barn: number;
+  fence: number;      // 방어
+  greenhouse: number; // 무지출
+  mansion: number;    // 고정비
+  fountain: number;   // 정화
+  barn: number;       // 파밍
 }
 
 export interface AssetBuildingView {
@@ -80,14 +81,23 @@ export interface AssetBuildingView {
   count: number;
 }
 
-// -------------------------
-// 3. New RPG Types (추가됨)
-// -------------------------
+// 필드 오브젝트
+export interface FieldObject {
+  id: string;
+  x: number;
+  y: number;
+  type: 'JUNK' | 'HERB' | 'CHEST' | 'SIGNPOST';
+  isCollected: boolean;
+}
+
+// ------------------------------------------------------------------
+// 3. New RPG Elements (그림자, 몬스터)
+// ------------------------------------------------------------------
 export interface ShadowMonster {
   id: string;
-  sourceTxId?: string;
-  amount: number;
-  category: string;
+  sourceTxId?: string; // 연결된 지출 ID
+  amount: number;      // 금액
+  category: string;    // 카테고리
   createdAt: string;
   x: number;
   y: number;
@@ -100,25 +110,18 @@ export interface MonsterStat {
   attack: number;
   sprite: string;
   rewardJunk: number;
+  color?: string;
 }
 
-export interface FieldObject {
-  id: string;
-  x: number;
-  y: number;
-  type: 'JUNK' | 'HERB' | 'CHEST' | 'SIGNPOST';
-  isCollected: boolean;
-}
-
-// -------------------------
-// 4. Root State (원본 필드 전원 복구 + 신규 필드 추가)
-// -------------------------
+// ------------------------------------------------------------------
+// 4. Root User State
+// ------------------------------------------------------------------
 export interface GardenState {
   treeLevel: number;
   pondLevel: number;
   flowerState: 'blooming' | 'normal' | 'withered';
   weedCount: number;
-  decorations: string[]; // 원본 유지 (string[])
+  decorations: string[]; // 원본 유지
 }
 
 export interface PlayerStatus {
@@ -133,7 +136,7 @@ export interface LunaCycle {
   currentPhase: string;
   nextPeriodDate: string;
   dDay: number;
-  startDate?: string; // 호환성용
+  startDate?: string;
   periodLength?: number;
   cycleLength?: number;
 }
@@ -148,7 +151,7 @@ export interface UserCounters {
   lastDailyResetDate: string;
   lastDayEndDate: string;
   cumulativeDefense: number;
-  noSpendStamps: Record<string, boolean>;
+  noSpendStamps: Record<string, boolean>; // 스탬프
 }
 
 export interface SubscriptionPlan {
@@ -160,65 +163,71 @@ export interface SubscriptionPlan {
   isActive: boolean;
   startedAt?: string;
   lastChargedDate?: string;
+  categoryId?: string;
+}
+
+export interface CollectionItem {
+  id: string;
+  name: string;
+  description: string;
+  obtainedAt: string;
+  category: 'JUNK' | 'BADGE';
 }
 
 export interface UserState {
-  // [Profile]
   name: string;
   level: number;
   jobTitle: string;
   
-  // [Resources]
   currentBudget: number;
   maxBudget: number;
   mp: number;
   maxMp: number;
   junk: number;
   salt: number;
-  seedPackets: number; // 원본에 있었음
+  seedPackets: number;
 
-  // [Systems]
   garden: GardenState;
   status: PlayerStatus;
-  lunaCycle: LunaCycle;
+  lunaCycle: LunaCycle; // [중요] v2 구조
   
-  // [Data]
   inventory: InventoryItem[];
-  collection: any[]; // CollectionItem
+  collection: CollectionItem[];
   pending: PendingTransaction[];
   materials: Record<string, number>;
   
-  // [RPG Detailed] (원본 복구)
   equipped: {
     weapon: string | null;
     armor: string | null;
     accessory: string | null;
   };
+  
+  assets: AssetBuildingsState;
+  counters: UserCounters;
+  subscriptions: SubscriptionPlan[];
+  
+  // [NEW] 그림자 몬스터
+  unresolvedShadows: ShadowMonster[];
+  
   npcAffection: {
     gardener: number;
     angel: number;
     demon: number;
     curator: number;
   };
+  
   stats: {
     attack: number;
     defense: number;
   };
+  
+  currentLocation: LocationId;
+  unlockedLocations: LocationId[];
+  
   gardenNutrients: {
     savedAmount: number;
     debtRepaid: number;
   };
 
-  assets: AssetBuildingsState;
-  counters: UserCounters;
-  subscriptions: SubscriptionPlan[];
-
-  // [Exploration]
-  currentLocation: LocationId; // 원본 유지
-  unlockedLocations: LocationId[]; // 원본 유지
-
-  // [NEW] 신규 추가된 필드
-  unresolvedShadows: ShadowMonster[]; // 그림자
-  
   lastLoginDate?: string;
 }
