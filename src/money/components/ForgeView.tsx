@@ -1,38 +1,98 @@
 // src/money/components/ForgeView.tsx
-import React from 'react';
+
+import React, { useState } from 'react';
+import { UserState } from '../types';
+import { applyPurifyJunk, applyCraftEquipment, RECIPES } from '../money/moneyGameLogic';
 
 interface Props {
-  materials: Record<string, number>;
-  onCraft: () => void;
+  user: UserState;
+  onUpdateUser: (newState: UserState) => void;
   onBack: () => void;
 }
 
-export const ForgeView: React.FC<Props> = ({ materials, onCraft, onBack }) => {
-  const essence = materials['PURE_ESSENCE'] || 0;
-  const canCraft = essence >= 3;
+export const ForgeView: React.FC<Props> = ({ user, onUpdateUser, onBack }) => {
+  const [tab, setTab] = useState<'PURIFY' | 'CRAFT'>('PURIFY');
+  const [message, setMessage] = useState('');
+  
+  const currentEssence = user.materials['PURE_ESSENCE'] || 0;
+
+  // --- Junk 정화 핸들러 ---
+  const handlePurify = () => {
+    const result = applyPurifyJunk(user);
+    setMessage(result.message);
+    if (result.success) {
+      onUpdateUser(result.newState);
+    }
+  };
+
+  // --- 장비 제작 핸들러 ---
+  const handleCraft = (recipeId: keyof typeof RECIPES) => {
+    const result = applyCraftEquipment(user, recipeId);
+    setMessage(result.message);
+    if (result.success) {
+      onUpdateUser(result.newState);
+    }
+  };
 
   return (
     <div style={styles.container}>
-      <h2 style={styles.title}>⚒️ 대장간</h2>
+      <h2 style={styles.title}>⚒️ 대장간 (MP 소모)</h2>
       
-      <div style={styles.card}>
-        <div style={styles.icon}>🗡️</div>
-        <h3>잔잔한 장부검</h3>
-        <p style={styles.desc}>기록 시 MP 소모를 줄여주는 검</p>
-        
-        <div style={styles.cost}>
-          필요: 🔮 Pure Essence 3개 (보유: {essence})
-        </div>
-
-        <button 
-          onClick={onCraft} 
-          disabled={!canCraft}
-          style={canCraft ? styles.btnCraft : styles.btnDisabled}
-        >
-          {canCraft ? "제작하기" : "재료 부족"}
+      <div style={styles.tabs}>
+        <button style={tab === 'PURIFY' ? styles.activeTab : styles.tab} onClick={() => setTab('PURIFY')}>
+          정화 (Junk → Essence)
+        </button>
+        <button style={tab === 'CRAFT' ? styles.activeTab : styles.tab} onClick={() => setTab('CRAFT')}>
+          제작 (장비)
         </button>
       </div>
 
+      <div style={styles.content}>
+        <div style={styles.status}>
+          🔮 Essence 보유: {currentEssence} | MP 잔량: {user.mp}
+        </div>
+        
+        {/* --- 정화 탭 --- */}
+        {tab === 'PURIFY' && (
+          <div style={styles.purifyCard}>
+            <p style={styles.purifyDesc}>
+              Junk와 Salt를 연금하여 **PURE ESSENCE**를 만듭니다. (성공 확률 100%)
+            </p>
+            <p style={styles.cost}>
+              소모: Junk 10, Salt 5, MP 3
+            </p>
+            <button onClick={handlePurify} style={styles.btnPurify}>
+              🔮 정화 시작
+            </button>
+          </div>
+        )}
+
+        {/* --- 제작 탭 --- */}
+        {tab === 'CRAFT' && (
+          <div style={styles.craftList}>
+            {/* 예시: 순환의 지팡이 (W26) */}
+            <div style={styles.recipeItem}>
+              <div style={styles.recipeHeader}>
+                <span> 순환의 지팡이 </span>
+                <span style={styles.mpCost}>MP 5</span>
+              </div>
+              <p style={styles.recipeDesc}>Junk 정화 시 MP 소량 회복 효과 부여.</p>
+              <p style={styles.recipeCost}>
+                필요: Essence x4, Salt x5
+                {/* Herb 재료 표시 */}
+              </p>
+              <button 
+                onClick={() => handleCraft('CIRCULATION_WAND' as keyof typeof RECIPES)} 
+                style={currentEssence >= 4 ? styles.btnCraft : styles.btnDisabled}
+              >
+                제작
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <p style={styles.message}>{message}</p>
       <button onClick={onBack} style={styles.backBtn}>나가기</button>
     </div>
   );
@@ -40,12 +100,28 @@ export const ForgeView: React.FC<Props> = ({ materials, onCraft, onBack }) => {
 
 const styles: Record<string, React.CSSProperties> = {
   container: { width: '100%', height: '100%', backgroundColor: '#451a03', padding: '20px', display: 'flex', flexDirection: 'column', color: '#fff' },
-  title: { textAlign: 'center', borderBottom: '2px solid #d97706', paddingBottom: '10px' },
-  card: { backgroundColor: 'rgba(0,0,0,0.3)', padding: '20px', borderRadius: '12px', textAlign: 'center', marginTop: '20px' },
-  icon: { fontSize: '50px', marginBottom: '10px' },
-  desc: { fontSize: '12px', color: '#fbbf24' },
+  title: { textAlign: 'center', borderBottom: '2px solid #d97706', paddingBottom: '10px', marginBottom: '20px' },
+  tabs: { display: 'flex', gap: '10px', marginBottom: '15px' },
+  tab: { flex: 1, padding: '10px', backgroundColor: '#57534e', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' },
+  activeTab: { flex: 1, padding: '10px', backgroundColor: '#d97706', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
+  
+  content: { flex: 1, overflowY: 'auto' },
+  status: { backgroundColor: '#57534e', padding: '8px', borderRadius: '6px', textAlign: 'center', marginBottom: '15px', fontSize: '12px', color: '#fff' },
+
+  purifyCard: { backgroundColor: '#57534e', padding: '20px', borderRadius: '12px', textAlign: 'center' },
+  purifyDesc: { fontSize: '14px', color: '#fbbf24' },
   cost: { margin: '15px 0', fontSize: '13px', color: '#fed7aa' },
-  btnCraft: { width: '100%', padding: '12px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
-  btnDisabled: { width: '100%', padding: '12px', backgroundColor: '#57534e', color: '#a8a29e', border: 'none', borderRadius: '8px', cursor: 'not-allowed' },
-  backBtn: { marginTop: 'auto', padding: '10px', backgroundColor: 'transparent', border: '1px solid #d97706', color: '#fbbf24', borderRadius: '8px', cursor: 'pointer' }
+  btnPurify: { padding: '12px', backgroundColor: '#fbbf24', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
+
+  craftList: { display: 'flex', flexDirection: 'column', gap: '10px' },
+  recipeItem: { backgroundColor: '#57534e', padding: '15px', borderRadius: '12px', border: '1px solid #78716c' },
+  recipeHeader: { display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px', color: '#d97706', marginBottom: '5px' },
+  mpCost: { backgroundColor: '#d97706', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '10px' },
+  recipeDesc: { fontSize: '12px', color: '#a8a29e', marginBottom: '10px' },
+  recipeCost: { fontSize: '11px', color: '#fed7aa' },
+  btnCraft: { marginTop: '10px', padding: '10px', backgroundColor: '#34d399', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
+  btnDisabled: { marginTop: '10px', padding: '10px', backgroundColor: '#78716c', color: '#a8a29e', border: 'none', borderRadius: '6px', cursor: 'not-allowed' },
+
+  message: { textAlign: 'center', color: '#fca5a5', marginTop: '10px' },
+  backBtn: { marginTop: '15px', padding: '12px', backgroundColor: '#44403c', border: '1px solid #78716c', color: '#fff', borderRadius: '8px', cursor: 'pointer' }
 };
