@@ -4,79 +4,36 @@
 // 1. Scene Definition
 // -------------------------
 export enum Scene {
-  GARDEN = 'GARDEN',
-  MY_ROOM = 'MY_ROOM',         // [NEW]
-  VILLAGE_MAP = 'VILLAGE_MAP', // [NEW]
-  LIBRARY = 'LIBRARY',
-  WORLD_MAP = 'WORLD_MAP',
-  FIELD = 'FIELD',
-  BATTLE = 'BATTLE',
-  INVENTORY = 'INVENTORY',     // [NEW]
-  KINGDOM = 'KINGDOM',
-  COLLECTION = 'COLLECTION',
-  SUBSCRIPTION = 'SUBSCRIPTION',
-  FORGE = 'FORGE',
-  SHOP = 'SHOP',
-  SETTINGS = 'SETTINGS',       // [NEW]
-  MONTHLY_REPORT = 'MONTHLY_REPORT'
+  GARDEN = 'GARDEN',           // [Main] 자산의 정원
+  VILLAGE_MAP = 'VILLAGE_MAP', // [Hub] 마을 지도
+  LIBRARY = 'LIBRARY',         // [Feature] 도서관
+  WORLD_MAP = 'WORLD_MAP',     // [Adventure] 월드맵
+  FIELD = 'FIELD',             // [Adventure] 필드 탐험
+  BATTLE = 'BATTLE',           // [Action] 전투
+  MY_ROOM = 'MY_ROOM',         // [Menu] 마이룸
+  INVENTORY = 'INVENTORY',     // [Menu] 인벤토리
+  SETTINGS = 'SETTINGS',       // [Menu] 설정
+  KINGDOM = 'KINGDOM',         // [Modal] 자산 현황
+  COLLECTION = 'COLLECTION',   // [Feature] 도감
+  SUBSCRIPTION = 'SUBSCRIPTION', // [Modal] 구독 관리
+  FORGE = 'FORGE',             // [Feature] 대장간
+  SHOP = 'SHOP',               // [Feature] 상점
+  MONTHLY_REPORT = 'MONTHLY_REPORT' // [Feature] 월간 리포트
 }
 
 // -------------------------
-// 2. Constants & Enums
+// 2. Constants & IDs
 // -------------------------
 export type LocationId = 'VILLAGE_BASE' | 'CITY_CAPITAL' | 'FOREST_OUTLAW';
 export type ClassType = 'GUARDIAN' | 'SAGE' | 'ALCHEMIST' | 'DRUID';
 
+// -------------------------
+// 3. Items & Inventory
+// -------------------------
 export type ItemEffectType = 
-  | 'MP_RESTORE'      // MP 회복
-  | 'MP_COST_DOWN'    // MP 소모 감소
-  | 'SALT_BOOST'      // Salt 획득량 증가
-  | 'JUNK_CLEAN'      // Junk 정화/제거
-  | 'GROWTH_BOOST'    // 정원 성장 속도 증가
-  | 'NPC_LOVE'        // NPC 호감도 상승
-  | 'NONE';
+  | 'MP_RESTORE' | 'MP_COST_DOWN' | 'SALT_BOOST' | 'JUNK_CLEAN' 
+  | 'GROWTH_BOOST' | 'NPC_LOVE' | 'NONE';
 
-// -------------------------
-// 3. Financial System (v4 Full Specification)
-// -------------------------
-export type TxType = 'EXPENSE' | 'INCOME' | 'TRANSFER' | 'INSTALLMENT' | 'LOAN'; 
-
-export type CategoryId = string; // 유연성을 위해 string 유지
-
-export type IntentTag = 
-  | 'necessary' | 'planned' | 'self_care' | 'reward' | 'small_joy' 
-  | 'impulse' | 'convenience' | 'efficiency' | 'social_duty' | 'unavoidable' | 'explore'
-  | 'goal_emergency' | 'goal_debt' | 'goal_trip' | 'goal_big' | 'goal_house' | 'goal_retirement' | 'goal_growth';
-
-export type SituationTag = 
-  | 'workday' | 'weekend' | 'commute' | 'late_night' 
-  | 'month_end' | 'payday' | 'stress' | 'tired' | 'sick' 
-  | 'pms' | 'period' | 'social' | 'traveling'
-  | 'windfall' | 'market_drop';
-
-export type AttributeTag = 
-  | 'online' | 'offline' | 'delivery' | 'import' | 'secondhand'
-  | 'limited' | 'preorder' | 'bundle' | 'split_pay' | 'points'
-  | 'fan_goods' | 'fan_ticket' | 'fan_trip'
-  | 'auto' | 'dca' | 'lump_sum';
-
-export interface Transaction {
-  id: string;
-  type?: TxType;
-  amount: number;
-  category: CategoryId;
-  intent?: IntentTag;
-  situations?: SituationTag[];
-  attributes?: AttributeTag[];
-  note?: string;
-  createdAt: string;
-}
-// 호환성 별칭
-export type PendingTransaction = Transaction;
-
-// -------------------------
-// 4. Items & Inventory
-// -------------------------
 export type ItemType = 'consumable' | 'equipment' | 'material' | 'junk' | 'decor';
 
 export interface ItemData {
@@ -111,13 +68,44 @@ export interface CraftRecipe {
 }
 
 // -------------------------
+// 4. Financial System (v4)
+// -------------------------
+export type TxType = 'EXPENSE' | 'INCOME' | 'TRANSFER' | 'INSTALLMENT' | 'LOAN'; 
+export type CategoryId = string;
+export type IntentTag = string; // 유연성을 위해 string
+
+export interface Transaction {
+  id: string;
+  type?: TxType;
+  amount: number;
+  category: CategoryId;
+  intent?: IntentTag;
+  note?: string;
+  createdAt: string;
+}
+export type PendingTransaction = Transaction;
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  amount: number;
+  billingDay: number;
+  cycle: 'MONTHLY' | 'YEARLY';
+  isActive: boolean;
+  startedAt?: string;
+  lastChargedDate?: string;
+  note?: string;
+  categoryId?: string;
+}
+
+// -------------------------
 // 5. RPG & World Elements
 // -------------------------
 export interface ShadowMonster {
   id: string;
   sourceTxId?: string; // 연결된 지출 ID
-  amount: number;      // 금액 (강함의 척도)
-  category: string;    // 'food' -> 슬라임 등
+  amount: number;      // 금액
+  category: string;    // 카테고리
   createdAt: string;
   x: number;
   y: number;
@@ -164,7 +152,7 @@ export interface GardenState {
   pondLevel: number;
   flowerState: 'blooming' | 'normal' | 'withered';
   weedCount: number;
-  decorations: string[]; // 원본 유지
+  decorations: string[]; 
 }
 
 export interface PlayerStatus {
@@ -179,23 +167,22 @@ export interface LunaCycle {
   currentPhase: string;
   nextPeriodDate: string;
   dDay: number;
-  // 호환성 필드
   startDate?: string;
   periodLength?: number;
   cycleLength?: number;
 }
 
-export interface SubscriptionPlan {
-  id: string;
-  name: string;
-  amount: number;
-  billingDay: number;
-  cycle: 'MONTHLY' | 'YEARLY';
-  isActive: boolean;
-  startedAt?: string;
-  lastChargedDate?: string;
-  note?: string;
-  categoryId?: string;
+export interface UserCounters {
+  defenseActionsToday: number;
+  junkObtainedToday: number;
+  dailyTotalSpend: number;
+  hadSpendingToday: boolean;
+  noSpendStreak: number;
+  guardPromptShownToday: boolean;
+  lastDailyResetDate: string;
+  lastDayEndDate: string;
+  cumulativeDefense: number;
+  noSpendStamps: Record<string, boolean>;
 }
 
 export interface CollectionItem {
@@ -214,29 +201,14 @@ export interface NpcAffection {
   curator: number;
 }
 
-export interface UserCounters {
-  defenseActionsToday: number;
-  junkObtainedToday: number;
-  dailyTotalSpend: number;
-  hadSpendingToday: boolean;
-  noSpendStreak: number;
-  guardPromptShownToday: boolean;
-  lastDailyResetDate: string;
-  lastDayEndDate: string;
-  cumulativeDefense: number;
-  noSpendStamps: Record<string, boolean>;
-}
-
 // -------------------------
-// 7. Root User State (Full Integration)
+// 7. Root User State
 // -------------------------
 export interface UserState {
-  // [Profile]
   name: string;
   level: number;
   jobTitle: string;
   
-  // [Resources]
   currentBudget: number;
   maxBudget: number;
   mp: number;
@@ -245,43 +217,41 @@ export interface UserState {
   salt: number;
   seedPackets: number;
 
-  // [Systems]
   garden: GardenState;
   status: PlayerStatus;
   lunaCycle: LunaCycle;
   
-  // [Data]
   inventory: InventoryItem[];
   collection: CollectionItem[];
   pending: PendingTransaction[];
   materials: Record<string, number>;
   
-  // [RPG Detailed - 복원됨]
   equipped: {
     weapon: string | null;
     armor: string | null;
     accessory: string | null;
   };
+  
+  assets: AssetBuildingsState;
+  counters: UserCounters;
+  subscriptions: SubscriptionPlan[];
+  
+  // [NEW] 그림자 몬스터
+  unresolvedShadows: ShadowMonster[];
+  
   npcAffection: NpcAffection;
   stats: {
     attack: number;
     defense: number;
   };
+  
+  currentLocation: LocationId;
+  unlockedLocations: LocationId[];
+  
   gardenNutrients: {
     savedAmount: number;
     debtRepaid: number;
   };
 
-  assets: AssetBuildingsState;
-  counters: UserCounters;
-  subscriptions: SubscriptionPlan[];
-
-  // [Exploration]
-  currentLocation: LocationId;
-  unlockedLocations: LocationId[];
-
-  // [NEW] 신규 추가된 필드
-  unresolvedShadows: ShadowMonster[]; // 그림자 (업보)
-  
   lastLoginDate?: string;
 }
