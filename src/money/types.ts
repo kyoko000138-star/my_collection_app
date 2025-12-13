@@ -1,7 +1,7 @@
 // src/money/types.ts
 
 // -------------------------
-// Scene & Enums
+// 1. Scene & Enums
 // -------------------------
 export enum Scene {
   GARDEN = 'GARDEN',
@@ -17,17 +17,117 @@ export enum Scene {
   SUBSCRIPTION = 'SUBSCRIPTION',
   FORGE = 'FORGE',
   SHOP = 'SHOP',
-  SETTINGS = 'SETTINGS'
+  SETTINGS = 'SETTINGS',
+  MONTHLY_REPORT = 'MONTHLY_REPORT'
 }
 
+// 월드 로케이션 ID
 export type LocationId = 'VILLAGE_BASE' | 'CITY_CAPITAL' | 'FOREST_OUTLAW';
 
+// 아이템 효과 타입
 export type ItemEffectType = 
-  | 'MP_RESTORE' | 'MP_COST_DOWN' | 'SALT_BOOST' | 'JUNK_CLEAN' 
-  | 'GROWTH_BOOST' | 'NPC_LOVE' | 'NONE';
+  | 'MP_RESTORE'      // MP 회복
+  | 'MP_COST_DOWN'    // MP 소모 감소
+  | 'SALT_BOOST'      // Salt 획득량 증가
+  | 'JUNK_CLEAN'      // Junk 정화/제거
+  | 'GROWTH_BOOST'    // 정원 성장 속도 증가
+  | 'NPC_LOVE'        // NPC 호감도 상승
+  | 'NONE';
 
 // -------------------------
-// Items & Recipes
+// 2. Luna System (Bio-Rhythm)
+// -------------------------
+export type LunaPhase = 'MENSTRUAL' | 'FOLLICULAR' | 'OVULATION' | 'LUTEAL' | 'PMS';
+
+export interface PeriodRecord {
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  cycleLength?: number; // 이전 시작일로부터의 간격 (자동계산용)
+}
+
+export interface LunaCycle {
+  // 3~6개월치 기록 보관 (최신순 권장)
+  history: PeriodRecord[]; 
+  
+  // 계산된 평균값 (AI 예측용)
+  avgCycleLength: number;  // 평균 주기 (예: 28일)
+  avgPeriodLength: number; // 평균 기간 (예: 5일)
+  
+  // 현재 상태 (매일 접속 시 갱신)
+  currentPhase: LunaPhase;
+  nextPeriodDate: string;  // 예상 시작일
+  dDay: number;            // D-Day
+}
+
+// -------------------------
+// 3. v4 Financial System
+// -------------------------
+
+// 대분류
+export type TxType = 'EXPENSE' | 'INCOME' | 'TRANSFER'; 
+
+// 상세 카테고리 (Category ID)
+export type CategoryId = 
+  // [고정비] Fixed
+  | 'fixed.housing' | 'fixed.utilities' | 'fixed.telecom' | 'fixed.insurance' 
+  | 'fixed.subscription' | 'fixed.fees'
+  // [생활/식비] Food & Life
+  | 'food.groceries' | 'food.out' | 'food.cafe_snack' | 'life.supplies'
+  // [이동] Move
+  | 'move.transport' | 'move.travel'
+  // [건강] Health
+  | 'health.medical' | 'health.meds' | 'health.fitness'
+  // [즐거움/성장] Fun & Self
+  | 'social.gift' | 'social.meetup' | 'fun.hobby' | 'self.dev' | 'big.oneoff'
+  | 'life.pet' | 'life.family'
+  // [저축/투자/부채] Save & Invest (정원 연동)
+  | 'save.emergency' | 'save.buffer' | 'save.goal' | 'save.deposit' 
+  | 'save.debt' // 부채 상환 (정원 덩굴 제거 효과)
+  | 'invest.isa' | 'invest.pension' | 'invest.brokerage' | 'invest.cash_equiv'
+  // [기타]
+  | 'etc';
+
+// 태그 시스템 (Tags)
+export type IntentTag = 
+  // 지출 의도
+  | 'necessary' | 'planned' | 'self_care' | 'reward' | 'small_joy' 
+  | 'impulse' | 'convenience' | 'efficiency' | 'social_duty' | 'unavoidable' | 'explore'
+  // 저축 의도 (목적)
+  | 'goal_emergency' | 'goal_debt' | 'goal_trip' | 'goal_big' | 'goal_house' | 'goal_retirement' | 'goal_growth';
+
+export type SituationTag = 
+  | 'workday' | 'weekend' | 'commute' | 'late_night' 
+  | 'month_end' | 'payday' | 'stress' | 'tired' | 'sick' 
+  | 'pms' | 'period' | 'social' | 'traveling'
+  | 'windfall' | 'market_drop';
+
+export type AttributeTag = 
+  | 'online' | 'offline' | 'delivery' | 'import' | 'secondhand'
+  | 'limited' | 'preorder' | 'bundle' | 'split_pay' | 'points'
+  | 'fan_goods' | 'fan_ticket' | 'fan_trip'
+  | 'auto' | 'dca' | 'lump_sum';
+
+// 거래 내역 구조체
+export interface Transaction {
+  id: string;
+  type?: TxType;           
+  amount: number;
+  category: CategoryId;   
+  
+  // 태그 (v4)
+  intent?: IntentTag;     
+  situations?: SituationTag[]; 
+  attributes?: AttributeTag[]; 
+  
+  note?: string;          
+  createdAt: string;      
+}
+
+// 하위 호환성용 별칭
+export type PendingTransaction = Transaction;
+
+// -------------------------
+// 4. Items & Field & Assets
 // -------------------------
 export interface ItemData {
   id: string;
@@ -60,15 +160,12 @@ export interface InventoryItem {
   count: number;
 }
 
-// -------------------------
-// State Interfaces
-// -------------------------
 export interface AssetBuildingsState {
-  fence: number;
-  greenhouse: number;
-  mansion: number;
-  fountain: number;
-  barn: number;
+  fence: number;      // 방어
+  greenhouse: number; // 무지출
+  mansion: number;    // 고정비
+  fountain: number;   // 정화
+  barn: number;       // 파밍
 }
 
 export interface AssetBuildingView {
@@ -83,8 +180,7 @@ export interface FieldObject {
   id: string;
   x: number;
   y: number;
-  // [NEW] SIGNPOST(이정표) 타입 추가
-  type: 'JUNK' | 'HERB' | 'CHEST' | 'SIGNPOST';
+  type: 'JUNK' | 'HERB' | 'CHEST' | 'SIGNPOST'; // SIGNPOST 추가됨
   isCollected: boolean;
 }
 
@@ -128,13 +224,6 @@ export interface SubscriptionPlan {
   lastChargedDate?: string;
 }
 
-export interface PendingTransaction {
-  id: string;
-  amount: number;
-  note: string;
-  createdAt: string;
-}
-
 export interface CollectionItem {
   id: string;
   name: string;
@@ -151,7 +240,7 @@ export interface NpcAffection {
 }
 
 // -------------------------
-// Root User State
+// 5. Root User State
 // -------------------------
 export interface UserState {
   name: string;
@@ -167,15 +256,15 @@ export interface UserState {
 
   garden: GardenState;
   status: PlayerStatus;
-  lunaCycle: {
-    startDate: string;
-    periodLength: number;
-    cycleLength: number;
-  };
+  
+  // [UPDATED] 고도화된 루나 시스템
+  lunaCycle: LunaCycle;
 
   inventory: InventoryItem[];
   collection: CollectionItem[];
-  pending: PendingTransaction[];
+  
+  // [UPDATED] v4 거래 내역
+  pending: Transaction[]; 
   
   materials: Record<string, number>;
   equipped: {
@@ -196,7 +285,7 @@ export interface UserState {
     lastDailyResetDate: string;
     lastDayEndDate: string;
     cumulativeDefense: number;
-    noSpendStamps: Record<string, boolean>;
+    noSpendStamps: Record<string, boolean>; // 무지출 스탬프
   };
 
   subscriptions: SubscriptionPlan[];
@@ -207,70 +296,13 @@ export interface UserState {
     defense: number;
   };
 
+  // 탐험 시스템
   currentLocation: LocationId;
-  // [NEW] 해금된 지역 목록
   unlockedLocations: LocationId[];
-}
 
-
-// ==========================================
-// [NEW] v4 재무 카테고리 시스템 (Financial Types)
-// ==========================================
-
-// 1. 대분류 (Transaction Type)
-export type TxType = 'EXPENSE' | 'INCOME' | 'TRANSFER'; // 지출, 수입, 이체(저축/투자)
-
-// 2. 상세 카테고리 (Category ID)
-export type CategoryId = 
-  // [고정비] Fixed
-  | 'fixed.housing' | 'fixed.utilities' | 'fixed.telecom' | 'fixed.insurance' 
-  | 'fixed.subscription' | 'fixed.fees'
-  // [생활/식비] Food & Life
-  | 'food.groceries' | 'food.out' | 'food.cafe_snack' | 'life.supplies'
-  // [이동] Move
-  | 'move.transport' | 'move.travel'
-  // [건강] Health
-  | 'health.medical' | 'health.meds' | 'health.fitness'
-  // [즐거움/성장] Fun & Self
-  | 'social.gift' | 'social.meetup' | 'fun.hobby' | 'self.dev' | 'big.oneoff'
-  | 'life.pet' | 'life.family'
-  // [저축/투자/부채] Save & Invest (정원 연동!)
-  | 'save.emergency' | 'save.buffer' | 'save.goal' | 'save.deposit' 
-  | 'save.debt' // 👈 부채 상환 (가시덩굴 제거)
-  | 'invest.isa' | 'invest.pension' | 'invest.brokerage' | 'invest.cash_equiv';
-
-// 3. 태그 시스템 (Tags)
-export type IntentTag = 
-  // 지출 의도
-  | 'necessary' | 'planned' | 'self_care' | 'reward' | 'small_joy' 
-  | 'impulse' | 'convenience' | 'efficiency' | 'social_duty' | 'unavoidable' | 'explore'
-  // 저축 의도 (목적)
-  | 'goal_emergency' | 'goal_debt' | 'goal_trip' | 'goal_big' | 'goal_house' | 'goal_retirement' | 'goal_growth';
-
-export type SituationTag = 
-  | 'workday' | 'weekend' | 'commute' | 'late_night' 
-  | 'month_end' | 'payday' | 'stress' | 'tired' | 'sick' 
-  | 'pms' | 'period' | 'social' | 'traveling'
-  | 'windfall' | 'market_drop'; // 저축 상황
-
-export type AttributeTag = 
-  | 'online' | 'offline' | 'delivery' | 'import' | 'secondhand'
-  | 'limited' | 'preorder' | 'bundle' | 'split_pay' | 'points'
-  | 'fan_goods' | 'fan_ticket' | 'fan_trip'
-  | 'auto' | 'dca' | 'lump_sum'; // 투자 방식
-
-// 4. 거래 내역 구조체 (Transaction)
-export interface Transaction {
-  id: string;
-  type: TxType;           // 대분류
-  amount: number;
-  category: CategoryId;   // 상세 카테고리
-  
-  // 태그 (v4)
-  intent?: IntentTag;     // 의도 (1개 권장)
-  situations?: SituationTag[]; // 상황 (복수 가능)
-  attributes?: AttributeTag[]; // 속성 (복수 가능)
-  
-  note?: string;          // 메모
-  createdAt: string;      // 날짜
+  // 정원 연동 데이터 (저축/부채상환 누적 효과)
+  gardenNutrients?: {
+    savedAmount: number;   // 저축 누적액
+    debtRepaid: number;    // 부채 상환액
+  };
 }
