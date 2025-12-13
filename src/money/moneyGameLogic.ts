@@ -468,3 +468,40 @@ export const getDailyMonster = (pending: PendingTransaction[]) => {
   }
   return monsterType;
 };
+
+// [NEW] 9. 구독료 자동 청구 로직 (Export 필수)
+export const applySubscriptionChargesIfDue = (
+    state: UserState,
+): { newState: UserState, logs: string[] } => {
+    const newState = JSON.parse(JSON.stringify(state)) as UserState;
+    const logs: string[] = [];
+    const today = getTodayString();
+    const todayDate = new Date(today).getDate(); // 오늘 날짜 (1일~31일)
+
+    newState.subscriptions = newState.subscriptions.map(sub => {
+        if (!sub.isActive) return sub;
+
+        // 청구일이 오늘이라면
+        if (sub.billingDay === todayDate) {
+            
+            // HP(예산) 차감
+            newState.currentBudget -= sub.amount;
+            logs.push(`[자동 청구] ${sub.name}: ${sub.amount.toLocaleString()} G 차감.`);
+            
+            // 마지막 청구일 업데이트
+            sub.lastChargedDate = getNowISOString();
+            
+            // 해당 지출 금액을 그림자로 생성할 수도 있음 (현재는 단순 차감만)
+            
+        }
+        return sub;
+    });
+
+    // HP가 0 이하로 떨어지면 DARK MODE 로직 추가 가능
+    if (newState.currentBudget < 0 && newState.status.mode !== 'DARK') {
+        newState.status.mode = 'DARK';
+        logs.push("💀 예산 초과! DARK MODE가 발동됩니다.");
+    }
+
+    return { newState, logs };
+};
