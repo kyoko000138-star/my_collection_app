@@ -1,213 +1,95 @@
-// src/money/types.ts
+// src/money/components/WorldMapView.tsx
 
-// -------------------------
-// Scene & Enums
-// -------------------------
-export enum Scene {
-  GARDEN = 'GARDEN',
-  MY_ROOM = 'MY_ROOM',
-  VILLAGE_MAP = 'VILLAGE_MAP',
-  LIBRARY = 'LIBRARY',
-  WORLD_MAP = 'WORLD_MAP',
-  FIELD = 'FIELD',
-  BATTLE = 'BATTLE',
-  INVENTORY = 'INVENTORY',
-  KINGDOM = 'KINGDOM',
-  COLLECTION = 'COLLECTION',
-  SUBSCRIPTION = 'SUBSCRIPTION',
-  FORGE = 'FORGE',
-  SHOP = 'SHOP',
-  SETTINGS = 'SETTINGS'
-}
+import React from 'react';
+import { WORLD_LOCATIONS } from '../gameData';
+import { LocationId } from '../types';
 
-export type LocationId = 'VILLAGE_BASE' | 'CITY_CAPITAL' | 'FOREST_OUTLAW';
-
-export type ItemEffectType = 
-  | 'MP_RESTORE' | 'MP_COST_DOWN' | 'SALT_BOOST' | 'JUNK_CLEAN' 
-  | 'GROWTH_BOOST' | 'NPC_LOVE' | 'NONE';
-
-// -------------------------
-// Items & Recipes
-// -------------------------
-export interface ItemData {
-  id: string;
-  name: string;
-  type: 'consumable' | 'equipment' | 'material' | 'junk' | 'decor';
-  desc: string;
-  effectType?: ItemEffectType;
-  effectValue?: number; 
-  price?: number;
-  equipSlot?: 'weapon' | 'armor' | 'accessory'; 
-}
-
-export interface CraftRecipe {
-  id: string;
-  name: string;
-  resultItemId: string;
-  resultCount: number;
-  junkCost: number;
-  saltCost: number;
-  mpCost: number;
-  essenceCost: number;
-  materials?: Record<string, number>; 
-  category: 'BASIC' | 'EQUIPMENT' | 'CONSUMABLE' | 'DECOR';
-}
-
-export interface InventoryItem {
-  id: string;
-  name: string;
-  type: 'consumable' | 'equipment' | 'material' | 'junk';
-  count: number;
-}
-
-// -------------------------
-// State Interfaces
-// -------------------------
-export interface AssetBuildingsState {
-  fence: number;
-  greenhouse: number;
-  mansion: number;
-  fountain: number;
-  barn: number;
-}
-
-export interface AssetBuildingView {
-  id: string;
-  label: string;
-  level: number;
-  nextTarget: number | null;
-  count: number;
-}
-
-export interface FieldObject {
-  id: string;
-  x: number;
-  y: number;
-  // [NEW] SIGNPOST(이정표) 타입 추가
-  type: 'JUNK' | 'HERB' | 'CHEST' | 'SIGNPOST';
-  isCollected: boolean;
-}
-
-export interface ShadowMonster {
-  id: string;
-  amount: number;
-  category: string;
-  createdAt: string;
-  x: number;
-  y: number;
-}
-
-export interface MonsterStat {
-  name: string;
-  hp: number;
-  maxHp: number;
-  attack: number;
-  sprite: string;
-  rewardJunk: number;
-}
-
-export interface GardenState {
-  treeLevel: number;
-  pondLevel: number;
-  flowerState: 'blooming' | 'normal' | 'withered';
-  weedCount: number;
-  decorations: string[];
-}
-
-export interface PlayerStatus {
-  mode: 'NORMAL' | 'DARK';
-  darkLevel: number;
-}
-
-export interface SubscriptionPlan {
-  id: string;
-  name: string;
-  amount: number;
-  billingDay: number;
-  isActive: boolean;
-  lastChargedDate?: string;
-}
-
-export interface PendingTransaction {
-  id: string;
-  amount: number;
-  note: string;
-  createdAt: string;
-}
-
-export interface CollectionItem {
-  id: string;
-  name: string;
-  description: string;
-  obtainedAt: string;
-  category: 'JUNK' | 'BADGE';
-}
-
-export interface NpcAffection {
-  gardener: number;
-  angel: number;
-  demon: number;
-  curator: number;
-}
-
-// -------------------------
-// Root User State
-// -------------------------
-export interface UserState {
-  name: string;
-  level: number;
-  jobTitle: string;
-  currentBudget: number;
-  maxBudget: number;
-  mp: number;
-  maxMp: number;
-  junk: number;
-  salt: number;
-  seedPackets: number;
-
-  garden: GardenState;
-  status: PlayerStatus;
-  lunaCycle: {
-    startDate: string;
-    periodLength: number;
-    cycleLength: number;
-  };
-
-  inventory: InventoryItem[];
-  collection: CollectionItem[];
-  pending: PendingTransaction[];
-  
-  materials: Record<string, number>;
-  equipped: {
-    weapon: string | null;
-    armor: string | null;
-    accessory: string | null;
-  };
-
-  assets: AssetBuildingsState;
-  
-  counters: {
-    defenseActionsToday: number;
-    junkObtainedToday: number;
-    dailyTotalSpend: number;
-    hadSpendingToday: boolean;
-    noSpendStreak: number;
-    guardPromptShownToday: boolean;
-    lastDailyResetDate: string;
-    lastDayEndDate: string;
-    cumulativeDefense: number;
-    noSpendStamps: Record<string, boolean>;
-  };
-
-  subscriptions: SubscriptionPlan[];
-  unresolvedShadows: ShadowMonster[];
-  npcAffection: NpcAffection;
-  stats: {
-    attack: number;
-    defense: number;
-  };
-
+interface Props {
   currentLocation: LocationId;
-  // [NEW] 해금된 지역 목록
-  unlockedLocations: LocationId[];
+  unlockedLocations: LocationId[]; // 해금 정보
+  onSelectLocation: (locId: LocationId) => void;
+  onSelectDungeon: (dungeonId: string) => void;
+  onBack: () => void;
 }
+
+// 👇 이 export 키워드가 중요합니다!
+export const WorldMapView: React.FC<Props> = ({ 
+  currentLocation, 
+  unlockedLocations, 
+  onSelectLocation, 
+  onSelectDungeon, 
+  onBack 
+}) => {
+  return (
+    <div style={styles.container}>
+      <h2 style={styles.title}>🗺️ 월드맵</h2>
+      
+      <div style={styles.mapArea}>
+        {/* --- 마을 노드 --- */}
+        {Object.entries(WORLD_LOCATIONS).map(([key, data], idx) => {
+          const locId = key as LocationId;
+          // unlockedLocations가 undefined일 경우를 대비해 안전하게 접근
+          const isUnlocked = (unlockedLocations || []).includes(locId);
+          const isCurrent = locId === currentLocation;
+
+          return (
+            <div 
+              key={key} 
+              style={{
+                ...styles.node, 
+                top: `${20 + idx * 25}%`, 
+                left: idx % 2 === 0 ? '20%' : '60%',
+                backgroundColor: isUnlocked 
+                  ? (isCurrent ? '#10b981' : '#6366f1') 
+                  : '#4b5563',
+                borderColor: isUnlocked ? '#fff' : '#9ca3af',
+                cursor: isUnlocked ? 'pointer' : 'not-allowed',
+                opacity: isUnlocked ? 1 : 0.7
+              }}
+              onClick={() => {
+                if (isUnlocked) onSelectLocation(locId);
+                else alert("🚧 아직 발견하지 못한 지역입니다.\n필드에서 [이정표]를 찾아보세요!");
+              }}
+            >
+              <div style={styles.nodeIcon}>
+                {isUnlocked ? (isCurrent ? '🚩' : '🏘️') : '🔒'}
+              </div>
+              <div style={styles.nodeLabel}>
+                {isUnlocked ? data.name : '??? (미탐사)'}
+              </div>
+              {isCurrent && <div style={styles.currentTag}>현재 위치</div>}
+            </div>
+          );
+        })}
+
+        {/* --- 던전 --- */}
+        <button style={styles.dungeonBtn} onClick={() => onSelectDungeon('etc')}>
+          💀 미지의 던전 (탐험)
+        </button>
+        <p style={styles.tipText}>Tip: 필드를 돌아다니며 새로운 지역을 찾아보세요!</p>
+      </div>
+
+      <div style={styles.footer}>
+        <button onClick={onBack} style={styles.backBtn}>돌아가기</button>
+      </div>
+    </div>
+  );
+};
+
+const styles: Record<string, React.CSSProperties> = {
+  container: { width: '100%', height: '100%', backgroundColor: '#0f172a', display: 'flex', flexDirection: 'column', color: '#fff' },
+  title: { textAlign: 'center', padding: '20px', borderBottom: '2px solid #334155', margin: 0 },
+  
+  mapArea: { flex: 1, position: 'relative', backgroundImage: 'radial-gradient(#1e293b 10%, #0f172a 90%)' },
+  
+  node: { position: 'absolute', width: '80px', padding: '10px', borderRadius: '8px', textAlign: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.5)', border: '2px solid #fff', transition: 'transform 0.2s' },
+  nodeIcon: { fontSize: '24px', marginBottom: '5px' },
+  nodeLabel: { fontSize: '12px', fontWeight: 'bold', textShadow: '1px 1px 0 #000' },
+  currentTag: { position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#fbbf24', color: '#000', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap', fontWeight: 'bold' },
+
+  dungeonBtn: { position: 'absolute', bottom: '50px', left: '50%', transform: 'translateX(-50%)', padding: '12px 30px', backgroundColor: '#ef4444', color: '#fff', border: '2px solid #fff', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 0 15px #ef4444' },
+  tipText: { position: 'absolute', bottom: '15px', width: '100%', textAlign: 'center', fontSize: '11px', color: '#94a3b8' },
+
+  footer: { padding: '20px', borderTop: '2px solid #334155' },
+  backBtn: { width: '100%', padding: '12px', backgroundColor: '#334155', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }
+};
