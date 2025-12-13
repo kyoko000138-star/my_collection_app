@@ -40,23 +40,26 @@ export const ForgeView: React.FC<Props> = ({ user, onUpdateUser, onBack }) => {
 
   return (
     <div style={styles.container}>
-      <h2 style={styles.title}>⚒️ 대장간 (MP 소모)</h2>
-      
-      <div style={styles.tabs}>
-        <button style={tab === 'PURIFY' ? styles.activeTab : styles.tab} onClick={() => setTab('PURIFY')}>
-          정화
-        </button>
-        <button style={tab === 'CRAFT' ? styles.activeTab : styles.tab} onClick={() => setTab('CRAFT')}>
-          제작
-        </button>
-      </div>
-
-      {/* 스크롤 영역 */}
-      <div style={styles.content}>
+      {/* 1. 고정 헤더 영역 */}
+      <div style={styles.fixedHeader}>
+        <h2 style={styles.title}>⚒️ 대장간 (MP 소모)</h2>
+        <div style={styles.tabs}>
+          <button style={tab === 'PURIFY' ? styles.activeTab : styles.tab} onClick={() => setTab('PURIFY')}>
+            정화
+          </button>
+          <button style={tab === 'CRAFT' ? styles.activeTab : styles.tab} onClick={() => setTab('CRAFT')}>
+            제작
+          </button>
+        </div>
         <div style={styles.status}>
           🔮 Essence: {currentEssence} | MP: {user.mp} | Junk: {user.junk}
         </div>
+      </div>
+
+      {/* 2. 스크롤 영역 (남은 공간 차지) */}
+      <div style={styles.scrollContent}>
         
+        {/* 정화 탭 내용 */}
         {tab === 'PURIFY' && (
           <div style={styles.purifyCard}>
             <p style={styles.purifyDesc}>
@@ -72,6 +75,7 @@ export const ForgeView: React.FC<Props> = ({ user, onUpdateUser, onBack }) => {
           </div>
         )}
 
+        {/* 제작 탭 내용 (리스트) */}
         {tab === 'CRAFT' && (
           <div style={styles.craftList}>
             {equipmentRecipes.map(recipe => {
@@ -97,12 +101,14 @@ export const ForgeView: React.FC<Props> = ({ user, onUpdateUser, onBack }) => {
                 </div>
               );
             })}
+            {/* 리스트가 짧아도 스크롤 확인용 여백 */}
+            <div style={{ height: '20px' }} />
           </div>
         )}
       </div>
 
-      {/* 하단 고정 영역 */}
-      <div style={styles.footer}>
+      {/* 3. 고정 푸터 영역 */}
+      <div style={styles.fixedFooter}>
         <p style={styles.message}>{message}</p>
         <button onClick={onBack} style={styles.backBtn}>나가기</button>
       </div>
@@ -111,30 +117,50 @@ export const ForgeView: React.FC<Props> = ({ user, onUpdateUser, onBack }) => {
 };
 
 const styles: Record<string, React.CSSProperties> = {
+  // 전체 컨테이너: 화면 꽉 채움, 스크롤 없음 (내부에서 처리)
   container: { 
     width: '100%', 
     height: '100%', 
     backgroundColor: '#451a03', 
-    padding: '20px', 
     display: 'flex', 
     flexDirection: 'column', 
     color: '#fff', 
-    boxSizing: 'border-box',
-    overflow: 'hidden' // [중요] 전체 컨테이너는 스크롤 방지
+    overflow: 'hidden' 
   },
-  title: { textAlign: 'center', borderBottom: '2px solid #d97706', paddingBottom: '10px', marginBottom: '15px', margin: '0 0 15px 0' },
-  tabs: { display: 'flex', gap: '10px', marginBottom: '15px', flexShrink: 0 },
+  
+  // 고정 헤더: 줄어들지 않음 (flexShrink: 0)
+  fixedHeader: {
+    padding: '20px 20px 0 20px',
+    flexShrink: 0, 
+    backgroundColor: '#451a03',
+    zIndex: 10
+  },
+  
+  // 스크롤 영역: 남은 공간 모두 차지 (flex: 1), 내부 스크롤 (overflowY: auto)
+  scrollContent: {
+    flex: 1,
+    overflowY: 'auto',
+    minHeight: 0, // Flexbox 스크롤 버그 방지 필수 속성
+    padding: '10px 20px',
+    // 모바일 터치 스크롤 부드럽게
+    WebkitOverflowScrolling: 'touch', 
+  },
+
+  // 고정 푸터: 줄어들지 않음
+  fixedFooter: {
+    padding: '10px 20px 20px 20px',
+    flexShrink: 0,
+    backgroundColor: '#451a03',
+    borderTop: '1px solid #78716c'
+  },
+
+  // --- 내부 요소 스타일 ---
+  title: { textAlign: 'center', borderBottom: '2px solid #d97706', paddingBottom: '10px', marginBottom: '15px', margin: '0 0 15px 0', fontSize: '18px' },
+  tabs: { display: 'flex', gap: '10px', marginBottom: '15px' },
   tab: { flex: 1, padding: '10px', backgroundColor: '#57534e', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' },
   activeTab: { flex: 1, padding: '10px', backgroundColor: '#d97706', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
   
-  content: { 
-    flex: 1,            // 남은 공간 차지
-    overflowY: 'auto',  // [핵심] 세로 스크롤 활성화
-    minHeight: 0,       // [핵심] Flexbox 내부 스크롤 버그 방지
-    paddingRight: '5px' // 스크롤바 공간 확보
-  },
-  
-  status: { backgroundColor: '#57534e', padding: '8px', borderRadius: '6px', textAlign: 'center', marginBottom: '15px', fontSize: '12px', color: '#fff', flexShrink: 0 },
+  status: { backgroundColor: '#57534e', padding: '8px', borderRadius: '6px', textAlign: 'center', fontSize: '12px', color: '#fff' },
 
   purifyCard: { backgroundColor: '#57534e', padding: '20px', borderRadius: '12px', textAlign: 'center' },
   purifyDesc: { fontSize: '14px', color: '#fbbf24', lineHeight: '1.5' },
@@ -149,7 +175,6 @@ const styles: Record<string, React.CSSProperties> = {
   recipeCost: { fontSize: '11px', color: '#fed7aa' },
   btnCraft: { marginTop: '10px', padding: '10px', backgroundColor: '#34d399', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', width: '100%' },
 
-  footer: { marginTop: '10px', flexShrink: 0 },
   message: { textAlign: 'center', color: '#fca5a5', marginBottom: '10px', minHeight: '20px', fontSize: '12px' },
   backBtn: { padding: '12px', backgroundColor: '#44403c', border: '1px solid #78716c', color: '#fff', borderRadius: '8px', cursor: 'pointer', width: '100%' }
 };
