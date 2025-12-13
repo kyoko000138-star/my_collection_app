@@ -1,104 +1,90 @@
 // src/money/components/FieldView.tsx
-
 import React from 'react';
-import { FieldObject, ShadowMonster } from '../types';
+import { UserState } from '../types';
+import { MAP_INFO, MAP_CONNECTIONS } from '../gameData';
 
-interface FieldViewProps {
-  playerPos: { x: number; y: number };
-  objects: FieldObject[];
-  shadows: ShadowMonster[];
-  dungeonName: string;
+interface Props {
+  user: UserState;
+  onMove: (dir: 'N' | 'S' | 'W' | 'E') => void;
+  shadows: any[];
 }
 
-export const FieldView: React.FC<FieldViewProps> = ({ playerPos, objects, shadows, dungeonName }) => {
-  const darknessLevel = Math.min(shadows.length * 0.15, 0.7);
+export const FieldView: React.FC<Props> = ({ user, onMove, shadows }) => {
+  const currentLoc = user.currentLocation;
+  const info = MAP_INFO[currentLoc] || { name: '???', type: 'DANGER', color: '#000', minimap: {x:0,y:0} };
+  const connections = MAP_CONNECTIONS[currentLoc] || {};
+  const mapGrid = info.minimap; 
+
+  // 미니맵 렌더링 (5x5)
+  const renderMinimapNode = (x: number, y: number) => {
+    if (x === mapGrid.x && y === mapGrid.y) return <div style={styles.miniNodeCurrent} />; // 나
+    const neighbor = Object.values(MAP_INFO).find(m => m.minimap.x === x && m.minimap.y === y);
+    if (neighbor) return <div style={{...styles.miniNode, backgroundColor: neighbor.color}} />;
+    return <div style={styles.miniNodeEmpty} />;
+  };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.bgPattern} />
-      <div style={{...styles.darknessOverlay, opacity: darknessLevel}} />
-
+    <div style={{ ...styles.container, backgroundColor: info.color }}>
+      {/* 1. 상단 정보 & 미니맵 */}
       <div style={styles.header}>
-        🚩 {dungeonName} (그림자: {shadows.length})
-      </div>
-
-      {/* 파밍 아이템 렌더링 */}
-      {objects.map(obj => {
-        if (obj.isCollected) return null;
-
-        // [수정] 타입별 아이콘 분기 처리 (이정표 추가!)
-        let icon = '💎';
-        let anim = 'float 2s infinite ease-in-out';
-
-        if (obj.type === 'HERB') {
-           icon = '🌿';
-        } else if (obj.type === 'JUNK') {
-           icon = '✨';
-        } else if (obj.type === 'SIGNPOST') { // [NEW] 이정표 처리
-           icon = '🪧';
-           anim = 'bounce 1s infinite'; // 눈에 띄게 통통 튀게 함
-        }
-
-        return (
-          <div 
-            key={obj.id} 
-            style={{
-              ...styles.object, 
-              left: `${obj.x}%`, 
-              top: `${obj.y}%`,
-              animation: anim
-            }}
-          >
-            {icon}
-          </div>
-        );
-      })}
-
-      {/* 그림자 몬스터 */}
-      {shadows.map(shadow => (
-        <div key={shadow.id} style={{...styles.shadowMonster, left: `${shadow.x}%`, top: `${shadow.y}%`}}>
-          <div className="animate-pulse">👻</div>
-          <div style={styles.shadowLabel}>₩{shadow.amount.toLocaleString()}</div>
+        <div style={styles.locInfo}>
+            <h2 style={{ margin: 0, fontSize: '18px', textShadow: '1px 1px 0 #000' }}>📍 {info.name}</h2>
+            <span style={{ fontSize: '12px', color: '#eee', textShadow: '1px 1px 0 #000' }}>
+                {info.type === 'TOWN' ? '안전한 마을' : '⚠️ 위험 지역'}
+            </span>
         </div>
-      ))}
-
-      {/* 플레이어 */}
-      <div style={{...styles.player, left: `${playerPos.x}%`, top: `${playerPos.y}%`}}>
-        <div style={styles.playerSprite}>🧙‍♂️</div>
-        <div style={styles.shadow} />
+        
+        {/* 미니맵 박스 */}
+        <div style={styles.minimapBox}>
+            {Array.from({length: 5}).map((_, y) => (
+                <div key={y} style={{display:'flex'}}>
+                    {Array.from({length: 5}).map((_, x) => (
+                        <div key={`${x}-${y}`} style={{width: 6, height: 6, margin: 1}}>
+                            {renderMinimapNode(x, y)}
+                        </div>
+                    ))}
+                </div>
+            ))}
+        </div>
       </div>
 
-      <div style={styles.guide}>
-        {shadows.length > 0 
-          ? "⚠️ 으스스한 기운이 느껴집니다..." 
-          : "방향키로 이동하며 아이템을 찾으세요."}
+      {/* 2. 중앙 캐릭터 */}
+      <div style={styles.centerView}>
+        <div style={{ fontSize: '60px', marginBottom: '20px', transition: 'transform 0.2s' }}>
+          {user.isExhausted ? '🚑' : '🧙‍♂️'}
+        </div>
+        {user.isExhausted && <div style={styles.exhaustAlert}>탈진! 구조 대기중...</div>}
+        
+        {shadows.length > 0 && (
+          <div style={styles.shadowAlert}>👻 그림자 {shadows.length}체 배회 중</div>
+        )}
       </div>
 
-      {/* 애니메이션 키프레임 주입 */}
-      <style>{`
-        @keyframes float { 0%, 100% { transform: translate(-50%, -50%); } 50% { transform: translate(-50%, -60%); } }
-        @keyframes bounce { 0%, 100% { transform: translate(-50%, -50%); } 50% { transform: translate(-50%, -70%); } }
-      `}</style>
+      {/* 3. 방향 네비게이션 (나침반) */}
+      <div style={styles.compass}>
+        {connections.N && <div style={styles.dirN}>⬆️ {MAP_INFO[connections.N]?.name}</div>}
+        {connections.S && <div style={styles.dirS}>⬇️ {MAP_INFO[connections.S]?.name}</div>}
+        {connections.W && <div style={styles.dirW}>⬅️ {MAP_INFO[connections.W]?.name}</div>}
+        {connections.E && <div style={styles.dirE}>➡️ {MAP_INFO[connections.E]?.name}</div>}
+      </div>
     </div>
   );
 };
 
 const styles: Record<string, React.CSSProperties> = {
-  container: { width: '100%', height: '100%', position: 'relative', overflow: 'hidden', backgroundColor: '#353b48' },
-  bgPattern: { position: 'absolute', inset: 0, opacity: 0.2, backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '20px 20px' },
-  darknessOverlay: { position: 'absolute', inset: 0, backgroundColor: '#000', pointerEvents: 'none', zIndex: 15, transition: 'opacity 0.5s' },
-
-  header: { position: 'absolute', top: 10, left: 10, backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', padding: '4px 8px', borderRadius: 6, fontSize: '12px', zIndex: 20 },
-  
-  // object 스타일에서 애니메이션은 인라인으로 처리함
-  object: { position: 'absolute', fontSize: '24px', transform: 'translate(-50%, -50%)', zIndex: 5 },
-  
-  shadowMonster: { position: 'absolute', fontSize: '28px', transform: 'translate(-50%, -50%)', zIndex: 10, filter: 'grayscale(100%) brightness(0.5) drop-shadow(0 0 5px #ef4444)' },
-  shadowLabel: { position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', fontSize: '9px', color: '#fca5a5', textShadow: '1px 1px 0 #000', whiteSpace: 'nowrap' },
-
-  player: { position: 'absolute', zIndex: 20, transform: 'translate(-50%, -80%)', transition: 'all 0.15s linear', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  playerSprite: { fontSize: '40px', filter: 'drop-shadow(0 4px 2px rgba(0,0,0,0.4))' },
-  shadow: { width: '24px', height: '8px', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: '50%', marginTop: '-6px' },
-  
-  guide: { position: 'absolute', bottom: 10, width: '100%', textAlign: 'center', fontSize: '10px', color: '#e2e8f0', zIndex: 20, textShadow: '1px 1px 0 #000' }
+  container: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' },
+  header: { display: 'flex', justifyContent: 'space-between', padding: '15px', background: 'linear-gradient(to bottom, rgba(0,0,0,0.6), transparent)' },
+  locInfo: { color: '#fff' },
+  minimapBox: { background: '#111', padding: '4px', border: '1px solid #555', borderRadius: 4, boxShadow: '0 0 10px rgba(0,0,0,0.5)' },
+  miniNodeCurrent: { width: '100%', height: '100%', backgroundColor: '#ef4444', borderRadius: '50%', border: '1px solid #fff' },
+  miniNode: { width: '100%', height: '100%', borderRadius: '1px', opacity: 0.8 },
+  miniNodeEmpty: { width: '100%', height: '100%', backgroundColor: '#222' },
+  centerView: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' },
+  exhaustAlert: { background: '#ef4444', color: '#fff', padding: '4px 8px', borderRadius: 4, fontWeight: 'bold', marginTop: 10, border: '2px solid #fff' },
+  shadowAlert: { background: 'rgba(0,0,0,0.7)', color: '#ef4444', padding: '4px 8px', borderRadius: 4, marginTop: 10 },
+  compass: { position: 'absolute', inset: 0, pointerEvents: 'none' },
+  dirN: { position: 'absolute', top: 60, width: '100%', textAlign: 'center', color: '#fff', fontWeight: 'bold', textShadow: '1px 1px 0 #000' },
+  dirS: { position: 'absolute', bottom: 20, width: '100%', textAlign: 'center', color: '#fff', fontWeight: 'bold', textShadow: '1px 1px 0 #000' },
+  dirW: { position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#fff', fontWeight: 'bold', textShadow: '1px 1px 0 #000', textAlign: 'left' },
+  dirE: { position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#fff', fontWeight: 'bold', textShadow: '1px 1px 0 #000', textAlign: 'right' },
 };
