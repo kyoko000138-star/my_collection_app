@@ -1,23 +1,23 @@
 // src/money/types.ts
 
 // -------------------------
-// 1. Scene & Enums
+// 1. Scene & Enums (확장됨)
 // -------------------------
 export enum Scene {
   GARDEN = 'GARDEN',
-  MY_ROOM = 'MY_ROOM',
-  VILLAGE_MAP = 'VILLAGE_MAP',
+  MY_ROOM = 'MY_ROOM',         // [NEW] 마이룸
+  VILLAGE_MAP = 'VILLAGE_MAP', // [NEW] 마을 지도
   LIBRARY = 'LIBRARY',
   WORLD_MAP = 'WORLD_MAP',
   FIELD = 'FIELD',
   BATTLE = 'BATTLE',
-  INVENTORY = 'INVENTORY',
+  INVENTORY = 'INVENTORY',     // [NEW] 인벤토리
   KINGDOM = 'KINGDOM',
   COLLECTION = 'COLLECTION',
   SUBSCRIPTION = 'SUBSCRIPTION',
   FORGE = 'FORGE',
   SHOP = 'SHOP',
-  SETTINGS = 'SETTINGS',
+  SETTINGS = 'SETTINGS',       // [NEW] 설정창
   MONTHLY_REPORT = 'MONTHLY_REPORT'
 }
 
@@ -35,7 +35,7 @@ export type ItemEffectType =
   | 'NONE';
 
 // -------------------------
-// 2. Luna System (Bio-Rhythm)
+// 2. Luna System (Bio-Rhythm) - 원본 유지
 // -------------------------
 export type LunaPhase = 'MENSTRUAL' | 'FOLLICULAR' | 'OVULATION' | 'LUTEAL' | 'PMS';
 
@@ -60,7 +60,7 @@ export interface LunaCycle {
 }
 
 // -------------------------
-// 3. v4 Financial System
+// 3. v4 Financial System - 원본 유지
 // -------------------------
 
 // 대분류
@@ -110,24 +110,24 @@ export type AttributeTag =
 // 거래 내역 구조체
 export interface Transaction {
   id: string;
-  type?: TxType;           
+  type?: TxType;            
   amount: number;
-  category: CategoryId;   
+  category: CategoryId;    
   
   // 태그 (v4)
-  intent?: IntentTag;     
+  intent?: IntentTag;      
   situations?: SituationTag[]; 
   attributes?: AttributeTag[]; 
   
-  note?: string;          
-  createdAt: string;      
+  note?: string;           
+  createdAt: string;       
 }
 
 // 하위 호환성용 별칭
 export type PendingTransaction = Transaction;
 
 // -------------------------
-// 4. Items & Field & Assets
+// 4. Items & Field & Assets - 원본 유지 + 신규 추가
 // -------------------------
 export interface ItemData {
   id: string;
@@ -169,7 +169,7 @@ export interface AssetBuildingsState {
 }
 
 export interface AssetBuildingView {
-  id: string;
+  id: string; // 'fence', 'mansion' 등 (문자열로 느슨하게 처리하거나 AssetBuildingId 타입 사용)
   label: string;
   level: number;
   nextTarget: number | null;
@@ -180,16 +180,18 @@ export interface FieldObject {
   id: string;
   x: number;
   y: number;
-  type: 'JUNK' | 'HERB' | 'CHEST' | 'SIGNPOST'; // SIGNPOST 추가됨
+  type: 'JUNK' | 'HERB' | 'CHEST' | 'SIGNPOST'; 
   isCollected: boolean;
 }
 
+// [NEW] 그림자 몬스터 (지출 업보)
 export interface ShadowMonster {
   id: string;
-  amount: number;
-  category: string;
+  sourceTxId?: string; // 연결된 지출 ID (현실의 업보)
+  amount: number;      // 금액 (강함의 척도)
+  category: string;    // 'food' -> 야식 슬라임 등
   createdAt: string;
-  x: number;
+  x: number;           // 필드 좌표
   y: number;
 }
 
@@ -207,7 +209,7 @@ export interface GardenState {
   pondLevel: number;
   flowerState: 'blooming' | 'normal' | 'withered';
   weedCount: number;
-  decorations: string[];
+  decorations: string[]; // 원본은 string[], v5에서는 객체 배열로 확장 가능하나 원본 유지
 }
 
 export interface PlayerStatus {
@@ -240,7 +242,7 @@ export interface NpcAffection {
 }
 
 // -------------------------
-// 5. Root User State
+// 5. Root User State - 원본 유지 + 신규 추가
 // -------------------------
 export interface UserState {
   name: string;
@@ -289,7 +291,10 @@ export interface UserState {
   };
 
   subscriptions: SubscriptionPlan[];
+  
+  // [NEW] 해결되지 않은 그림자들 (전투 대상)
   unresolvedShadows: ShadowMonster[];
+  
   npcAffection: NpcAffection;
   stats: {
     attack: number;
