@@ -2,7 +2,7 @@
 
 import { UserState, AssetBuildingView, PendingTransaction } from './types';
 import { GAME_CONSTANTS, COLLECTION_DB, DUNGEONS } from './constants';
-import { RECIPE_DB, ITEM_DB } from './gameData'; // [NEW] 데이터베이스 import
+import { RECIPE_DB, ITEM_DB } from './gameData';
 import {
   checkGuardianShield,
   getDruidRecoveryBonus,
@@ -11,15 +11,12 @@ import {
 import { calculateLunaPhase } from './moneyLuna';
 
 // --- Helpers ---
-
-// 한국 시간(KST) 기준 날짜 문자열 반환 (YYYY-MM-DD)
 const getTodayString = () => {
   const now = new Date();
   const kstDate = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   return kstDate.toISOString().split('T')[0];
 };
 
-// 한국 시간(KST) 기준 ISO 문자열 반환
 const getNowISOString = () => {
   const now = new Date();
   const kstDate = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -45,7 +42,7 @@ const addCollectionItem = (
   return false;
 };
 
-// [수정] 인벤토리 추가 헬퍼 (ITEM_DB 활용하여 자동 데이터 채움)
+// 인벤토리 추가 헬퍼
 const addInventoryItem = (
   state: UserState,
   itemId: string,
@@ -54,7 +51,6 @@ const addInventoryItem = (
   if (!state.inventory) state.inventory = [];
   
   const itemData = ITEM_DB[itemId];
-  // DB에 있으면 그 정보를, 없으면 ID를 이름으로 사용 (예외 처리)
   const name = itemData ? itemData.name : itemId; 
   const type = itemData ? itemData.type : 'consumable';
 
@@ -72,21 +68,31 @@ const addInventoryItem = (
 };
 
 // --- RPG Stats Logic ---
-
-// RPG 스탯 계산 함수
 export const calculateStats = (state: UserState) => {
   const noSpendDays = Object.keys(state.counters.noSpendStamps || {}).length;
   
-  // 공격력: 무지출 일수 + 레벨
-  const baseAttack = Math.floor(noSpendDays / 10) + state.level; 
-  
-  // 방어력: 누적 방어 횟수
-  const baseDefense = Math.floor((state.counters.cumulativeDefense || 0) / 5) + 10;
+  let attack = Math.floor(noSpendDays / 10) + state.level; 
+  let defense = Math.floor((state.counters.cumulativeDefense || 0) / 5) + 10;
 
-  return {
-    attack: baseAttack,
-    defense: baseDefense
-  };
+  if (state.equipped) {
+    Object.values(state.equipped).forEach(itemId => {
+      if (!itemId) return;
+      const item = ITEM_DB[itemId];
+      if (!item) return;
+
+      if (item.equipSlot === 'weapon' && item.effectValue) {
+         attack += item.effectValue; 
+      }
+      if (item.equipSlot === 'armor' && item.effectValue) {
+         defense += item.effectValue;
+      }
+      if (item.equipSlot === 'accessory' && item.effectValue) {
+         defense += item.effectValue;
+      }
+    });
+  }
+
+  return { attack, defense };
 };
 
 // --- Core Logic ---
@@ -94,7 +100,6 @@ export const calculateStats = (state: UserState) => {
 // 1. 일일 리셋
 export const checkDailyReset = (state: UserState): UserState => {
   const today = getTodayString();
-
   if (state.counters.lastDailyResetDate === today) return state;
 
   const luna = calculateLunaPhase(state.lunaCycle);
@@ -148,12 +153,10 @@ export const applySpend = (
   newState.pending = [newTx, ...newState.pending].slice(0, 50);
 
   const isGuarded = checkGuardianShield(state);
-
   if (isGuarded) {
     message = `🛡️ [수호자] 방어 발동! 의지력을 지켰습니다.`;
   } else {
     newState.counters.noSpendStreak = 0;
-
     if (
       !isFixedCost &&
       amount >= GAME_CONSTANTS.JUNK_THRESHOLD &&
@@ -161,8 +164,11 @@ export const applySpend = (
     ) {
       newState.junk += 1;
       newState.counters.junkObtainedToday += 1;
-      message = `💥 HP -${amount.toLocaleString()}.\nJunk 획득!`;
+      
+      // [수정] 자산 매핑: 파밍 -> barn (헛간)
+      newState.assets.barn += 1; 
 
+      message = `💥 HP -${amount.toLocaleString()}.\nJunk 획득!`;
       if (Math.random() < 0.2) {
         const randomIndex = Math.floor(Math.random() * COLLECTION_DB.JUNK_FOREST.length);
         const randomJunk = COLLECTION_DB.JUNK_FOREST[randomIndex];
@@ -174,7 +180,11 @@ export const applySpend = (
     }
   }
 
-  // 예산 초과(흑화) 체크
+  // [수정] 자산 매핑: 고정비 -> mansion (저택)
+  if (isFixedCost) {
+    newState.assets.mansion += 1;
+  }
+
   if (newState.garden) {
     if (newState.currentBudget < 0) {
       newState.garden.flowerState = 'withered';
@@ -192,8 +202,7 @@ export const applySpend = (
 
 // 3. 방어
 export const applyDefense = (state: UserState): UserState => {
-  if (state.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT)
-    return state;
+  if (state.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) return state;
 
   const newState: UserState = {
     ...state,
@@ -204,47 +213,42 @@ export const applyDefense = (state: UserState): UserState => {
       cumulativeDefense: (state.counters.cumulativeDefense || 0) + 1, 
     },
   };
+  
+  // [수정] 자산 매핑: 방어 -> fence (울타리)
+  newState.assets.fence += 1;
 
-  // 방어 성공 시 보상 (호미/영양제)
   if (newState.garden && Math.random() < 0.3) {
-    const itemId = Math.random() < 0.5 ? 'hoe' : 'nutrient'; // ITEM_DB 키 사용
+    const itemId = Math.random() < 0.5 ? 'hoe' : 'nutrient';
     addInventoryItem(newState, itemId, 1);
   }
-
   return newState;
 };
 
 // 4. 하루 마감
-export const applyDayEnd = (
-  state: UserState,
-): { newState: UserState; message: string } => {
+export const applyDayEnd = (state: UserState): { newState: UserState; message: string } => {
   const today = getTodayString();
   const newState = JSON.parse(JSON.stringify(state)) as UserState;
   const logs: string[] = [];
   
-  // 스탯 업데이트
   newState.stats = calculateStats(newState);
-
-  // 자연 먼지
   newState.junk += 1;
   logs.push('🧹 Natural Dust +1');
 
-  // 무지출 보상
   if (!state.counters.hadSpendingToday) {
     newState.counters.noSpendStreak += 1;
     newState.salt += 1;
     
-    // 무지출 스탬프
+    // [수정] 자산 매핑: 무지출 -> greenhouse (온실)
+    newState.assets.greenhouse += 1;
+
     newState.counters.noSpendStamps = { 
         ...(newState.counters.noSpendStamps || {}), 
         [today]: true 
     };
-
     logs.push(`✨ 무지출! Salt +1 (Streak: ${newState.counters.noSpendStreak})`);
 
     if (newState.garden) {
-      addInventoryItem(newState, 'water_can', 1); // 물뿌리개
-
+      addInventoryItem(newState, 'water_can', 1);
       if (newState.garden.flowerState !== 'withered') {
         newState.garden.flowerState = 'blooming';
       }
@@ -260,15 +264,10 @@ export const applyDayEnd = (
   return { newState, message: logs.join('\n') };
 };
 
-// 5. 정화 (Junk -> Essence) [RECIPE_DB 연동]
-export const applyPurifyJunk = (
-    state: UserState,
-): { newState: UserState; success: boolean; message: string } => {
-    // DB에서 기본 정화 레시피 로드
+// 5. 정화 (Junk -> Essence)
+export const applyPurifyJunk = (state: UserState): { newState: UserState; success: boolean; message: string } => {
     const recipe = RECIPE_DB['PURE_ESSENCE_BASIC']; 
     const nextState = JSON.parse(JSON.stringify(state)) as UserState;
-
-    // 안전한 재료 접근을 위한 초기화
     if (!nextState.materials) nextState.materials = {};
 
     if (nextState.junk < recipe.junkCost || nextState.salt < recipe.saltCost) {
@@ -278,56 +277,46 @@ export const applyPurifyJunk = (
         return { newState: state, success: false, message: `의지력(MP)이 ${recipe.mpCost} 부족합니다.` };
     }
 
-    // 자원 소모
     nextState.junk -= recipe.junkCost;
     nextState.salt -= recipe.saltCost;
     nextState.mp -= recipe.mpCost;
     
-    // 결과물 획득
     nextState.materials['PURE_ESSENCE'] = (nextState.materials['PURE_ESSENCE'] || 0) + recipe.resultCount;
+    
+    // [수정] 자산 매핑: 정화 -> fountain (분수)
+    nextState.assets.fountain += 1;
 
-    // 연금술사 보너스 체크
     const isBonus = checkAlchemistBonus(state);
     if (isBonus) {
         nextState.materials['PURE_ESSENCE'] += 1;
         return { newState: nextState, success: true, message: `✨ 정화 대성공! (연금술사 보너스 +1)` };
     }
-
-    return { newState: nextState, success: true, message: `Junk를 정화하여 ${recipe.resultCount}개의 정수를 얻었습니다.` };
+    return { newState: nextState, success: true, message: `Junk를 정화하여 정수를 얻었습니다.` };
 };
 
-// 6. 장비 제작 [RECIPE_DB 연동]
-export const applyCraftEquipment = (
-    state: UserState,
-    recipeId: string,
-): { newState: UserState; success: boolean; message: string } => {
-    
+// 6. 제작
+export const applyCraftEquipment = (state: UserState, recipeId: string): { newState: UserState; success: boolean; message: string } => {
     const recipe = RECIPE_DB[recipeId];
-    if (!recipe) return { newState: state, success: false, message: "레시피를 찾을 수 없습니다." };
+    if (!recipe) return { newState: state, success: false, message: "레시피 오류" };
 
     const nextState = JSON.parse(JSON.stringify(state)) as UserState;
     if (!nextState.materials) nextState.materials = {};
     if (!nextState.inventory) nextState.inventory = [];
-
     const currentEssence = nextState.materials['PURE_ESSENCE'] || 0;
     
-    // 비용 체크
-    if (currentEssence < recipe.essenceCost) return { newState: state, success: false, message: "Pure Essence가 부족합니다." };
-    if (nextState.mp < recipe.mpCost) return { newState: state, success: false, message: "MP가 부족합니다." };
-    if (nextState.junk < recipe.junkCost) return { newState: state, success: false, message: "Junk가 부족합니다." };
-    if (nextState.salt < recipe.saltCost) return { newState: state, success: false, message: "Salt가 부족합니다." };
+    if (currentEssence < recipe.essenceCost) return { newState: state, success: false, message: "Essence 부족" };
+    if (nextState.mp < recipe.mpCost) return { newState: state, success: false, message: "MP 부족" };
+    if (nextState.junk < recipe.junkCost) return { newState: state, success: false, message: "Junk 부족" };
+    if (nextState.salt < recipe.saltCost) return { newState: state, success: false, message: "Salt 부족" };
 
-    // 추가 재료(materials) 체크
     if (recipe.materials) {
         for (const [matId, qty] of Object.entries(recipe.materials)) {
-             // 편의상 materials 객체에서 체크 (실제로는 인벤토리 체크가 필요할 수 있음)
              if ((nextState.materials[matId] || 0) < qty) {
-                 return { newState: state, success: false, message: `재료(${ITEM_DB[matId]?.name || matId})가 부족합니다.` };
+                 return { newState: state, success: false, message: `재료(${ITEM_DB[matId]?.name || matId}) 부족` };
              }
         }
     }
 
-    // 자원 소모
     nextState.materials['PURE_ESSENCE'] -= recipe.essenceCost;
     nextState.mp -= recipe.mpCost;
     nextState.junk -= recipe.junkCost;
@@ -339,26 +328,23 @@ export const applyCraftEquipment = (
         }
     }
 
-    // 결과물 지급
     addInventoryItem(nextState, recipe.resultItemId, recipe.resultCount);
+    
+    // [수정] 자산 매핑: 제작도 파밍 자산에 기여
+    nextState.assets.barn += 1;
 
-    // 결과물 이름 가져오기
     const itemName = ITEM_DB[recipe.resultItemId]?.name || recipe.resultItemId;
-
     return { newState: nextState, success: true, message: `⚒️ ${itemName} 제작 완료!` };
 };
 
-// 7. 자산 뷰 헬퍼
-export const getAssetBuildingsView = (
-  state: UserState,
-): AssetBuildingView[] => {
+// 7. 자산 뷰 (이름 수정됨: fence, greenhouse...)
+export const getAssetBuildingsView = (state: UserState): AssetBuildingView[] => {
   const calc = (cnt: number) => {
     if (cnt >= 100) return { level: 4, nextTarget: null };
     if (cnt >= 30) return { level: 3, nextTarget: 100 };
     if (cnt >= 10) return { level: 2, nextTarget: 30 };
     return { level: 1, nextTarget: 10 };
   };
-
   return [
     { id: 'fence', label: '울타리 (방어)', ...calc(state.assets.fence), count: state.assets.fence },
     { id: 'greenhouse', label: '온실 (무지출)', ...calc(state.assets.greenhouse), count: state.assets.greenhouse },
@@ -368,7 +354,7 @@ export const getAssetBuildingsView = (
   ];
 };
 
-// 8. 데일리 몬스터 생성기
+// 8. 몬스터 생성
 export const getDailyMonster = (pending: PendingTransaction[]) => {
   let monsterType = 'etc';
   if (pending && pending.length > 0) {
@@ -380,10 +366,8 @@ export const getDailyMonster = (pending: PendingTransaction[]) => {
   return monsterType;
 };
 
-// 9. 구독료 자동 청구
-export const applySubscriptionChargesIfDue = (
-    state: UserState,
-): { newState: UserState, logs: string[] } => {
+// 9. 구독료
+export const applySubscriptionChargesIfDue = (state: UserState): { newState: UserState, logs: string[] } => {
     const newState = JSON.parse(JSON.stringify(state)) as UserState;
     const logs: string[] = [];
     const today = getTodayString();
@@ -392,7 +376,6 @@ export const applySubscriptionChargesIfDue = (
     newState.subscriptions = newState.subscriptions.map(sub => {
         if (!sub.isActive) return sub;
         if (sub.billingDay === todayDate) {
-            // 오늘 이미 청구됐는지 확인 (날짜 문자열 비교)
             const lastCharged = sub.lastChargedDate ? sub.lastChargedDate.split('T')[0] : '';
             if (lastCharged !== today) {
                 newState.currentBudget -= sub.amount;
@@ -402,18 +385,12 @@ export const applySubscriptionChargesIfDue = (
         }
         return sub;
     });
-
     return { newState, logs };
 };
 
-// [NEW] 10. 정원 아이템 사용
-export const applyUseGardenItem = (
-  state: UserState,
-  itemId: string
-): { newState: UserState; success: boolean; message: string } => {
+// 10. 정원 아이템 사용
+export const applyUseGardenItem = (state: UserState, itemId: string): { newState: UserState; success: boolean; message: string } => {
   const newState = JSON.parse(JSON.stringify(state)) as UserState;
-  
-  // 인벤토리 확인
   const invIndex = newState.inventory.findIndex(i => i.id === itemId);
   if (invIndex === -1 || newState.inventory[invIndex].count <= 0) {
     return { newState: state, success: false, message: "아이템이 없습니다." };
@@ -422,50 +399,75 @@ export const applyUseGardenItem = (
   let effectMsg = "";
   let isUsed = false;
 
-  // 아이템별 효과 분기
   switch (itemId) {
-    case 'water_can': // 물뿌리개
+    case 'water_can': 
       if (newState.garden.flowerState === 'withered') {
         newState.garden.flowerState = 'normal';
         effectMsg = "시든 꽃이 다시 고개를 들었습니다.";
         isUsed = true;
       } else if (newState.garden.flowerState === 'normal') {
         newState.garden.flowerState = 'blooming';
-        effectMsg = "꽃이 활짝 피어났습니다! (만개)";
+        effectMsg = "꽃이 활짝 피어났습니다!";
         isUsed = true;
       } else {
-        return { newState: state, success: false, message: "이미 꽃이 활짝 피어있습니다." };
+        return { newState: state, success: false, message: "이미 꽃이 만개했습니다." };
       }
       break;
-
-    case 'hoe': // 호미
+    case 'hoe': 
       if (newState.garden.weedCount > 0) {
         newState.garden.weedCount -= 1;
-        effectMsg = "잡초를 하나 뽑았습니다. 개운하네요!";
+        effectMsg = "잡초를 하나 뽑았습니다.";
         isUsed = true;
       } else {
         return { newState: state, success: false, message: "뽑을 잡초가 없습니다." };
       }
       break;
-
-    case 'nutrient': // 영양제 (순환 비료)
-      // 나무 경험치/레벨 로직 (단순화: 즉시 레벨업 or 게이지 상승)
+    case 'nutrient': 
       newState.garden.treeLevel += 1;
-      effectMsg = "꿈의 나무가 무럭무럭 자랐습니다!";
+      effectMsg = "꿈의 나무가 성장했습니다!";
       isUsed = true;
       break;
-
     default:
-      return { newState: state, success: false, message: "정원에서 사용할 수 없는 아이템입니다." };
+      return { newState: state, success: false, message: "사용할 수 없는 아이템입니다." };
   }
 
   if (isUsed) {
-    // 아이템 소모
     newState.inventory[invIndex].count -= 1;
     if (newState.inventory[invIndex].count === 0) {
       newState.inventory.splice(invIndex, 1);
     }
   }
-
   return { newState, success: true, message: effectMsg };
+};
+
+// 11. 아이템 착용/해제 (이전 답변에서 잘렸던 부분 수정 완료)
+export const applyEquipItem = (state: UserState, itemId: string): { newState: UserState; success: boolean; message: string } => {
+  const item = ITEM_DB[itemId];
+  if (!item || item.type !== 'equipment' || !item.equipSlot) {
+    return { newState: state, success: false, message: "착용할 수 없는 아이템입니다." };
+  }
+
+  const newState = JSON.parse(JSON.stringify(state)) as UserState;
+  
+  // 안전장치
+  if (!newState.equipped) {
+    newState.equipped = { weapon: null, armor: null, accessory: null };
+  }
+
+  const slot = item.equipSlot;
+  const currentEquippedId = newState.equipped[slot];
+
+  // 이미 착용 중이면 해제
+  if (currentEquippedId === itemId) {
+    newState.equipped[slot] = null;
+    // 스탯 재계산
+    newState.stats = calculateStats(newState);
+    return { newState, success: true, message: `[해제] ${item.name}` };
+  }
+
+  // 착용 (교체)
+  newState.equipped[slot] = itemId;
+  // 스탯 재계산
+  newState.stats = calculateStats(newState);
+  return { newState, success: true, message: `[장착] ${item.name}` };
 };
