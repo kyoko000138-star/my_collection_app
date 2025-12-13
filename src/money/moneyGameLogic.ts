@@ -1,6 +1,6 @@
 // src/money/moneyGameLogic.ts
 
-import { UserState, AssetBuildingView, PendingTransaction } from './types';
+import { UserState, AssetBuildingView, PendingTransaction, Transaction, CategoryId, TxType } from './types';
 import { GAME_CONSTANTS, COLLECTION_DB, DUNGEONS } from './constants';
 import { RECIPE_DB, ITEM_DB } from './gameData';
 import {
@@ -9,100 +9,6 @@ import {
   checkAlchemistBonus,
 } from './moneyClassLogic'; 
 import { calculateLunaPhase } from './moneyLuna';
-
-import { UserState, Transaction, CategoryId, TxType } from './types';
-// ... 기존 imports
-
-// [NEW] v4 트랜잭션 처리 (핵심 로직)
-export const applyTransaction = (
-  state: UserState,
-  txData: Omit<Transaction, 'id' | 'createdAt'>
-): { newState: UserState; message: string } => {
-  const newState = JSON.parse(JSON.stringify(state)) as UserState;
-  
-  // 1. 트랜잭션 객체 생성
-  const newTx: Transaction = {
-    ...txData,
-    id: `tx_${Date.now()}`,
-    createdAt: new Date().toISOString() // KST 변환은 View나 Helper에서 처리 권장
-  };
-
-  // 2. 리스트에 추가
-  newState.pending = [newTx, ...newState.pending].slice(0, 100);
-
-  let message = "";
-
-  // 3. 타입별 로직 분기
-  if (txData.category.startsWith('save.') || txData.category.startsWith('invest.')) {
-    // ==========================================
-    // 🌱 저축/투자: 정원 영양분 공급
-    // ==========================================
-    
-    // 안전 장치
-    if (!newState.gardenNutrients) {
-      newState.gardenNutrients = { savedAmount: 0, debtRepaid: 0 };
-    }
-
-    // 1) 예산 차감 (저축도 내 수중에선 빠져나가는 돈이므로)
-    newState.currentBudget -= txData.amount;
-    newState.gardenNutrients.savedAmount += txData.amount;
-
-    // 2) 정원 효과: 나무 성장
-    // 금액에 따라 성장 포인트가 다름 (단순화된 로직)
-    const growthPower = Math.ceil(txData.amount / 10000); // 1만원당 1포인트
-    newState.garden.treeLevel += growthPower;
-    
-    message = `🌱 미래를 위한 씨앗을 심었습니다! (나무 성장 +${growthPower})`;
-
-    // 3) 특수 효과: 부채 상환 (Debt)
-    if (txData.category === 'save.debt') {
-      newState.gardenNutrients.debtRepaid += txData.amount;
-      // 잡초 대량 제거 (빚을 갚으면 마음의 짐이 사라짐)
-      const removedWeeds = Math.min(newState.garden.weedCount, 5);
-      newState.garden.weedCount -= removedWeeds;
-      message = `🔗 족쇄를 끊어냈습니다! 정원의 잡초가 ${removedWeeds}개 사라집니다.`;
-    }
-
-  } else {
-    // ==========================================
-    // ⚔️ 지출: 그림자 소환 (기존 applySpend 대체/확장)
-    // ==========================================
-    
-    newState.currentBudget -= txData.amount;
-    newState.counters.dailyTotalSpend += txData.amount;
-    newState.counters.hadSpendingToday = true;
-    newState.counters.noSpendStreak = 0; // 지출 발생 시 스트릭 초기화
-
-    // 1) 몬스터(그림자) 생성
-    // Intent(의도)가 'impulse'(충동)이거나 'stress' 상황이면 더 강력한 몬스터 등장 가능
-    const isBadIntent = txData.intent === 'impulse' || txData.intent === 'unavoidable';
-    
-    // 그림자 데이터 생성
-    newState.unresolvedShadows.push({
-      id: `shadow_${Date.now()}`,
-      amount: txData.amount,
-      category: txData.category,
-      createdAt: new Date().toISOString(),
-      x: Math.floor(Math.random() * 80 + 10),
-      y: Math.floor(Math.random() * 80 + 10),
-    });
-
-    message = `👻 지출의 그림자가 기록되었습니다. (HP -${txData.amount.toLocaleString()})`;
-    
-    if (isBadIntent) {
-      message += "\n⚠️ 부정적인 기운이 느껴집니다...";
-    }
-  }
-
-  // 4. 공통: 예산 초과(흑화) 체크
-  if (newState.currentBudget < 0 && newState.garden.flowerState !== 'withered') {
-    newState.garden.flowerState = 'withered';
-    message += "\n🥀 예산이 바닥나 꽃이 시들었습니다.";
-  }
-
-  return { newState, message };
-};
-
 
 // --- Helpers ---
 const getTodayString = () => {
@@ -222,13 +128,101 @@ export const checkDailyReset = (state: UserState): UserState => {
   };
 };
 
-// 2. 지출 (피격)
+// [NEW] v4 통합 트랜잭션 처리 (핵심 로직)
+export const applyTransaction = (
+  state: UserState,
+  txData: Omit<Transaction, 'id' | 'createdAt'>
+): { newState: UserState; message: string } => {
+  const newState = JSON.parse(JSON.stringify(state)) as UserState;
+  
+  // 1. 트랜잭션 객체 생성
+  const newTx: Transaction = {
+    ...txData,
+    id: `tx_${Date.now()}`,
+    createdAt: new Date().toISOString()
+  };
+
+  // 2. 리스트에 추가 (pending 타입이 Transaction[]로 변경됨)
+  newState.pending = [newTx, ...newState.pending].slice(0, 100);
+
+  let message = "";
+
+  // 3. 타입별 로직 분기 (문자열 체크)
+  const catStr = txData.category as string;
+
+  if (catStr.startsWith('save.') || catStr.startsWith('invest.')) {
+    // ==========================================
+    // 🌱 저축/투자: 정원 영양분 공급
+    // ==========================================
+    
+    if (!newState.gardenNutrients) {
+      newState.gardenNutrients = { savedAmount: 0, debtRepaid: 0 };
+    }
+
+    newState.currentBudget -= txData.amount;
+    newState.gardenNutrients.savedAmount += txData.amount;
+
+    // 나무 성장 (1만원당 1포인트)
+    const growthPower = Math.ceil(txData.amount / 10000); 
+    newState.garden.treeLevel += growthPower;
+    
+    message = `🌱 미래를 위한 씨앗을 심었습니다! (나무 성장 +${growthPower})`;
+
+    // 부채 상환 특수 효과
+    if (txData.category === 'save.debt') {
+      newState.gardenNutrients.debtRepaid += txData.amount;
+      const removedWeeds = Math.min(newState.garden.weedCount, 5);
+      newState.garden.weedCount -= removedWeeds;
+      message = `🔗 족쇄를 끊어냈습니다! 정원의 잡초가 ${removedWeeds}개 사라집니다.`;
+    }
+
+  } else {
+    // ==========================================
+    // ⚔️ 지출: 그림자 소환
+    // ==========================================
+    
+    newState.currentBudget -= txData.amount;
+    newState.counters.dailyTotalSpend += txData.amount;
+    newState.counters.hadSpendingToday = true;
+    newState.counters.noSpendStreak = 0; 
+
+    // 몬스터(그림자) 생성
+    const isBadIntent = txData.intent === 'impulse' || txData.intent === 'unavoidable';
+    
+    newState.unresolvedShadows.push({
+      id: `shadow_${Date.now()}`,
+      amount: txData.amount,
+      category: txData.category,
+      createdAt: new Date().toISOString(),
+      x: Math.floor(Math.random() * 80 + 10),
+      y: Math.floor(Math.random() * 80 + 10),
+    });
+
+    message = `👻 지출의 그림자가 기록되었습니다. (HP -${txData.amount.toLocaleString()})`;
+    
+    if (isBadIntent) {
+      message += "\n⚠️ 부정적인 기운이 느껴집니다...";
+    }
+  }
+
+  // 4. 공통: 예산 초과(흑화) 체크
+  if (newState.currentBudget < 0 && newState.garden.flowerState !== 'withered') {
+    newState.garden.flowerState = 'withered';
+    message += "\n🥀 예산이 바닥나 꽃이 시들었습니다.";
+  }
+
+  return { newState, message };
+};
+
+// 2. 지출 (Legacy - 호환성 유지)
 export const applySpend = (
   state: UserState,
   amount: number,
   isFixedCost: boolean,
   categoryId: string = 'etc',
 ): { newState: UserState; message: string } => {
+  // 내부적으로 applyTransaction을 호출하거나 비슷하게 처리
+  // 여기서는 기존 로직 유지하되 타입 변환
   const newState = JSON.parse(JSON.stringify(state)) as UserState;
   let message = '';
 
@@ -236,11 +230,13 @@ export const applySpend = (
   newState.counters.hadSpendingToday = true;
   newState.counters.dailyTotalSpend += amount;
 
-  const dungeonName = DUNGEONS[categoryId as keyof typeof DUNGEONS]?.name || '지출';
-  const newTx: PendingTransaction = {
+  // Legacy 지원을 위해 Transaction 형태로 변환하여 저장
+  const newTx: Transaction = {
     id: Date.now().toString(),
+    type: 'EXPENSE',
     amount,
-    note: dungeonName,
+    category: 'etc', // 기본값
+    note: categoryId,
     createdAt: getNowISOString(),
   };
 
@@ -258,8 +254,6 @@ export const applySpend = (
     ) {
       newState.junk += 1;
       newState.counters.junkObtainedToday += 1;
-      
-      // [수정] 자산 매핑: 파밍 -> barn (헛간)
       newState.assets.barn += 1; 
 
       message = `💥 HP -${amount.toLocaleString()}.\nJunk 획득!`;
@@ -274,7 +268,6 @@ export const applySpend = (
     }
   }
 
-  // [수정] 자산 매핑: 고정비 -> mansion (저택)
   if (isFixedCost) {
     newState.assets.mansion += 1;
   }
@@ -308,7 +301,6 @@ export const applyDefense = (state: UserState): UserState => {
     },
   };
   
-  // [수정] 자산 매핑: 방어 -> fence (울타리)
   newState.assets.fence += 1;
 
   if (newState.garden && Math.random() < 0.3) {
@@ -331,8 +323,6 @@ export const applyDayEnd = (state: UserState): { newState: UserState; message: s
   if (!state.counters.hadSpendingToday) {
     newState.counters.noSpendStreak += 1;
     newState.salt += 1;
-    
-    // [수정] 자산 매핑: 무지출 -> greenhouse (온실)
     newState.assets.greenhouse += 1;
 
     newState.counters.noSpendStamps = { 
@@ -376,8 +366,6 @@ export const applyPurifyJunk = (state: UserState): { newState: UserState; succes
     nextState.mp -= recipe.mpCost;
     
     nextState.materials['PURE_ESSENCE'] = (nextState.materials['PURE_ESSENCE'] || 0) + recipe.resultCount;
-    
-    // [수정] 자산 매핑: 정화 -> fountain (분수)
     nextState.assets.fountain += 1;
 
     const isBonus = checkAlchemistBonus(state);
@@ -423,15 +411,13 @@ export const applyCraftEquipment = (state: UserState, recipeId: string): { newSt
     }
 
     addInventoryItem(nextState, recipe.resultItemId, recipe.resultCount);
-    
-    // [수정] 자산 매핑: 제작도 파밍 자산에 기여
     nextState.assets.barn += 1;
 
     const itemName = ITEM_DB[recipe.resultItemId]?.name || recipe.resultItemId;
     return { newState: nextState, success: true, message: `⚒️ ${itemName} 제작 완료!` };
 };
 
-// 7. 자산 뷰 (이름 수정됨: fence, greenhouse...)
+// 7. 자산 뷰
 export const getAssetBuildingsView = (state: UserState): AssetBuildingView[] => {
   const calc = (cnt: number) => {
     if (cnt >= 100) return { level: 4, nextTarget: null };
@@ -448,8 +434,9 @@ export const getAssetBuildingsView = (state: UserState): AssetBuildingView[] => 
   ];
 };
 
-// 8. 몬스터 생성
-export const getDailyMonster = (pending: PendingTransaction[]) => {
+// 8. 몬스터 생성 (Legacy support)
+export const getDailyMonster = (pending: any[]) => {
+  // Transaction 타입으로 변경되었으므로 note 접근 방식 유지
   let monsterType = 'etc';
   if (pending && pending.length > 0) {
     const lastNote = pending[0].note || '';
@@ -534,7 +521,7 @@ export const applyUseGardenItem = (state: UserState, itemId: string): { newState
   return { newState, success: true, message: effectMsg };
 };
 
-// 11. 아이템 착용/해제 (이전 답변에서 잘렸던 부분 수정 완료)
+// 11. 아이템 착용/해제
 export const applyEquipItem = (state: UserState, itemId: string): { newState: UserState; success: boolean; message: string } => {
   const item = ITEM_DB[itemId];
   if (!item || item.type !== 'equipment' || !item.equipSlot) {
@@ -543,7 +530,6 @@ export const applyEquipItem = (state: UserState, itemId: string): { newState: Us
 
   const newState = JSON.parse(JSON.stringify(state)) as UserState;
   
-  // 안전장치
   if (!newState.equipped) {
     newState.equipped = { weapon: null, armor: null, accessory: null };
   }
@@ -551,22 +537,18 @@ export const applyEquipItem = (state: UserState, itemId: string): { newState: Us
   const slot = item.equipSlot;
   const currentEquippedId = newState.equipped[slot];
 
-  // 이미 착용 중이면 해제
   if (currentEquippedId === itemId) {
     newState.equipped[slot] = null;
-    // 스탯 재계산
     newState.stats = calculateStats(newState);
     return { newState, success: true, message: `[해제] ${item.name}` };
   }
 
-  // 착용 (교체)
   newState.equipped[slot] = itemId;
-  // 스탯 재계산
   newState.stats = calculateStats(newState);
   return { newState, success: true, message: `[장착] ${item.name}` };
 };
 
-// [NEW] 12. 상점 아이템 구매
+// 12. 상점 구매
 export const applyBuyItem = (
   state: UserState,
   itemId: string
@@ -578,15 +560,12 @@ export const applyBuyItem = (
 
   const newState = JSON.parse(JSON.stringify(state)) as UserState;
 
-  // 가격 확인
   if (newState.salt < item.price) {
     return { newState: state, success: false, message: "Salt(소금)가 부족합니다." };
   }
 
-  // 구매 처리
   newState.salt -= item.price;
   
-  // 인벤토리 추가 (내부 헬퍼 대신 로직 직접 구현)
   if (!newState.inventory) newState.inventory = [];
   const invIndex = newState.inventory.findIndex(i => i.id === itemId);
   if (invIndex > -1) {
