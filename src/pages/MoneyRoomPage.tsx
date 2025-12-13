@@ -1,11 +1,9 @@
-// src/pages/MoneyRoomPage.tsx
-
 import React, { useState, useEffect, useMemo } from 'react';
 
 // Types
 import { 
   UserState, Scene, SubscriptionPlan, FieldObject, 
-  AssetBuildingsState, ShadowMonster, MonsterStat 
+  AssetBuildingsState, ShadowMonster, MonsterStat, LocationId 
 } from '../money/types';
 import { CLASS_TYPES } from '../money/constants';
 
@@ -18,7 +16,7 @@ import {
   getAssetBuildingsView,
   applyUseGardenItem,
   applyEquipItem,
-  applyBuyItem // [NEW] 상점 구매 로직 import
+  applyBuyItem
 } from '../money/moneyGameLogic';
 import { getKSTDateString, getMoneyWeather, getWeatherMeta } from '../money/moneyWeather';
 import { RewardItem } from '../money/rewardData';
@@ -35,6 +33,8 @@ import { InventoryView } from '../money/components/InventoryView';
 import { SettingsView } from '../money/components/SettingsView';
 import { ForgeView } from '../money/components/ForgeView';
 import { ShopView } from '../money/components/ShopView';
+import { CollectionView } from '../money/components/CollectionView'; // [NEW]
+import { MonthlyReportView } from '../money/components/MonthlyReportView'; // [NEW]
 
 // Modals
 import { WeatherOverlay } from '../money/components/WeatherOverlay';
@@ -45,7 +45,7 @@ import { OnboardingModal } from '../money/components/OnboardingModal';
 import DailyLogModal from '../money/components/DailyLogModal';
 import { SubscriptionModal } from '../money/components/SubscriptionModal';
 
-const STORAGE_KEY = 'money-room-save-v6-full';
+const STORAGE_KEY = 'money-room-save-v7-full';
 
 const INITIAL_ASSETS: AssetBuildingsState = {
   fence: 0, greenhouse: 0, mansion: 0, fountain: 0, barn: 0
@@ -79,7 +79,8 @@ const INITIAL_STATE: UserState = {
   subscriptions: [],
   unresolvedShadows: [], 
   npcAffection: { gardener: 0, angel: 0, demon: 0, curator: 0 },
-  stats: { attack: 1, defense: 10 }
+  stats: { attack: 1, defense: 10 },
+  currentLocation: 'VILLAGE_BASE' // [NEW] 초기 위치
 };
 
 const mergeUserState = (base: UserState, saved: Partial<UserState>): UserState => {
@@ -94,7 +95,8 @@ const mergeUserState = (base: UserState, saved: Partial<UserState>): UserState =
     unresolvedShadows: Array.isArray(saved.unresolvedShadows) ? saved.unresolvedShadows : base.unresolvedShadows,
     materials: { ...base.materials, ...(saved.materials || {}) },
     equipped: { ...base.equipped, ...(saved.equipped || {}) },
-    npcAffection: { ...base.npcAffection, ...(saved.npcAffection || {}) }
+    npcAffection: { ...base.npcAffection, ...(saved.npcAffection || {}) },
+    currentLocation: saved.currentLocation || base.currentLocation
   };
 };
 
@@ -254,7 +256,7 @@ const MoneyRoomPage: React.FC = () => {
     setGameState(newState);
   };
 
-  // --- Handlers ---
+  // --- Handlers for Items & Shop ---
 
   const handleUseGardenItem = (itemId: string) => {
     const result = applyUseGardenItem(gameState, itemId);
@@ -275,7 +277,6 @@ const MoneyRoomPage: React.FC = () => {
     }
   };
 
-  // [NEW] 상점 구매 핸들러
   const handleBuyItem = (itemId: string) => {
     const result = applyBuyItem(gameState, itemId);
     if (result.success) {
@@ -285,6 +286,14 @@ const MoneyRoomPage: React.FC = () => {
       alert(`🚫 ${result.message}`);
     }
   };
+
+  // [NEW] 월드맵 이동 핸들러
+  const handleLocationChange = (locId: LocationId) => {
+    setGameState(prev => ({ ...prev, currentLocation: locId }));
+    alert(`${locId}로 이동했습니다!`);
+  };
+
+  // --- Buttons ---
 
   const handleActionA = () => {
     if (scene === Scene.GARDEN) setScene(Scene.VILLAGE_MAP);
@@ -302,6 +311,9 @@ const MoneyRoomPage: React.FC = () => {
     else if (scene === Scene.LIBRARY || scene === Scene.FORGE || scene === Scene.SHOP) setScene(Scene.VILLAGE_MAP);
     else if (scene === Scene.VILLAGE_MAP) setScene(Scene.GARDEN);
     else if (scene === Scene.MY_ROOM || scene === Scene.INVENTORY || scene === Scene.SETTINGS) setScene(Scene.GARDEN);
+    // [NEW] 도감/리포트에서 뒤로가기
+    else if (scene === Scene.COLLECTION) setScene(Scene.GARDEN);
+    //else if (scene === Scene.MONTHLY_REPORT) setScene(Scene.LIBRARY);
   };
 
   const handleDayEnd = () => {
@@ -326,6 +338,7 @@ const MoneyRoomPage: React.FC = () => {
       lunaCycle: { ...prev.lunaCycle, startDate: data.luna.nextPeriodDate || todayStr },
       materials: {}, 
       equipped: { weapon: null, armor: null, accessory: null },
+      currentLocation: 'VILLAGE_BASE'
     }));
   };
   const handlePullSeed = () => { };
@@ -419,7 +432,14 @@ const MoneyRoomPage: React.FC = () => {
             />
           )}
 
-          {scene === Scene.WORLD_MAP && <WorldMapView onSelectDungeon={enterDungeon} onBack={() => setScene(Scene.VILLAGE_MAP)} />}
+          {scene === Scene.WORLD_MAP && (
+            <WorldMapView 
+                currentLocation={gameState.currentLocation}
+                onSelectLocation={handleLocationChange}
+                onSelectDungeon={enterDungeon} 
+                onBack={() => setScene(Scene.VILLAGE_MAP)} 
+            />
+          )}
           {scene === Scene.FIELD && (
             <FieldView 
               playerPos={playerPos} objects={fieldObjects} 
@@ -432,7 +452,7 @@ const MoneyRoomPage: React.FC = () => {
             <BattleView 
               monster={battleMonster}
               playerMp={gameState.mp}
-              playerStats={gameState.stats} // [NEW] 스탯 전달
+              playerStats={gameState.stats}
               onWin={handleBattleWin}
               onRun={handleBattleRun}
               onConsumeMp={handleConsumeMp}
@@ -448,6 +468,10 @@ const MoneyRoomPage: React.FC = () => {
             />
           )}
           {scene === Scene.SETTINGS && <SettingsView user={gameState} onSave={(u) => setGameState(p=>({...p, ...u}))} onBack={() => setScene(Scene.MY_ROOM)} />}
+          
+          {/* [NEW] 도감 & 리포트 뷰 연결 */}
+          {scene === Scene.COLLECTION && <CollectionView user={gameState} onBack={() => setScene(Scene.GARDEN)} />}
+          {/* 리포트는 보통 설정이나 도서관에서 진입하도록 버튼을 만들어야 합니다 (임시로 Scene만 정의) */}
           
           <KingdomModal open={scene === Scene.KINGDOM} onClose={() => setScene(Scene.GARDEN)} buildings={getAssetBuildingsView(gameState)} onManageSubs={() => {}} />
           <CollectionModal open={scene === Scene.COLLECTION} onClose={() => setScene(Scene.GARDEN)} collection={gameState.collection} />
