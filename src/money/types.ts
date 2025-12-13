@@ -210,3 +210,12 @@ export interface UserState {
     defense: number;
   };
 }
+
+// [NEW] 월드 로케이션 ID
+export type LocationId = 'VILLAGE_BASE' | 'CITY_CAPITAL' | 'FOREST_OUTLAW';
+
+export interface UserState {
+  // ... 기존 필드 유지
+  
+  // [NEW] 현재 위치 (마을)
+  currentLocation: LocationId;
