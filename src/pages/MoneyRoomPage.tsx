@@ -9,25 +9,11 @@ import {
 import { CLASS_TYPES } from '../money/constants';
 import { WORLD_LOCATIONS } from '../money/gameData';
 
-// MoneyRoomPage.tsx 상단
-import { StampRallyModal } from '../money/components/StampRallyModal';
-
-// 상태 추가
-const [showStamp, setShowStamp] = useState(false);
-
-// 렌더링 (MyRoomView나 GardenView 위에 모달 배치)
-<StampRallyModal 
-  open={showStamp} 
-  onClose={() => setShowStamp(false)} 
-  stamps={gameState.counters.noSpendStamps} 
-/>
-
-
 // Logic
 import {
   checkDailyReset,
-  applySpend, // (구) 지출 로직 - 호환성 위해 유지
-  applyTransaction, // [NEW] (신) 통합 거래 로직
+  applySpend,
+  applyTransaction, 
   applyDayEnd,
   applySubscriptionChargesIfDue,
   getAssetBuildingsView,
@@ -61,9 +47,10 @@ import { CollectionModal } from '../money/components/CollectionModal';
 import { OnboardingModal } from '../money/components/OnboardingModal';
 import DailyLogModal from '../money/components/DailyLogModal';
 import { SubscriptionModal } from '../money/components/SubscriptionModal';
+import { StampRallyModal } from '../money/components/StampRallyModal'; // [NEW] 추가
 
-// 저장소 키 버전 업 (구조가 바뀌었으므로)
-const STORAGE_KEY = 'money-room-save-v9-full';
+// [중요] 저장소 키 변경 (데이터 충돌 방지)
+const STORAGE_KEY = 'money-room-save-v10-fix';
 
 const INITIAL_ASSETS: AssetBuildingsState = {
   fence: 0, greenhouse: 0, mansion: 0, fountain: 0, barn: 0
@@ -82,10 +69,20 @@ const INITIAL_STATE: UserState = {
   seedPackets: 0,
   garden: { treeLevel: 0, pondLevel: 0, flowerState: 'normal', weedCount: 0, decorations: [] },
   status: { mode: 'NORMAL', darkLevel: 0 },
-  lunaCycle: { startDate: '', periodLength: 5, cycleLength: 28 },
+  
+  // [CRITICAL FIX] 루나 시스템 초기값 (v2 구조 준수)
+  lunaCycle: { 
+    history: [], // 빈 배열 필수! (이게 없어서 터짐)
+    avgCycleLength: 28,
+    avgPeriodLength: 5,
+    currentPhase: 'FOLLICULAR', 
+    nextPeriodDate: '',
+    dDay: 0
+  },
+
   inventory: [],
   collection: [],
-  pending: [], // Transaction[] 타입
+  pending: [], 
   materials: {}, 
   equipped: { weapon: null, armor: null, accessory: null },
   assets: INITIAL_ASSETS,
@@ -118,7 +115,13 @@ const mergeUserState = (base: UserState, saved: Partial<UserState>): UserState =
     npcAffection: { ...base.npcAffection, ...(saved.npcAffection || {}) },
     currentLocation: saved.currentLocation || base.currentLocation,
     unlockedLocations: Array.isArray(saved.unlockedLocations) ? saved.unlockedLocations : base.unlockedLocations,
-    gardenNutrients: { ...base.gardenNutrients, ...(saved.gardenNutrients || {}) }
+    gardenNutrients: { ...base.gardenNutrients, ...(saved.gardenNutrients || {}) },
+    // LunaCycle 병합 안전장치
+    lunaCycle: {
+        ...base.lunaCycle,
+        ...(saved.lunaCycle || {}),
+        history: saved.lunaCycle?.history || base.lunaCycle.history
+    }
   };
 };
 
@@ -143,6 +146,9 @@ const MoneyRoomPage: React.FC = () => {
   const [showDailyLog, setShowDailyLog] = useState(false);
   const [rewardOpen, setRewardOpen] = useState(false);
   const [lastReward, setLastReward] = useState<RewardItem | null>(null);
+  
+  // [NEW] 스탬프 랠리 모달 상태
+  const [showStamp, setShowStamp] = useState(false);
 
   // 자동 저장
   useEffect(() => {
@@ -181,7 +187,6 @@ const MoneyRoomPage: React.FC = () => {
       isCollected: false
     }));
 
-    // [탐험] 아직 해금하지 못한 지역이 있다면, 50% 확률로 이정표 생성
     const allLocs = Object.keys(WORLD_LOCATIONS) as LocationId[];
     const hasLocked = allLocs.some(loc => !gameState.unlockedLocations.includes(loc));
     
@@ -217,7 +222,6 @@ const MoneyRoomPage: React.FC = () => {
       if (nextY > 100) { nextY = 5; mapChanged = true; }
       if (mapChanged) regenerateFieldItems();
 
-      // 몬스터 조우
       const hitShadow = gameState.unresolvedShadows?.find(s => {
         const dist = Math.sqrt(Math.pow(s.x - nextX, 2) + Math.pow(s.y - nextY, 2));
         return dist < 8; 
@@ -237,7 +241,6 @@ const MoneyRoomPage: React.FC = () => {
         return prev;
       }
 
-      // 아이템 & 이정표 획득
       setFieldObjects(objs => objs.map(obj => {
         if (obj.isCollected) return obj;
         const dist = Math.sqrt(Math.pow(obj.x - nextX, 2) + Math.pow(obj.y - nextY, 2));
@@ -267,18 +270,17 @@ const MoneyRoomPage: React.FC = () => {
     });
   };
 
-  // --- Handlers (Transaction & Items) ---
+  // --- Handlers ---
 
-  // [NEW] 도서관의 마법진 입력 핸들러 (v4 로직 적용)
+  // [NEW] v4 통합 트랜잭션 핸들러
   const handleTransaction = (txData: any) => {
     const result = applyTransaction(gameState, txData);
     setGameState(result.newState);
     if (result.message) {
-      alert(result.message); // 결과 메시지 (나무 성장, 그림자 소환 등)
+      alert(result.message);
     }
   };
 
-  // 구형 단순 지출 핸들러 (하위 호환성/이벤트용)
   const handleRecordSpend = (amount: number, type: 'SPEND' | 'INSTALLMENT' | 'LOAN', description: string) => {
     let dungeonType = 'etc';
     if (type === 'INSTALLMENT') dungeonType = 'shopping'; 
@@ -287,7 +289,6 @@ const MoneyRoomPage: React.FC = () => {
 
     const { newState } = applySpend(gameState, amount, false, dungeonType);
     
-    // 강제 Transaction 변환 (타입 맞추기)
     const newShadow: ShadowMonster = {
       id: `shadow_${Date.now()}`,
       amount: amount,
@@ -403,7 +404,7 @@ const MoneyRoomPage: React.FC = () => {
       jobTitle: data.profile.classType,
       maxBudget: data.budget.total,
       currentBudget: data.budget.current,
-      lunaCycle: { ...prev.lunaCycle, startDate: data.luna.nextPeriodDate || todayStr },
+      lunaCycle: { ...prev.lunaCycle, history: [] },
       materials: {}, 
       equipped: { weapon: null, armor: null, accessory: null },
       currentLocation: 'VILLAGE_BASE',
@@ -426,7 +427,10 @@ const MoneyRoomPage: React.FC = () => {
             <span style={consoleStyles.levelBadge}>Lv.{gameState.level}</span>
             <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>{gameState.name}</span>
           </div>
-          <span>{weatherMeta.icon}</span>
+          {/* [NEW] 날씨 아이콘 클릭 시 스탬프 랠리 오픈 */}
+          <span onClick={() => setShowStamp(true)} style={{cursor: 'pointer'}} title="출석부 보기">
+            {weatherMeta.icon}
+          </span>
         </div>
         <div style={consoleStyles.hpBarFrame}>
           <div style={{
@@ -550,6 +554,13 @@ const MoneyRoomPage: React.FC = () => {
           <KingdomModal open={scene === Scene.KINGDOM} onClose={() => setScene(Scene.GARDEN)} buildings={getAssetBuildingsView(gameState)} onManageSubs={() => {}} />
           <CollectionModal open={scene === Scene.COLLECTION} onClose={() => setScene(Scene.GARDEN)} collection={gameState.collection} />
           <SubscriptionModal open={scene === Scene.SUBSCRIPTION} onClose={() => setScene(Scene.LIBRARY)} plans={gameState.subscriptions} onAdd={handleAddSub} onRemove={handleRemoveSub} />
+          
+          {/* [NEW] 스탬프 랠리 모달 */}
+          <StampRallyModal 
+            open={showStamp} 
+            onClose={() => setShowStamp(false)} 
+            stamps={gameState.counters.noSpendStamps} 
+          />
         </div>
       </div>
 
