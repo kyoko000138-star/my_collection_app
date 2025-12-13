@@ -98,18 +98,17 @@ export const RECIPE_DB: Record<string, CraftRecipe> = {
   }
 };
 
-// [NEW] 3. 도감 DB (모든 수집품 목록)
+// [NEW] 3. 도감 DB
 export const COLLECTION_DB = [
   { id: 'badge_no_spend_3', name: '작심삼일 극복', desc: '3일 연속 무지출 달성 기념 뱃지', type: 'BADGE' },
   { id: 'badge_rich', name: '백만장자의 꿈', desc: '자산 100만G 달성', type: 'BADGE' },
   { id: 'rare_shell', name: '무지개 조개껍질', desc: '바닷가에서 주운 희귀한 껍질', type: 'JUNK' },
   { id: 'old_coin', name: '고대 주화', desc: '알 수 없는 문자가 적힌 동전', type: 'JUNK' },
-  // ... (게임 내 등장하는 희귀 아이템들)
 ];
 
 // [NEW] 4. 월드맵 장소 DB
 export const WORLD_LOCATIONS: Record<string, { name: string; desc: string; cost: number }> = {
   'VILLAGE_BASE': { name: '시작의 마을', desc: '평화롭고 조용한 고향.', cost: 0 },
-  'CITY_CAPITAL': { name: '왕도 캐피탈', desc: '화려한 상점이 즐비한 대도시.', cost: 10 }, // 이동 시 Salt 소모 예시
+  'CITY_CAPITAL': { name: '왕도 캐피탈', desc: '화려한 상점이 즐비한 대도시.', cost: 10 }, 
   'FOREST_OUTLAW': { name: '무법자의 숲', desc: '위험하지만 희귀한 재료가 많습니다.', cost: 5 },
 };
