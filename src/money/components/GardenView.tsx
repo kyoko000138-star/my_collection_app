@@ -1,4 +1,3 @@
-// src/money/components/GardenView.tsx
 import React from 'react';
 import { UserState } from '../types';
 import { ASSET_OBJECTS } from '../gameData';
@@ -8,26 +7,18 @@ export const GardenView: React.FC<{ user: UserState, onChangeScene: any, onDayEn
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: '#202025' }}>
-      {/* 1. 배경 & 자산 건물 렌더링 */}
+      {/* 배경 & 자산 건물 */}
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-        {/* 울타리 */}
         {assets.fence > 0 && <div style={{position:'absolute', bottom:'15%', width:'100%', textAlign:'center', fontSize:'20px'}}>{Array(8).fill(ASSET_OBJECTS.fence).join(' ')}</div>}
-
-        {/* 주거지 (현금 자산 레벨에 따라 변경) */}
         <div style={{ position: 'absolute', top: '25%', right: '15%', fontSize: '50px', zIndex: 2 }}>
           {assets.castle > 0 ? ASSET_OBJECTS.castle :
            assets.mansion > 0 ? ASSET_OBJECTS.mansion : 
            assets.house > 0 ? ASSET_OBJECTS.house : ASSET_OBJECTS.hut}
         </div>
-        
-        {/* 분수 (투자) */}
         {assets.fountain > 0 && <div style={{ position: 'absolute', bottom: '30%', left: '15%', fontSize: '40px' }}>{ASSET_OBJECTS.fountain}</div>}
-        
-        {/* 동상 (업적) */}
-        {assets.statue > 0 && <div style={{ position: 'absolute', top: '20%', left: '10%', fontSize: '35px' }}>{ASSET_OBJECTS.statue}</div>}
       </div>
 
-      {/* 2. 꿈의 나무 & 안내 */}
+      {/* 꿈의 나무 */}
       <div style={{ position: 'absolute', bottom: '20%', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', zIndex: 10 }}>
         <div style={{ fontSize: '70px', filter: 'drop-shadow(0 4px 5px rgba(0,0,0,0.5))' }}>
           {garden.treeLevel === 0 ? '🌱' : garden.treeLevel < 3 ? '🌿' : '🌳'}
