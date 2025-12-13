@@ -1,3 +1,5 @@
+// src/pages/MoneyRoomPage.tsx (전체 업데이트)
+
 import React, { useState, useEffect, useMemo } from 'react';
 
 // Types
@@ -6,6 +8,7 @@ import {
   AssetBuildingsState, ShadowMonster, MonsterStat, LocationId 
 } from '../money/types';
 import { CLASS_TYPES } from '../money/constants';
+import { WORLD_LOCATIONS } from '../money/gameData'; // [NEW] Locations 정보 import
 
 // Logic
 import {
@@ -33,8 +36,8 @@ import { InventoryView } from '../money/components/InventoryView';
 import { SettingsView } from '../money/components/SettingsView';
 import { ForgeView } from '../money/components/ForgeView';
 import { ShopView } from '../money/components/ShopView';
-import { CollectionView } from '../money/components/CollectionView'; // [NEW]
-import { MonthlyReportView } from '../money/components/MonthlyReportView'; // [NEW]
+import { CollectionView } from '../money/components/CollectionView';
+import { MonthlyReportView } from '../money/components/MonthlyReportView';
 
 // Modals
 import { WeatherOverlay } from '../money/components/WeatherOverlay';
@@ -45,7 +48,7 @@ import { OnboardingModal } from '../money/components/OnboardingModal';
 import DailyLogModal from '../money/components/DailyLogModal';
 import { SubscriptionModal } from '../money/components/SubscriptionModal';
 
-const STORAGE_KEY = 'money-room-save-v7-full';
+const STORAGE_KEY = 'money-room-save-v8-full'; // 버전 업
 
 const INITIAL_ASSETS: AssetBuildingsState = {
   fence: 0, greenhouse: 0, mansion: 0, fountain: 0, barn: 0
@@ -80,7 +83,8 @@ const INITIAL_STATE: UserState = {
   unresolvedShadows: [], 
   npcAffection: { gardener: 0, angel: 0, demon: 0, curator: 0 },
   stats: { attack: 1, defense: 10 },
-  currentLocation: 'VILLAGE_BASE' // [NEW] 초기 위치
+  currentLocation: 'VILLAGE_BASE',
+  unlockedLocations: ['VILLAGE_BASE'] // [NEW] 처음엔 시작 마을만 해금
 };
 
 const mergeUserState = (base: UserState, saved: Partial<UserState>): UserState => {
@@ -96,7 +100,8 @@ const mergeUserState = (base: UserState, saved: Partial<UserState>): UserState =
     materials: { ...base.materials, ...(saved.materials || {}) },
     equipped: { ...base.equipped, ...(saved.equipped || {}) },
     npcAffection: { ...base.npcAffection, ...(saved.npcAffection || {}) },
-    currentLocation: saved.currentLocation || base.currentLocation
+    currentLocation: saved.currentLocation || base.currentLocation,
+    unlockedLocations: Array.isArray(saved.unlockedLocations) ? saved.unlockedLocations : base.unlockedLocations
   };
 };
 
@@ -146,6 +151,7 @@ const MoneyRoomPage: React.FC = () => {
     : 0;
   const isNewUser = gameState.maxBudget === 0;
 
+  // [NEW] 필드 아이템 재생성 (이정표 추가 로직)
   const regenerateFieldItems = () => {
     const newObjects: FieldObject[] = Array.from({ length: 5 }).map((_, i) => ({
       id: `obj_${Date.now()}_${i}`,
@@ -154,6 +160,21 @@ const MoneyRoomPage: React.FC = () => {
       type: Math.random() > 0.6 ? 'JUNK' : 'HERB',
       isCollected: false
     }));
+
+    // [핵심] 아직 해금하지 못한 지역이 있다면, 5% 확률로 이정표(SIGNPOST) 생성
+    const allLocs = Object.keys(WORLD_LOCATIONS) as LocationId[];
+    const hasLocked = allLocs.some(loc => !gameState.unlockedLocations.includes(loc));
+    
+    if (hasLocked && Math.random() < 0.05) {
+      newObjects.push({
+        id: `signpost_${Date.now()}`,
+        x: Math.floor(Math.random() * 60 + 20),
+        y: Math.floor(Math.random() * 60 + 20),
+        type: 'SIGNPOST',
+        isCollected: false
+      });
+    }
+
     setFieldObjects(newObjects);
   };
 
@@ -176,6 +197,7 @@ const MoneyRoomPage: React.FC = () => {
       if (nextY > 100) { nextY = 5; mapChanged = true; }
       if (mapChanged) regenerateFieldItems();
 
+      // [NEW] 몬스터 조우
       const hitShadow = gameState.unresolvedShadows?.find(s => {
         const dist = Math.sqrt(Math.pow(s.x - nextX, 2) + Math.pow(s.y - nextY, 2));
         return dist < 8; 
@@ -195,11 +217,33 @@ const MoneyRoomPage: React.FC = () => {
         return prev;
       }
 
+      // [NEW] 필드 오브젝트 상호작용 (아이템 & 이정표)
       setFieldObjects(objs => objs.map(obj => {
         if (obj.isCollected) return obj;
         const dist = Math.sqrt(Math.pow(obj.x - nextX, 2) + Math.pow(obj.y - nextY, 2));
+        
         if (dist < 8) {
-          setGameState(gs => ({ ...gs, junk: gs.junk + 1 }));
+          // 1. 이정표 발견 시
+          if (obj.type === 'SIGNPOST') {
+            const allLocs = Object.keys(WORLD_LOCATIONS) as LocationId[];
+            const locked = allLocs.filter(loc => !gameState.unlockedLocations.includes(loc));
+            
+            if (locked.length > 0) {
+              const newLoc = locked[0]; // 순서대로 해금 (또는 랜덤)
+              setGameState(gs => ({
+                ...gs,
+                unlockedLocations: [...gs.unlockedLocations, newLoc]
+              }));
+              alert(`🗺️ 낡은 이정표를 발견했습니다!\n[${WORLD_LOCATIONS[newLoc].name}] 위치가 지도에 기록되었습니다.`);
+            } else {
+              alert("🗺️ 이미 모든 지역을 발견했습니다.");
+            }
+          } 
+          // 2. 일반 아이템 획득
+          else {
+            setGameState(gs => ({ ...gs, junk: gs.junk + 1 }));
+          }
+          
           return { ...obj, isCollected: true };
         }
         return obj;
@@ -256,8 +300,6 @@ const MoneyRoomPage: React.FC = () => {
     setGameState(newState);
   };
 
-  // --- Handlers for Items & Shop ---
-
   const handleUseGardenItem = (itemId: string) => {
     const result = applyUseGardenItem(gameState, itemId);
     if (result.success) {
@@ -287,13 +329,10 @@ const MoneyRoomPage: React.FC = () => {
     }
   };
 
-  // [NEW] 월드맵 이동 핸들러
   const handleLocationChange = (locId: LocationId) => {
     setGameState(prev => ({ ...prev, currentLocation: locId }));
-    alert(`${locId}로 이동했습니다!`);
+    alert(`${WORLD_LOCATIONS[locId].name}로 이동했습니다!`);
   };
-
-  // --- Buttons ---
 
   const handleActionA = () => {
     if (scene === Scene.GARDEN) setScene(Scene.VILLAGE_MAP);
@@ -311,9 +350,7 @@ const MoneyRoomPage: React.FC = () => {
     else if (scene === Scene.LIBRARY || scene === Scene.FORGE || scene === Scene.SHOP) setScene(Scene.VILLAGE_MAP);
     else if (scene === Scene.VILLAGE_MAP) setScene(Scene.GARDEN);
     else if (scene === Scene.MY_ROOM || scene === Scene.INVENTORY || scene === Scene.SETTINGS) setScene(Scene.GARDEN);
-    // [NEW] 도감/리포트에서 뒤로가기
     else if (scene === Scene.COLLECTION) setScene(Scene.GARDEN);
-    //else if (scene === Scene.MONTHLY_REPORT) setScene(Scene.LIBRARY);
   };
 
   const handleDayEnd = () => {
@@ -338,7 +375,8 @@ const MoneyRoomPage: React.FC = () => {
       lunaCycle: { ...prev.lunaCycle, startDate: data.luna.nextPeriodDate || todayStr },
       materials: {}, 
       equipped: { weapon: null, armor: null, accessory: null },
-      currentLocation: 'VILLAGE_BASE'
+      currentLocation: 'VILLAGE_BASE',
+      unlockedLocations: ['VILLAGE_BASE']
     }));
   };
   const handlePullSeed = () => { };
@@ -435,6 +473,7 @@ const MoneyRoomPage: React.FC = () => {
           {scene === Scene.WORLD_MAP && (
             <WorldMapView 
                 currentLocation={gameState.currentLocation}
+                unlockedLocations={gameState.unlockedLocations} // [NEW] 해금 정보 전달
                 onSelectLocation={handleLocationChange}
                 onSelectDungeon={enterDungeon} 
                 onBack={() => setScene(Scene.VILLAGE_MAP)} 
@@ -469,9 +508,7 @@ const MoneyRoomPage: React.FC = () => {
           )}
           {scene === Scene.SETTINGS && <SettingsView user={gameState} onSave={(u) => setGameState(p=>({...p, ...u}))} onBack={() => setScene(Scene.MY_ROOM)} />}
           
-          {/* [NEW] 도감 & 리포트 뷰 연결 */}
           {scene === Scene.COLLECTION && <CollectionView user={gameState} onBack={() => setScene(Scene.GARDEN)} />}
-          {/* 리포트는 보통 설정이나 도서관에서 진입하도록 버튼을 만들어야 합니다 (임시로 Scene만 정의) */}
           
           <KingdomModal open={scene === Scene.KINGDOM} onClose={() => setScene(Scene.GARDEN)} buildings={getAssetBuildingsView(gameState)} onManageSubs={() => {}} />
           <CollectionModal open={scene === Scene.COLLECTION} onClose={() => setScene(Scene.GARDEN)} collection={gameState.collection} />
