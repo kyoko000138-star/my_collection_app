@@ -199,3 +199,42 @@ export interface UserState {
 
   lastLoginDate?: string;
 }
+// [NEW] 아이템 효과 타입 정의
+export type ItemEffectType = 
+  | 'MP_RESTORE'      // MP 회복
+  | 'MP_COST_DOWN'    // MP 소모 감소
+  | 'SALT_BOOST'      // Salt 획득량 증가
+  | 'JUNK_CLEAN'      // Junk 정화/제거
+  | 'GROWTH_BOOST'    // 정원 성장 속도 증가
+  | 'NPC_LOVE'        // NPC 호감도 상승
+  | 'NONE';
+
+// [NEW] 확장된 아이템 인터페이스
+export interface ItemData {
+  id: string;
+  name: string;
+  type: 'consumable' | 'equipment' | 'material' | 'junk' | 'decor';
+  desc: string;
+  effectType?: ItemEffectType;
+  effectValue?: number; // 예: 10 (10% 증가 or 10 회복)
+  price?: number;       // 상점 판매가 (Salt)
+}
+
+// [NEW] 제작 레시피 인터페이스
+export interface CraftRecipe {
+  id: string;
+  name: string;         // 표시 이름
+  resultItemId: string; // 결과 아이템 ID
+  resultCount: number;
+  
+  // 비용
+  junkCost: number;
+  saltCost: number;
+  mpCost: number;
+  essenceCost: number;  // PURE_ESSENCE 소모량
+  
+  // 추가 재료 (선택)
+  materials?: Record<string, number>; 
+  
+  category: 'BASIC' | 'EQUIPMENT' | 'CONSUMABLE' | 'DECOR';
+}
