@@ -1,90 +1,69 @@
+// src/money/components/WorldMapView.tsx
+
 import React from 'react';
+import { WORLD_LOCATIONS } from '../gameData';
+import { LocationId } from '../types';
 
 interface Props {
-  onSelectDungeon: (id: string) => void;
+  currentLocation: LocationId;
+  onSelectLocation: (locId: LocationId) => void;
+  onSelectDungeon: (dungeonId: string) => void;
   onBack: () => void;
 }
 
-const DUNGEONS = [
-  { id: 'food', name: '배달의 숲', icon: '🌲', x: 20, y: 30, color: '#22c55e' },
-  { id: 'transport', name: '택시 사막', icon: '🏜️', x: 70, y: 25, color: '#eab308' },
-  { id: 'shopping', name: '지름 시장', icon: '🎪', x: 25, y: 65, color: '#ec4899' },
-  { id: 'etc', name: '기타 던전', icon: '🕳️', x: 75, y: 70, color: '#6366f1' },
-];
-
-export const WorldMapView: React.FC<Props> = ({ onSelectDungeon, onBack }) => {
+export const WorldMapView: React.FC<Props> = ({ currentLocation, onSelectLocation, onSelectDungeon, onBack }) => {
   return (
     <div style={styles.container}>
-      <h2 style={styles.title}>🗺️ 월드맵 (던전 선택)</h2>
+      <h2 style={styles.title}>🗺️ 월드맵</h2>
       
-      <div style={styles.mapFrame}>
-        {/* 배경 지도 */}
-        <div style={styles.bgMap} />
-        
-        {/* 길 연결선 (SVG) */}
-        <svg style={styles.paths}>
-          {DUNGEONS.map(d => (
-            <line key={d.id} x1="50%" y1="50%" x2={`${d.x}%`} y2={`${d.y}%`} stroke="#a8a29e" strokeWidth="2" strokeDasharray="4" />
-          ))}
-        </svg>
+      <div style={styles.mapArea}>
+        {/* --- 마을 이동 노드 --- */}
+        {Object.entries(WORLD_LOCATIONS).map(([key, data], idx) => {
+          const isCurrent = key === currentLocation;
+          return (
+            <div 
+              key={key} 
+              style={{
+                ...styles.node, 
+                top: `${20 + idx * 25}%`, 
+                left: idx % 2 === 0 ? '20%' : '60%',
+                backgroundColor: isCurrent ? '#10b981' : '#6366f1'
+              }}
+              onClick={() => onSelectLocation(key as LocationId)}
+            >
+              <div style={styles.nodeIcon}>{isCurrent ? '🚩' : '🏘️'}</div>
+              <div style={styles.nodeLabel}>{data.name}</div>
+              {isCurrent && <div style={styles.currentTag}>현재 위치</div>}
+            </div>
+          );
+        })}
 
-        {/* 던전 노드 */}
-        {DUNGEONS.map(d => (
-          <div 
-            key={d.id}
-            onClick={() => onSelectDungeon(d.id)}
-            style={{ ...styles.node, left: `${d.x}%`, top: `${d.y}%`, borderColor: d.color }}
-          >
-            <span style={{fontSize:'24px'}}>{d.icon}</span>
-            <span style={styles.label}>{d.name}</span>
-          </div>
-        ))}
-
-        {/* 플레이어 (중앙) */}
-        <div style={styles.player}>
-          <div style={{fontSize:'30px'}}>🏰</div>
-          <div style={styles.centerLabel}>마을</div>
-        </div>
+        {/* --- 던전 (기존 기능) --- */}
+        <button style={styles.dungeonBtn} onClick={() => onSelectDungeon('etc')}>
+          💀 미지의 던전 (탐험)
+        </button>
       </div>
 
-      <button onClick={onBack} style={styles.backBtn}>↩️ 마을로 돌아가기</button>
+      <div style={styles.footer}>
+        <button onClick={onBack} style={styles.backBtn}>마을로 돌아가기</button>
+      </div>
     </div>
   );
 };
 
 const styles: Record<string, React.CSSProperties> = {
-  container: {
-    width: '100%', height: '100%', backgroundColor: '#292524',
-    display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px', boxSizing: 'border-box'
-  },
-  title: { color: '#fff', fontSize: '16px', marginBottom: '10px' },
-  mapFrame: {
-    flex: 1, width: '100%', position: 'relative',
-    backgroundColor: '#44403c', borderRadius: '12px', border: '4px solid #78716c',
-    overflow: 'hidden'
-  },
-  bgMap: { position: 'absolute', inset: 0, opacity: 0.2, backgroundImage: 'linear-gradient(#000 2px, transparent 2px), linear-gradient(90deg, #000 2px, transparent 2px)', backgroundSize: '40px 40px' },
-  paths: { position: 'absolute', inset: 0, width: '100%', height: '100%' },
+  container: { width: '100%', height: '100%', backgroundColor: '#0f172a', display: 'flex', flexDirection: 'column', color: '#fff' },
+  title: { textAlign: 'center', padding: '20px', borderBottom: '2px solid #334155', margin: 0 },
   
-  node: {
-    position: 'absolute', width: '70px', height: '70px', borderRadius: '50%',
-    backgroundColor: '#1c1917', border: '3px solid',
-    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    cursor: 'pointer', transform: 'translate(-50%, -50%)',
-    boxShadow: '0 4px 0 rgba(0,0,0,0.5)', transition: 'transform 0.1s', zIndex: 10
-  },
-  label: {
-    fontSize: '10px', color: '#fff', marginTop: '2px', whiteSpace: 'nowrap',
-    textShadow: '1px 1px 0 #000', backgroundColor: 'rgba(0,0,0,0.7)', padding: '2px 4px', borderRadius: 4
-  },
-  player: {
-    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-    display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 20
-  },
-  centerLabel: { fontSize: '10px', color: '#fbbf24', fontWeight: 'bold', textShadow: '1px 1px 0 #000' },
+  mapArea: { flex: 1, position: 'relative', backgroundImage: 'radial-gradient(#1e293b 10%, #0f172a 90%)' },
   
-  backBtn: {
-    marginTop: '10px', padding: '12px 20px', backgroundColor: '#57534e',
-    color: '#fff', border: '2px solid #a8a29e', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
-  }
+  node: { position: 'absolute', width: '80px', padding: '10px', borderRadius: '8px', cursor: 'pointer', textAlign: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.5)', border: '2px solid #fff', transition: 'transform 0.2s' },
+  nodeIcon: { fontSize: '24px', marginBottom: '5px' },
+  nodeLabel: { fontSize: '12px', fontWeight: 'bold', textShadow: '1px 1px 0 #000' },
+  currentTag: { position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#fbbf24', color: '#000', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap', fontWeight: 'bold' },
+
+  dungeonBtn: { position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', padding: '12px 30px', backgroundColor: '#ef4444', color: '#fff', border: '2px solid #fff', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 0 15px #ef4444' },
+
+  footer: { padding: '20px', borderTop: '2px solid #334155' },
+  backBtn: { width: '100%', padding: '12px', backgroundColor: '#334155', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }
 };
