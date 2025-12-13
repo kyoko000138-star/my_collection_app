@@ -80,15 +80,9 @@ export const calculateStats = (state: UserState) => {
       const item = ITEM_DB[itemId];
       if (!item) return;
 
-      if (item.equipSlot === 'weapon' && item.effectValue) {
-         attack += item.effectValue; 
-      }
-      if (item.equipSlot === 'armor' && item.effectValue) {
-         defense += item.effectValue;
-      }
-      if (item.equipSlot === 'accessory' && item.effectValue) {
-         defense += item.effectValue;
-      }
+      if (item.equipSlot === 'weapon' && item.effectValue) attack += item.effectValue; 
+      if (item.equipSlot === 'armor' && item.effectValue) defense += item.effectValue;
+      if (item.equipSlot === 'accessory' && item.effectValue) defense += item.effectValue;
     });
   }
 
@@ -102,25 +96,16 @@ export const checkDailyReset = (state: UserState): { newState: UserState, resetO
   const today = getTodayString();
   if (state.counters.lastDailyResetDate === today) return { newState: state, resetOccurred: false };
 
-  // Luna System v2 적용
   const updatedLuna = updateLunaCycle(state.lunaCycle);
   const phase = updatedLuna.currentPhase;
 
-  // 페이즈별 MP 회복량 보정
-  let recovery = GAME_CONSTANTS.MP_RECOVERY_ACCESS; // 기본 10
-  
-  const druidBonus = getDruidRecoveryBonus(
-    state,
-    phase === 'MENSTRUAL'
-  );
+  let recovery = GAME_CONSTANTS.MP_RECOVERY_ACCESS; 
+  const druidBonus = getDruidRecoveryBonus(state, phase === 'MENSTRUAL');
 
   if (phase === 'MENSTRUAL') recovery -= 5;
   if (phase === 'FOLLICULAR') recovery += 5;
 
-  const newMp = Math.min(
-    state.maxMp,
-    state.mp + recovery + druidBonus,
-  );
+  const newMp = Math.min(state.maxMp, state.mp + recovery + druidBonus);
 
   const nextState = {
     ...state,
@@ -141,7 +126,6 @@ export const checkDailyReset = (state: UserState): { newState: UserState, resetO
 };
 
 // [NEW] 지출 기록 -> 그림자 생성 (전투 분리 핵심)
-// 기존 applyTransaction 로직을 확장하여 그림자를 생성합니다.
 export const applyRecordSpend = (
   state: UserState, 
   amount: number, 
@@ -151,11 +135,11 @@ export const applyRecordSpend = (
   
   const newState = JSON.parse(JSON.stringify(state)) as UserState;
 
-  // 1. 예산 차감 (현실)
+  // 1. 예산 차감
   newState.currentBudget -= amount;
   const isDark = newState.currentBudget <= 0;
 
-  // 2. 그림자 생성 (판타지)
+  // 2. 그림자 생성
   const newShadow: ShadowMonster = {
     id: `shadow_${Date.now()}`,
     amount, 
@@ -169,7 +153,7 @@ export const applyRecordSpend = (
   newState.unresolvedShadows.push(newShadow);
 
   // 3. 거래 내역 생성
-  const newTx: PendingTransaction = {
+  const newTx: Transaction = {
     id: `tx_${Date.now()}`,
     amount,
     note: desc,
@@ -185,7 +169,6 @@ export const applyRecordSpend = (
   newState.counters.dailyTotalSpend += amount;
   newState.counters.hadSpendingToday = true;
 
-  // 4. 예산 초과(흑화) 체크 메시지
   let message = `[기록] ${amount.toLocaleString()}원 지출.\n필드에 '지출의 그림자'가 생성되었습니다.`;
   if (isDark && newState.garden.flowerState !== 'withered') {
     newState.garden.flowerState = 'withered';
@@ -195,12 +178,11 @@ export const applyRecordSpend = (
   return { newState, message };
 };
 
-// [EXISTING] applyTransaction (v4 통합 처리) - 호환성 유지
+// [EXISTING] applyTransaction (v4 통합 처리)
 export const applyTransaction = (
   state: UserState,
   txData: Omit<Transaction, 'id' | 'createdAt'>
 ): { newState: UserState; message: string } => {
-  // 저축인 경우 기존 로직 사용, 지출인 경우 applyRecordSpend 사용
   const catStr = txData.category as string;
   const isSave = catStr.startsWith('save.') || catStr.startsWith('invest.');
 
@@ -227,7 +209,6 @@ export const applyTransaction = (
       message = `🔗 족쇄를 끊어냈습니다! 정원의 잡초가 ${removedWeeds}개 사라집니다.`;
     }
     
-    // 거래 내역 추가
     const newTx: Transaction = { ...txData, id: `tx_${Date.now()}`, createdAt: new Date().toISOString() };
     newState.pending = [newTx, ...newState.pending];
     
@@ -237,14 +218,14 @@ export const applyTransaction = (
   }
 };
 
-// [Legacy] applySpend 호환성 유지
+// [Legacy] applySpend
 export const applySpend = (
   state: UserState, amount: number, isFixedCost: boolean, categoryId: string = 'etc'
 ): { newState: UserState; message: string } => {
   return applyRecordSpend(state, amount, categoryId, isFixedCost ? '고정비' : '지출');
 };
 
-// 3. 방어 (기존 유지)
+// 3. 방어
 export const applyDefense = (state: UserState): UserState => {
   if (state.counters.defenseActionsToday >= GAME_CONSTANTS.DAILY_DEFENSE_LIMIT) return state;
 
@@ -257,17 +238,16 @@ export const applyDefense = (state: UserState): UserState => {
       cumulativeDefense: (state.counters.cumulativeDefense || 0) + 1, 
     },
   };
-  
   newState.assets.fence += 1;
 
   if (newState.garden && Math.random() < 0.3) {
-    const itemId = Math.random() < 0.5 ? 'hoe' : 'potion_mp_s'; // 아이템 ID 수정
+    const itemId = Math.random() < 0.5 ? 'hoe' : 'potion_mp_s';
     addInventoryItem(newState, itemId, 1);
   }
   return newState;
 };
 
-// 4. 하루 마감 (기존 유지)
+// 4. 하루 마감
 export const applyDayEnd = (state: UserState): { newState: UserState; message: string } => {
   const today = getTodayString();
   const newState = JSON.parse(JSON.stringify(state)) as UserState;
@@ -305,10 +285,8 @@ export const applyDayEnd = (state: UserState): { newState: UserState; message: s
   return { newState, message: logs.join('\n') };
 };
 
-// [FIX] 5. 정화 (Junk -> Essence) - ForgeView에서 호출하는 함수 이름 수정
-// 기존: applyPurify -> 수정: applyPurifyJunk
+// [FIX] 5. 정화 (Junk -> Essence) - 이름 복원: applyPurifyJunk
 export const applyPurifyJunk = (state: UserState): { newState: UserState; success: boolean; message: string } => {
-    // 레시피 기반이 아니라 단순 정화라면 (ForgeView에서 호출됨)
     if (state.junk < 5 || state.salt < 1 || state.mp < 3) {
         return { newState: state, success: false, message: "재료(Junk 5, Salt 1) 또는 MP(3)가 부족합니다." };
     }
@@ -329,9 +307,8 @@ export const applyPurifyJunk = (state: UserState): { newState: UserState; succes
     return { newState: nextState, success: true, message: `Junk를 정화하여 정수를 얻었습니다.` };
 };
 
-// 6. 제작 (기존 유지)
+// 6. 제작
 export const applyCraftEquipment = (state: UserState, recipeId?: string): { newState: UserState; success: boolean; message: string } => {
-    // recipeId가 없으면 기본 제작
     const recipe = RECIPE_DB[recipeId || 'CRAFT_WATER_CAN']; 
     if (!recipe) return { newState: state, success: false, message: "레시피 오류" };
 
@@ -345,7 +322,6 @@ export const applyCraftEquipment = (state: UserState, recipeId?: string): { newS
     if (nextState.junk < recipe.junkCost) return { newState: state, success: false, message: "Junk 부족" };
     if (nextState.salt < recipe.saltCost) return { newState: state, success: false, message: "Salt 부족" };
 
-    // 재료 소모
     nextState.materials['PURE_ESSENCE'] -= recipe.essenceCost;
     nextState.mp -= recipe.mpCost;
     nextState.junk -= recipe.junkCost;
@@ -358,7 +334,7 @@ export const applyCraftEquipment = (state: UserState, recipeId?: string): { newS
     return { newState: nextState, success: true, message: `⚒️ ${itemName} 제작 완료!` };
 };
 
-// 7. 자산 뷰 (기존 유지)
+// 7. 자산 뷰
 export const getAssetBuildingsView = (state: UserState): AssetBuildingView[] => {
   const calc = (cnt: number) => {
     if (cnt >= 100) return { level: 4, nextTarget: null };
@@ -387,7 +363,7 @@ export const getDailyMonster = (pending: any[]) => {
   return monsterType;
 };
 
-// 9. 구독료 (기존 유지)
+// 9. 구독료
 export const applySubscriptionChargesIfDue = (
   input: { newState: UserState; resetOccurred: boolean }
 ): { newState: UserState, logs: string[] } => {
@@ -403,7 +379,6 @@ export const applySubscriptionChargesIfDue = (
         if (sub.billingDay === todayDate) {
             const lastCharged = sub.lastChargedDate ? sub.lastChargedDate.split('T')[0] : '';
             if (lastCharged !== today) {
-                // 구독료 지출 기록 -> 그림자 생성
                 const res = applyRecordSpend(state, sub.amount, sub.categoryId || 'fixed', `[고정비] ${sub.name}`);
                 state = res.newState;
                 logs.push(`${sub.name}: ${sub.amount.toLocaleString()} G`);
@@ -415,7 +390,7 @@ export const applySubscriptionChargesIfDue = (
     return { newState: state, logs };
 };
 
-// 10. 정원 아이템 사용 (기존 유지)
+// 10. 아이템 사용
 export const applyUseGardenItem = (state: UserState, itemId: string): { newState: UserState; success: boolean; message: string } => {
   const newState = JSON.parse(JSON.stringify(state)) as UserState;
   const invIndex = newState.inventory.findIndex(i => i.id === itemId);
@@ -460,7 +435,6 @@ export const applyUseGardenItem = (state: UserState, itemId: string): { newState
       isUsed = true;
       break;
     default:
-      // 기타 아이템 효과 처리
       return { newState: state, success: false, message: "사용 효과가 없는 아이템입니다." };
   }
 
@@ -473,7 +447,7 @@ export const applyUseGardenItem = (state: UserState, itemId: string): { newState
   return { newState, success: true, message: effectMsg };
 };
 
-// 11. 아이템 착용/해제 (기존 유지)
+// 11. 아이템 착용
 export const applyEquipItem = (state: UserState, itemId: string): { newState: UserState; success: boolean; message: string } => {
   const item = ITEM_DB[itemId];
   if (!item || item.type !== 'equipment' || !item.equipSlot) {
@@ -500,7 +474,7 @@ export const applyEquipItem = (state: UserState, itemId: string): { newState: Us
   return { newState, success: true, message: `[장착] ${item.name}` };
 };
 
-// 12. 상점 구매 (기존 유지)
+// 12. 상점 구매
 export const applyBuyItem = (
   state: UserState,
   itemId: string
