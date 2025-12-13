@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+// src/pages/MoneyRoomPage.tsx
 
-// ---------------------------------------------------------
-// 1. Imports
-// ---------------------------------------------------------
-// Types
+import React, { useState, useEffect, useMemo } from 'react';
+import { MoneySummaryView } from '../money/components/MoneySummaryView';
+
+// Types & Logic
 import { 
   UserState, Scene, SubscriptionPlan, FieldObject, 
   AssetBuildingsState, ShadowMonster, MonsterStat 
@@ -16,11 +16,9 @@ import {
   applySpend,
   applyDefense,
   applyDayEnd,
-  applyPurify,
-  applyCraftEquipment,
+  applySubscriptionChargesIfDue,
   getAssetBuildingsView,
   getDailyMonster,
-  applySubscriptionChargesIfDue,
 } from '../money/moneyGameLogic';
 import { getKSTDateString, getMoneyWeather, getWeatherMeta } from '../money/moneyWeather';
 import { pullGacha, RewardItem, DECOR_EMOJI } from '../money/rewardData';
@@ -41,7 +39,7 @@ import { ShopView } from '../money/components/ShopView';
 // Modals (Overlays)
 import { WeatherOverlay } from '../money/components/WeatherOverlay';
 import { RewardModal } from '../money/components/RewardModal';
-import { KingdomModal } from '../money/components/KingdomModal'; // 자산 현황
+import { KingdomModal } from '../money/components/KingdomModal'; 
 import { CollectionModal } from '../money/components/CollectionModal';
 import { OnboardingModal } from '../money/components/OnboardingModal';
 import DailyLogModal from '../money/components/DailyLogModal';
@@ -73,14 +71,18 @@ const INITIAL_STATE: UserState = {
   inventory: [],
   collection: [],
   pending: [],
-  materials: {},
+  // [핵심] materials 초기화 보장
+  materials: {}, 
   assets: INITIAL_ASSETS,
   counters: {
     defenseActionsToday: 0, junkObtainedToday: 0, noSpendStreak: 0, dailyTotalSpend: 0,
     guardPromptShownToday: false, hadSpendingToday: false, lastDailyResetDate: '', lastDayEndDate: '',
+    cumulativeDefense: 0, noSpendStamps: {} 
   },
   subscriptions: [],
-  unresolvedShadows: [], // [NEW] 그림자 스택
+  unresolvedShadows: [], 
+  npcAffection: { gardener: 0, angel: 0, demon: 0, curator: 0 },
+  stats: { attack: 1, defense: 10 }
 };
 
 // 데이터 마이그레이션 및 병합 헬퍼
@@ -94,6 +96,9 @@ const mergeUserState = (base: UserState, saved: Partial<UserState>): UserState =
     inventory: Array.isArray(saved.inventory) ? saved.inventory : base.inventory,
     subscriptions: Array.isArray(saved.subscriptions) ? saved.subscriptions : base.subscriptions,
     unresolvedShadows: Array.isArray(saved.unresolvedShadows) ? saved.unresolvedShadows : base.unresolvedShadows,
+    // [핵심] materials 병합 시에도 안전장치
+    materials: { ...base.materials, ...(saved.materials || {}) },
+    npcAffection: { ...base.npcAffection, ...(saved.npcAffection || {}) }
   };
 };
 
@@ -119,7 +124,7 @@ const MoneyRoomPage: React.FC = () => {
   // 탐험 & 전투 관련 State
   const [playerPos, setPlayerPos] = useState({ x: 50, y: 50 });
   const [fieldObjects, setFieldObjects] = useState<FieldObject[]>([]);
-  const [targetShadowId, setTargetShadowId] = useState<string | null>(null); // 현재 전투 중인 그림자 ID
+  const [targetShadowId, setTargetShadowId] = useState<string | null>(null); 
 
   // Modals
   const [showDailyLog, setShowDailyLog] = useState(false);
@@ -132,17 +137,12 @@ const MoneyRoomPage: React.FC = () => {
   }, [gameState]);
 
   useEffect(() => {
-    // 초기화: 일일 리셋 & 구독료 청구
     setGameState((prev) => {
       const merged = mergeUserState(INITIAL_STATE, prev);
       const reset = checkDailyReset(merged);
       const sub = applySubscriptionChargesIfDue(reset);
       
-      // 구독료가 청구되었다면 그림자 생성
       if (sub.logs.length > 0) {
-        // (간단히 처리) 로그가 있으면 그림자 추가 로직을 별도로 수행하거나, 
-        // applySubscriptionChargesIfDue 내부에서 그림자까지 생성하도록 리팩토링 가능.
-        // 여기서는 알림만 띄움.
         alert(`[자동 청구]\n${sub.logs.join('\n')}`);
       }
       return sub.newState;
@@ -174,7 +174,6 @@ const MoneyRoomPage: React.FC = () => {
     setFieldObjects(newObjects);
   };
 
-  // 던전 입장
   const enterDungeon = (dungeonId: string) => {
     setActiveDungeon(dungeonId);
     regenerateFieldItems();
@@ -182,7 +181,6 @@ const MoneyRoomPage: React.FC = () => {
     setScene(Scene.FIELD);
   };
 
-  // [중요] D-Pad 이동 핸들러
   const handleMove = (dx: number, dy: number) => {
     if (scene !== Scene.FIELD) return;
 
@@ -190,7 +188,6 @@ const MoneyRoomPage: React.FC = () => {
       let nextX = prev.x + dx;
       let nextY = prev.y + dy;
       
-      // 1. 무한 맵 (화면 끝 도달 시 반대편 이동 + 아이템 리젠)
       let mapChanged = false;
       if (nextX < 0) { nextX = 95; mapChanged = true; }
       if (nextX > 100) { nextX = 5; mapChanged = true; }
@@ -199,36 +196,31 @@ const MoneyRoomPage: React.FC = () => {
 
       if (mapChanged) {
         regenerateFieldItems();
-        // 맵 이동 시 랜덤 인카운터 확률 초기화 혹은 증가 로직 가능
       }
 
-      // 2. 그림자(지출 업보) 충돌 체크
       const hitShadow = gameState.unresolvedShadows?.find(s => {
         const dist = Math.sqrt(Math.pow(s.x - nextX, 2) + Math.pow(s.y - nextY, 2));
-        return dist < 8; // 충돌 범위
+        return dist < 8; 
       });
 
       if (hitShadow) {
         alert("👻 그림자가 실체화되어 덤벼듭니다! (지출 기록 확인)");
         setActiveDungeon(hitShadow.category);
-        setTargetShadowId(hitShadow.id); // 타겟 설정
+        setTargetShadowId(hitShadow.id); 
         setScene(Scene.BATTLE);
-        return prev; // 이동 취소하고 전투 진입
+        return prev; 
       }
 
-      // 3. 랜덤 인카운터 (10% 확률) - 일반 몬스터
       if (!mapChanged && Math.random() < 0.1) {
-        setTargetShadowId(null); // 타겟 없음 (일반 몹)
+        setTargetShadowId(null); 
         setScene(Scene.BATTLE);
         return prev;
       }
 
-      // 4. 아이템 습득
       setFieldObjects(objs => objs.map(obj => {
         if (obj.isCollected) return obj;
         const dist = Math.sqrt(Math.pow(obj.x - nextX, 2) + Math.pow(obj.y - nextY, 2));
         if (dist < 8) {
-          // Junk 획득 처리
           setGameState(gs => ({ ...gs, junk: gs.junk + 1 }));
           return { ...obj, isCollected: true };
         }
@@ -239,16 +231,19 @@ const MoneyRoomPage: React.FC = () => {
     });
   };
 
-  // [중요] 도서관 지출 기록 -> 그림자 생성
-  const handleRecordSpend = (amount: number, category: string) => {
-    // 1. 실제 예산 차감
-    const { newState, message } = applySpend(gameState, amount, false, category);
+  // [수정] 도서관 지출 기록 -> 그림자 생성 (타입 전달)
+  const handleRecordSpend = (amount: number, type: 'SPEND' | 'INSTALLMENT' | 'LOAN', description: string) => {
+    let dungeonType = 'etc';
+    if (type === 'INSTALLMENT') dungeonType = 'shopping'; 
+    else if (type === 'LOAN') dungeonType = 'transport'; 
+    else if (type === 'SPEND' && description.includes('식비')) dungeonType = 'food';
+
+    const { newState } = applySpend(gameState, amount, false, dungeonType);
     
-    // 2. 그림자 몬스터 생성 (필드에 배치)
     const newShadow: ShadowMonster = {
       id: `shadow_${Date.now()}`,
       amount: amount,
-      category: category, // '식비', '교통' 등
+      category: dungeonType,
       createdAt: new Date().toISOString(),
       x: Math.floor(Math.random() * 80 + 10),
       y: Math.floor(Math.random() * 80 + 10),
@@ -258,16 +253,14 @@ const MoneyRoomPage: React.FC = () => {
       ...newState,
       unresolvedShadows: [...(newState.unresolvedShadows || []), newShadow]
     });
-
-    // 알림은 LibraryView 내부 이펙트가 대신하므로 생략 가능하나, 확인차 alert
-    // alert("기록 완료. 필드에 그림자가 생성되었습니다.");
+    
+    setScene(Scene.LIBRARY);
   };
 
-  // 전투 승리 (정화)
   const handleBattleWin = () => {
     setGameState(prev => ({
       ...prev,
-      junk: prev.junk + (targetShadowId ? 5 : 2), // 그림자면 더 많은 보상
+      junk: prev.junk + (targetShadowId ? 5 : 2), 
       unresolvedShadows: targetShadowId 
         ? prev.unresolvedShadows.filter(s => s.id !== targetShadowId)
         : prev.unresolvedShadows
@@ -277,29 +270,29 @@ const MoneyRoomPage: React.FC = () => {
     setScene(Scene.FIELD);
   };
 
-  // 전투 도망
   const handleBattleRun = () => {
     alert("🏃 급히 도망쳤습니다...");
     setScene(Scene.FIELD);
   };
 
-  // MP 소모
   const handleConsumeMp = (amount: number) => {
     setGameState(prev => ({...prev, mp: Math.max(0, prev.mp - amount)}));
   };
 
-  // A 버튼 (상호작용/결정)
+  const handleUpdateUser = (newState: UserState) => {
+    setGameState(newState);
+  };
+
+  // Buttons
   const handleActionA = () => {
     if (scene === Scene.GARDEN) setScene(Scene.VILLAGE_MAP);
-    else if (scene === Scene.VILLAGE_MAP) setScene(Scene.WORLD_MAP); // 기본값
+    else if (scene === Scene.VILLAGE_MAP) setScene(Scene.WORLD_MAP);
     else if (scene === Scene.FIELD) {
-       // 조사하기 (랜덤 전투 or 메시지)
        if(Math.random() > 0.5) alert("아무것도 없었다.");
        else setScene(Scene.BATTLE);
     }
   };
 
-  // B 버튼 (취소/뒤로가기)
   const handleActionB = () => {
     if (scene === Scene.BATTLE) setScene(Scene.FIELD);
     else if (scene === Scene.FIELD) setScene(Scene.WORLD_MAP);
@@ -309,11 +302,10 @@ const MoneyRoomPage: React.FC = () => {
     else if (scene === Scene.MY_ROOM || scene === Scene.INVENTORY || scene === Scene.SETTINGS) setScene(Scene.GARDEN);
   };
 
-  // 하루 마감
   const handleDayEnd = () => {
     const shadowCount = gameState.unresolvedShadows?.length || 0;
     if (shadowCount > 0) {
-      if (!confirm(`🌑 그림자가 ${shadowCount}마리 남아있습니다.\n청산하지 않고 주무시겠습니까?\n(그림자는 계속 따라다닙니다)`)) return;
+      if (!confirm(`🌑 그림자가 ${shadowCount}마리 남아있습니다.\n청산하지 않고 주무시겠습니까?`)) return;
     }
 
     const { newState } = applyDayEnd(gameState);
@@ -323,7 +315,6 @@ const MoneyRoomPage: React.FC = () => {
     setShowDailyLog(true);
   };
 
-  // 기타 핸들러
   const handleOnboarding = (data: any) => {
     setGameState(prev => ({
       ...prev,
@@ -332,13 +323,13 @@ const MoneyRoomPage: React.FC = () => {
       maxBudget: data.budget.total,
       currentBudget: data.budget.current,
       lunaCycle: { ...prev.lunaCycle, startDate: data.luna.nextPeriodDate || todayStr },
+      materials: {}, // 온보딩 시에도 초기화 보장
     }));
   };
-  const handlePullSeed = () => { /* 가챠 로직 (생략 - 기존 유지) */ };
+  const handlePullSeed = () => { /* 가챠 로직 */ };
   const handleAddSub = (p: SubscriptionPlan) => setGameState(prev => ({...prev, subscriptions: [...prev.subscriptions, p]}));
   const handleRemoveSub = (id: string) => setGameState(prev => ({...prev, subscriptions: prev.subscriptions.filter(s => s.id !== id)}));
 
-  // 전투용 몬스터 데이터 생성
   const battleMonster: MonsterStat = targetShadowId
     ? { name: '지출의 그림자', hp: 50, maxHp: 50, attack: 10, sprite: '👻', rewardJunk: 5 }
     : { name: '잡동사니 몬스터', hp: 30, maxHp: 30, attack: 5, sprite: '📦', rewardJunk: 2 };
@@ -359,7 +350,6 @@ const MoneyRoomPage: React.FC = () => {
           </div>
           <span>{weatherMeta.icon}</span>
         </div>
-        {/* HP Bar */}
         <div style={consoleStyles.hpBarFrame}>
           <div style={{
             ...consoleStyles.hpBarFill, width: `${Math.max(0, hpPercent)}%`,
@@ -369,7 +359,6 @@ const MoneyRoomPage: React.FC = () => {
             HP {gameState.currentBudget.toLocaleString()} / {gameState.maxBudget.toLocaleString()}
           </span>
         </div>
-        {/* MP & Seeds */}
         <div style={consoleStyles.hudRowBottom}>
           <span style={{ color: '#60a5fa' }}>MP {gameState.mp}/{gameState.maxMp}</span>
           <span onClick={() => setRewardOpen(true)} style={{ cursor: 'pointer', color: gameState.seedPackets ? '#4ade80' : '#6b7280' }}>
@@ -390,28 +379,38 @@ const MoneyRoomPage: React.FC = () => {
           {scene === Scene.GARDEN && (
             <GardenView user={gameState} onChangeScene={setScene} onDayEnd={handleDayEnd} />
           )}
+          
+          {/* MyRoom with Stats */}
           {scene === Scene.MY_ROOM && (
             <MyRoomView 
               user={gameState} 
+              rpgStats={gameState.stats || { attack: 1, defense: 10 }}
               onBack={() => setScene(Scene.GARDEN)} 
               onOpenInventory={() => setScene(Scene.INVENTORY)}
               onOpenSettings={() => setScene(Scene.SETTINGS)}
             />
           )}
-          {scene === Scene.VILLAGE_MAP && <VillageMap onChangeScene={setScene} />}
+
+          {scene === Scene.VILLAGE_MAP && (
+             <VillageMap 
+                onChangeScene={setScene} 
+                npcAffection={gameState.npcAffection}
+                onNpcInteraction={(id) => alert(`${id}와 대화 시도!`)} // 임시 핸들러
+             />
+          )}
           
           {/* 건물 내부 */}
           {scene === Scene.LIBRARY && (
             <LibraryView 
-              onRecordSpend={handleRecordSpend} 
+              onRecordSpend={handleRecordSpend} // [수정] 인자 전달
               onOpenSubs={() => setScene(Scene.SUBSCRIPTION)} 
               onBack={() => setScene(Scene.VILLAGE_MAP)} 
             />
           )}
           {scene === Scene.FORGE && (
             <ForgeView 
-              materials={gameState.materials} 
-              onCraft={() => applyCraftEquipment(gameState)} // 임시 연결
+              user={gameState} 
+              onUpdateUser={handleUpdateUser} 
               onBack={() => setScene(Scene.VILLAGE_MAP)} 
             />
           )}
@@ -450,7 +449,6 @@ const MoneyRoomPage: React.FC = () => {
 
       {/* [CONTROLLER] 하단 조작부 */}
       <div style={consoleStyles.controlDeck}>
-        {/* D-Pad */}
         <div style={consoleStyles.dpadArea}>
           <div style={consoleStyles.dpad}>
              <div style={consoleStyles.dpadUp} onClick={() => handleMove(0, -10)}>▲</div>
@@ -461,7 +459,6 @@ const MoneyRoomPage: React.FC = () => {
           <div style={{marginTop:4, fontSize:9, color:'#64748b'}}>MOVE</div>
         </div>
 
-        {/* Action Buttons */}
         <div style={consoleStyles.actionBtnArea}>
           <div style={consoleStyles.btnGroup}>
             <button style={consoleStyles.actionBtnB} onClick={handleActionB}>B</button>
@@ -473,7 +470,6 @@ const MoneyRoomPage: React.FC = () => {
           </div>
         </div>
 
-        {/* System Buttons */}
         <div style={consoleStyles.systemBtnArea}>
            <div style={consoleStyles.btnGroup}>
              <button style={consoleStyles.systemBtn} onClick={() => setScene(Scene.KINGDOM)} />
@@ -486,7 +482,6 @@ const MoneyRoomPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Global Overlays */}
       <DailyLogModal open={showDailyLog} onClose={()=>setShowDailyLog(false)} today={todayStr} hp={hpPercent} mp={gameState.mp} def={0} junkToday={0} defenseActionsToday={0} noSpendStreak={0} pending={[]} />
       <RewardModal open={rewardOpen} seedPackets={gameState.seedPackets || 0} lastReward={lastReward} onPull={handlePullSeed} onClose={() => setRewardOpen(false)} />
     </div>
