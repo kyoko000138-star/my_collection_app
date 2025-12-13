@@ -20,17 +20,11 @@ export enum Scene {
   SETTINGS = 'SETTINGS'
 }
 
-// [NEW] 월드 로케이션 ID
 export type LocationId = 'VILLAGE_BASE' | 'CITY_CAPITAL' | 'FOREST_OUTLAW';
 
 export type ItemEffectType = 
-  | 'MP_RESTORE'      // MP 회복
-  | 'MP_COST_DOWN'    // MP 소모 감소
-  | 'SALT_BOOST'      // Salt 획득량 증가
-  | 'JUNK_CLEAN'      // Junk 정화/제거
-  | 'GROWTH_BOOST'    // 정원 성장 속도 증가
-  | 'NPC_LOVE'        // NPC 호감도 상승
-  | 'NONE';
+  | 'MP_RESTORE' | 'MP_COST_DOWN' | 'SALT_BOOST' | 'JUNK_CLEAN' 
+  | 'GROWTH_BOOST' | 'NPC_LOVE' | 'NONE';
 
 // -------------------------
 // Items & Recipes
@@ -70,11 +64,11 @@ export interface InventoryItem {
 // State Interfaces
 // -------------------------
 export interface AssetBuildingsState {
-  fence: number;      // 방어
-  greenhouse: number; // 무지출
-  mansion: number;    // 고정비
-  fountain: number;   // 정화
-  barn: number;       // 파밍
+  fence: number;
+  greenhouse: number;
+  mansion: number;
+  fountain: number;
+  barn: number;
 }
 
 export interface AssetBuildingView {
@@ -89,7 +83,8 @@ export interface FieldObject {
   id: string;
   x: number;
   y: number;
-  type: 'JUNK' | 'HERB' | 'CHEST';
+  // [NEW] SIGNPOST(이정표) 타입 추가
+  type: 'JUNK' | 'HERB' | 'CHEST' | 'SIGNPOST';
   isCollected: boolean;
 }
 
@@ -212,7 +207,7 @@ export interface UserState {
     defense: number;
   };
 
-  // [NEW] 현재 위치 (마을)
   currentLocation: LocationId;
-} 
-// 👆 이 닫는 중괄호가 없어서 에러가 났던 것입니다!
+  // [NEW] 해금된 지역 목록
+  unlockedLocations: LocationId[];
+}
