@@ -19,11 +19,12 @@ import {
   applySubscriptionChargesIfDue,
   getAssetBuildingsView,
   getDailyMonster,
+  applyUseGardenItem // [NEW] Import 필수!
 } from '../money/moneyGameLogic';
 import { getKSTDateString, getMoneyWeather, getWeatherMeta } from '../money/moneyWeather';
 import { pullGacha, RewardItem, DECOR_EMOJI } from '../money/rewardData';
 
-// Views (Screens)
+// Views
 import { GardenView } from '../money/components/GardenView'; 
 import { VillageMap } from '../money/components/VillageMap';
 import { LibraryView } from '../money/components/LibraryView';
@@ -36,7 +37,7 @@ import { SettingsView } from '../money/components/SettingsView';
 import { ForgeView } from '../money/components/ForgeView';
 import { ShopView } from '../money/components/ShopView';
 
-// Modals (Overlays)
+// Modals
 import { WeatherOverlay } from '../money/components/WeatherOverlay';
 import { RewardModal } from '../money/components/RewardModal';
 import { KingdomModal } from '../money/components/KingdomModal'; 
@@ -47,9 +48,6 @@ import { SubscriptionModal } from '../money/components/SubscriptionModal';
 
 const STORAGE_KEY = 'money-room-save-v5-full';
 
-// ---------------------------------------------------------
-// 2. Initial Data & Helpers
-// ---------------------------------------------------------
 const INITIAL_ASSETS: AssetBuildingsState = {
   fence: 0, greenhouse: 0, mansion: 0, fountain: 0, barn: 0
 };
@@ -71,7 +69,6 @@ const INITIAL_STATE: UserState = {
   inventory: [],
   collection: [],
   pending: [],
-  // [핵심] materials 초기화 보장
   materials: {}, 
   assets: INITIAL_ASSETS,
   counters: {
@@ -85,7 +82,6 @@ const INITIAL_STATE: UserState = {
   stats: { attack: 1, defense: 10 }
 };
 
-// 데이터 마이그레이션 및 병합 헬퍼
 const mergeUserState = (base: UserState, saved: Partial<UserState>): UserState => {
   return {
     ...base,
@@ -96,17 +92,12 @@ const mergeUserState = (base: UserState, saved: Partial<UserState>): UserState =
     inventory: Array.isArray(saved.inventory) ? saved.inventory : base.inventory,
     subscriptions: Array.isArray(saved.subscriptions) ? saved.subscriptions : base.subscriptions,
     unresolvedShadows: Array.isArray(saved.unresolvedShadows) ? saved.unresolvedShadows : base.unresolvedShadows,
-    // [핵심] materials 병합 시에도 안전장치
     materials: { ...base.materials, ...(saved.materials || {}) },
     npcAffection: { ...base.npcAffection, ...(saved.npcAffection || {}) }
   };
 };
 
-// ---------------------------------------------------------
-// 3. Main Component
-// ---------------------------------------------------------
 const MoneyRoomPage: React.FC = () => {
-  // --- State ---
   const [gameState, setGameState] = useState<UserState>(() => {
     try {
       const savedRaw = localStorage.getItem(STORAGE_KEY);
@@ -120,18 +111,14 @@ const MoneyRoomPage: React.FC = () => {
 
   const [scene, setScene] = useState<Scene>(Scene.GARDEN);
   const [activeDungeon, setActiveDungeon] = useState<string>('etc');
-  
-  // 탐험 & 전투 관련 State
   const [playerPos, setPlayerPos] = useState({ x: 50, y: 50 });
   const [fieldObjects, setFieldObjects] = useState<FieldObject[]>([]);
   const [targetShadowId, setTargetShadowId] = useState<string | null>(null); 
 
-  // Modals
   const [showDailyLog, setShowDailyLog] = useState(false);
   const [rewardOpen, setRewardOpen] = useState(false);
   const [lastReward, setLastReward] = useState<RewardItem | null>(null);
 
-  // --- Effects ---
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
   }, [gameState]);
@@ -141,7 +128,6 @@ const MoneyRoomPage: React.FC = () => {
       const merged = mergeUserState(INITIAL_STATE, prev);
       const reset = checkDailyReset(merged);
       const sub = applySubscriptionChargesIfDue(reset);
-      
       if (sub.logs.length > 0) {
         alert(`[자동 청구]\n${sub.logs.join('\n')}`);
       }
@@ -149,7 +135,6 @@ const MoneyRoomPage: React.FC = () => {
     });
   }, []);
 
-  // Helpers
   const todayStr = useMemo(() => getKSTDateString(), []);
   const weather = getMoneyWeather(gameState);
   const weatherMeta = getWeatherMeta(weather);
@@ -158,11 +143,6 @@ const MoneyRoomPage: React.FC = () => {
     : 0;
   const isNewUser = gameState.maxBudget === 0;
 
-  // -------------------------------------------------------
-  // 4. Logic & Handlers
-  // -------------------------------------------------------
-
-  // [Helper] 필드 아이템 재생성 (무한 맵 이동 시)
   const regenerateFieldItems = () => {
     const newObjects: FieldObject[] = Array.from({ length: 5 }).map((_, i) => ({
       id: `obj_${Date.now()}_${i}`,
@@ -231,7 +211,6 @@ const MoneyRoomPage: React.FC = () => {
     });
   };
 
-  // [수정] 도서관 지출 기록 -> 그림자 생성 (타입 전달)
   const handleRecordSpend = (amount: number, type: 'SPEND' | 'INSTALLMENT' | 'LOAN', description: string) => {
     let dungeonType = 'etc';
     if (type === 'INSTALLMENT') dungeonType = 'shopping'; 
@@ -283,7 +262,17 @@ const MoneyRoomPage: React.FC = () => {
     setGameState(newState);
   };
 
-  // Buttons
+  // [NEW] Garden Item Handler
+  const handleUseGardenItem = (itemId: string) => {
+    const result = applyUseGardenItem(gameState, itemId);
+    if (result.success) {
+      setGameState(result.newState);
+      alert(`✨ ${result.message}`);
+    } else {
+      alert(`🚫 ${result.message}`);
+    }
+  };
+
   const handleActionA = () => {
     if (scene === Scene.GARDEN) setScene(Scene.VILLAGE_MAP);
     else if (scene === Scene.VILLAGE_MAP) setScene(Scene.WORLD_MAP);
@@ -334,41 +323,6 @@ const MoneyRoomPage: React.FC = () => {
     ? { name: '지출의 그림자', hp: 50, maxHp: 50, attack: 10, sprite: '👻', rewardJunk: 5 }
     : { name: '잡동사니 몬스터', hp: 30, maxHp: 30, attack: 5, sprite: '📦', rewardJunk: 2 };
 
-
-
-  // [NEW] 정원 아이템 사용 핸들러 (뷰에서 호출할 함수)
-const handleUseGardenItem = (itemId: string) => {
-  // moneyGameLogic의 함수 호출
-  const { applyUseGardenItem } = require('../money/moneyGameLogic'); // 또는 import 상단에 추가
-  const result = applyUseGardenItem(gameState, itemId);
-  
-  if (result.success) {
-    setGameState(result.newState);
-    alert(result.message); // 또는 토스트 메시지
-  } else {
-    alert(result.message);
-  }
-};
-
-// ...
-
-// 렌더링 부분
-{scene === Scene.GARDEN && (
-  <GardenView 
-    user={gameState} 
-    onChangeScene={setScene} 
-    onDayEnd={handleDayEnd}
-    onUseItem={handleUseGardenItem} // [추가 필요] GardenView Props에 이 함수를 추가해야 함
-  />
-)}
-
-
-
-  
-
-  // -------------------------------------------------------
-  // 5. Rendering
-  // -------------------------------------------------------
   return (
     <div style={consoleStyles.body}>
       
@@ -408,7 +362,12 @@ const handleUseGardenItem = (itemId: string) => {
 
           {/* Views Switching */}
           {scene === Scene.GARDEN && (
-            <GardenView user={gameState} onChangeScene={setScene} onDayEnd={handleDayEnd} />
+            <GardenView 
+              user={gameState} 
+              onChangeScene={setScene} 
+              onDayEnd={handleDayEnd}
+              onUseItem={handleUseGardenItem} // [NEW] Pass Handler
+            />
           )}
           
           {/* MyRoom with Stats */}
@@ -426,14 +385,14 @@ const handleUseGardenItem = (itemId: string) => {
              <VillageMap 
                 onChangeScene={setScene} 
                 npcAffection={gameState.npcAffection}
-                onNpcInteraction={(id) => alert(`${id}와 대화 시도!`)} // 임시 핸들러
+                onNpcInteraction={(id) => alert(`${id}와 대화 시도!`)}
              />
           )}
           
           {/* 건물 내부 */}
           {scene === Scene.LIBRARY && (
             <LibraryView 
-              onRecordSpend={handleRecordSpend} // [수정] 인자 전달
+              onRecordSpend={handleRecordSpend} 
               onOpenSubs={() => setScene(Scene.SUBSCRIPTION)} 
               onBack={() => setScene(Scene.VILLAGE_MAP)} 
             />
